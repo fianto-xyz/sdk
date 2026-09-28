@@ -51,7 +51,10 @@ export async function verifyWebhook(
   options: VerifyOptions = {},
 ): Promise<WebhookEvent | UnknownWebhookEvent> {
   const tolerance = options.toleranceSeconds ?? 300;
-  if (!(tolerance > 0)) throw new FiantoError('toleranceSeconds must be greater than 0.');
+  if (!Number.isFinite(tolerance) || tolerance <= 0) throw new FiantoError('toleranceSeconds must be a finite number greater than 0.');
+  if (typeof rawBody !== 'string' && !(rawBody instanceof Uint8Array) && !(rawBody instanceof ArrayBuffer)) {
+    throw new FiantoError('verifyWebhook needs the raw request body (string or bytes), not parsed JSON');
+  }
 
   const id = readHeader(headers, 'webhook-id');
   const timestamp = readHeader(headers, 'webhook-timestamp');

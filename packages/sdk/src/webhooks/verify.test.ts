@@ -156,3 +156,29 @@ it('returns an unknown event type as-is', async () => {
   const headers = { 'webhook-id': id, 'webhook-timestamp': String(NOW), 'webhook-signature': `v1,${sign(secret, id, NOW, body)}` };
   await expect(verifyWebhook(body, headers, { secret, now })).resolves.toMatchObject({ type: 'invoice.created' });
 });
+
+it('refuses a non-finite toleranceSeconds', async () => {
+  const { body, headers } = signed();
+  await expect(verifyWebhook(body, headers, { secret, now, toleranceSeconds: Infinity })).rejects.toThrow(/toleranceSeconds/);
+  await expect(verifyWebhook(body, headers, { secret, now, toleranceSeconds: Number.NaN })).rejects.toThrow(/toleranceSeconds/);
+});
+
+it('refuses a parsed body with a clear FiantoError', async () => {
+  const { body, headers } = signed();
+  const error = await verifyWebhook(JSON.parse(body) as never, headers, { secret, now }).catch((e) => e);
+  expect(error).not.toBeInstanceOf(WebhookVerificationError);
+  expect(String(error.message)).toBe('verifyWebhook needs the raw request body (string or bytes), not parsed JSON');
+});
+
+it('accepts any Headers-like object with a get function', async () => {
+  const { body, headers } = signed();
+  const like = { get: (name: string) => (headers as Record<string, string>)[name] ?? null };
+  await expect(verifyWebhook(body, like as never, { secret, now })).resolves.toBeDefined();
+});
+
+it('honours options.now far from the real clock', async () => {
+  const past = NOW - 86_400;
+  const { body, headers } = signed({ ts: past });
+  await expect(verifyWebhook(body, headers, { secret, now: () => past * 1000 })).resolves.toBeDefined();
+  expect(await reason(verifyWebhook(body, headers, { secret }))).toBe('timestamp_out_of_tolerance');
+});
