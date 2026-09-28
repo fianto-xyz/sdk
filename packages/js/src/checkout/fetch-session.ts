@@ -39,7 +39,14 @@ export async function fetchCheckoutSession(endpoint: string | URL, init: FetchCh
     if (init.signal?.aborted) throw cause;
     throw new CheckoutSessionError('network_error', 'Could not reach your checkout route.');
   }
-  const body = (await response.json().catch(() => null)) as { error?: { code?: unknown; message?: unknown } } | null;
+  // An aborted signal can also cut off the body read itself, after headers already came back
+  // (the `fetch()` call above already resolved, so that catch never sees it). Swallowing THIS
+  // rejection as "just a bad/empty body" would turn a real abort into a misleading
+  // `session_request_failed` instead of the caller's own abort error.
+  const body = (await response.json().catch((cause: unknown) => {
+    if (init.signal?.aborted) throw cause;
+    return null;
+  })) as { error?: { code?: unknown; message?: unknown } } | null;
   if (!response.ok) {
     const code = body?.error?.code;
     const message = body?.error?.message;

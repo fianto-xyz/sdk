@@ -77,6 +77,25 @@ it('rethrows an abort from the caller as is', async () => {
   await expect(fetchCheckoutSession('/x', { signal: controller.signal })).rejects.toBe(abort);
 });
 
+// The `fetch()` call itself can resolve (headers arrived) before an abort cuts off the body
+// read that follows — that rejection must surface as the caller's own abort, not get swallowed
+// into a misleading InvalidSessionError/session_request_failed the way any other bad body would.
+it('rethrows an abort that cuts off the response body read, not InvalidSessionError', async () => {
+  const controller = new AbortController();
+  const abort = new DOMException('aborted', 'AbortError');
+  const fakeResponse = {
+    ok: true,
+    status: 200,
+    headers: new Headers(),
+    json: () => {
+      controller.abort();
+      return Promise.reject(abort);
+    },
+  } as unknown as Response;
+  vi.stubGlobal('fetch', vi.fn(async () => fakeResponse));
+  await expect(fetchCheckoutSession('/x', { signal: controller.signal })).rejects.toBe(abort);
+});
+
 it.each([
   ['a body that is not { id, url }', { ok: true }],
   ['an insecure url', { id: 'fian_cs_1', url: 'http://pay.fianto.test/c/x' }],
