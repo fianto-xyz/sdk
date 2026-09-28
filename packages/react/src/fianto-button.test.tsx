@@ -70,3 +70,33 @@ it('shows the in-progress message and calls onError on a 409 FiantoCheckoutError
   const status = container.querySelector('.fianto-status')!;
   expect(status.textContent).toBe('A payment for this order is already in progress.');
 });
+
+it('clears the 6s status timer on unmount, not just on a later re-render', async () => {
+  // Fake timers so the 6s status-clear timeout never actually fires during the test; we only
+  // assert it gets cleared, not that it would eventually run.
+  vi.useFakeTimers();
+  mountPopup();
+  const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+  const { container, unmount } = render(
+    <FiantoButton
+      session={async () => {
+        throw new FiantoCheckoutError('payment_in_progress', 'x');
+      }}
+    />,
+  );
+  const button = container.querySelector('button')!;
+  await act(async () => {
+    fireEvent.click(button);
+    // Flush the native-promise microtask chain (session() rejecting -> resolveSession ->
+    // openCheckout's catch -> the hook's .then) without relying on any timer: fake timers only
+    // replace macrotasks (setTimeout/setInterval), so plain microtask ticks still settle it.
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  });
+  expect(container.querySelector('.fianto-status')!.textContent).toBe('A payment for this order is already in progress.');
+  expect(vi.getTimerCount()).toBeGreaterThan(0);
+  clearTimeoutSpy.mockClear();
+  unmount();
+  expect(clearTimeoutSpy).toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+  vi.useRealTimers();
+});

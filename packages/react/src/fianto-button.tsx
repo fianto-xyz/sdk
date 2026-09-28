@@ -26,8 +26,17 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
   { session, fallback, onResult, onError, className, style, theme, label, shape, size, locale, loading, disabled },
   ref,
 ) {
-  const navigatorLanguage = typeof navigator !== 'undefined' ? navigator.language : undefined;
-  const resolved = resolveButtonOptions({ theme, label, shape, size, locale, loading, disabled }, navigatorLanguage);
+  // `locale` resolves only from the explicit prop during render — never from `navigator`, which
+  // differs between the server and a non-English browser and would otherwise mismatch React's
+  // hydration check. Once mounted, an effect adopts the navigator-derived locale into state (only
+  // when no `locale` prop was given), so the button settles into the visitor's language on the
+  // client without ever touching `navigator` during render itself.
+  const [autoLocale, setAutoLocale] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (locale === undefined && typeof navigator !== 'undefined') setAutoLocale(navigator.language);
+  }, [locale]);
+
+  const resolved = resolveButtonOptions({ theme, label, shape, size, locale, loading, disabled }, autoLocale);
   const { open, status, result, error } = useCheckout({ session, fallback });
   const [statusText, setStatusText] = useState('');
   const statusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -40,6 +49,17 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
     },
     [],
   );
+
+  // A fresh open() clears any error text left over from a previous attempt.
+  useEffect(() => {
+    if (status === 'open') {
+      setStatusText('');
+      if (statusTimer.current !== undefined) {
+        clearTimeout(statusTimer.current);
+        statusTimer.current = undefined;
+      }
+    }
+  }, [status]);
 
   // Fire the callbacks as a side effect of the hook's state settling (not inline in the click
   // handler's `.then`), so a stale closure over `onResult`/`onError` can never fire twice for the
