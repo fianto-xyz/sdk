@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fianto Express example</title>
+    <script src="/fianto-button.js"></script>
+  </head>
+  <body style="font-family: system-ui, sans-serif; max-width: 480px; margin: 10vh auto; text-align: center">
+    <h1>fianto Express + plain HTML example</h1>
+    <p>Buy a coffee with the Pay with fianto button — no bundler, no framework.</p>
+
+    <fianto-button session-endpoint="/api/checkout" data-plan="pro" label="buy"></fianto-button>
+
+    <p id="status" role="status"></p>
+
+    <script>
+      var button = document.querySelector('fianto-button');
+      var status = document.getElementById('status');
+
+      // Money safety — see @fianto/js's README ("The four statuses") before changing this
+      // copy:
+      //   - "succeeded" means the payer's browser saw checkout finish ON THE CHECKOUT PAGE.
+      //     It is NOT proof of payment or settlement — only a verified `order.paid` webhook
+      //     (see ../src/app.ts's onOrderPaid) or a server-side fianto.orders.retrieve(id) call
+      //     proves that.
+      //   - "closed" means UNKNOWN, not "nothing was charged" — the popup closed without ever
+      //     posting a result back. Never tell the payer nothing was charged on this status.
+      var COPY = {
+        succeeded: 'Almost done — we are confirming your payment. This page will not tell you when it settles.',
+        canceled: 'Checkout canceled. You have not been charged.',
+        expired: 'That checkout link expired. Please try again.',
+        closed:
+          "We couldn't tell what happened. If you were charged, it will show up on your account shortly — please do not assume nothing happened.",
+      };
+
+      button.addEventListener('fianto:result', function (event) {
+        status.textContent = COPY[event.detail.status] || 'Unexpected status: ' + event.detail.status;
+      });
+
+      button.addEventListener('fianto:error', function (event) {
+        status.textContent = 'Something went wrong: ' + event.detail.message;
+      });
+    </script>
+  </body>
+</html>

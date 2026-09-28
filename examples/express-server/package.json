@@ -1,0 +1,24 @@
+{
+  "name": "express-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Express + plain-HTML example: fianto checkout and webhooks with no framework glue beyond @fianto/express.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fianto/express": "workspace:*",
+    "@fianto/js": "workspace:*",
+    "@fianto/sdk": "workspace:*",
+    "express": "5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "^24",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,54 @@
+# fianto Next.js example
+
+A minimal Next.js App Router app showing an end-to-end subscription checkout with `@fianto/nextjs`
+and `@fianto/react`:
+
+- `app/page.tsx` — a Server Component that renders `<PayButton plan="pro" />`.
+- `app/pay-button.tsx` — a client component wrapping `@fianto/react`'s `<FiantoButton>`, showing
+  the money-safe copy for each of the four checkout statuses.
+- `app/api/checkout/route.ts` — `Checkout()` from `@fianto/nextjs`. Decides the price and
+  `order_id` **on the server** from a `PLANS` map, never from the request body.
+- `app/api/webhooks/fianto/route.ts` — `Webhooks()` from `@fianto/nextjs`. This is where an order
+  or subscription actually gets fulfilled.
+
+## Setup
+
+```bash
+cp .env.example .env.local
+```
+
+| Env var | Meaning |
+|---|---|
+| `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials. Server-side only. |
+| `FIANTO_BASE_URL` | The fianto deployment these credentials belong to (mainnet or devnet — there is no default). |
+| `FIANTO_WEBHOOK_SECRET` | The signing secret for the endpoint you register at `/api/webhooks/fianto`. |
+| `FIANTO_PRICE_PRO` | The id of the recurring Price backing the "pro" plan. |
+
+## Run
+
+```bash
+pnpm --filter nextjs-app dev
+```
+
+Then open http://localhost:3000.
+
+To receive webhooks locally, forward events from your fianto dashboard's event log to this app
+with the CLI (from the repo root, in another terminal):
+
+```bash
+npx fianto events tail --forward-to http://localhost:3000/api/webhooks/fianto
+```
+
+`typecheck` (`pnpm --filter nextjs-app typecheck`, and the workspace root's `pnpm typecheck`)
+runs `tsc --noEmit` in CI. `next build` is not run in CI — it needs no network, but it's slow —
+so run it locally (`pnpm --filter nextjs-app build`) before shipping a change here.
+
+## Money safety
+
+The checkout button's `succeeded` status means the payer's browser saw checkout finish **on the
+checkout page** — it is not proof of payment or settlement. This example only logs fulfilment
+inside the webhook handler (`onOrderPaid`, `onSubscriptionRenewed`); a real app would write to its
+database there, deduped on `event.id` in the same transaction as the write (delivery is
+at-least-once and unordered). The `closed` status means **unknown**, not "nothing was charged" —
+never tell a payer nothing was charged based on the browser's view alone. See `@fianto/sdk`'s and
+`@fianto/js`'s READMEs for the full detail behind both statuses.
