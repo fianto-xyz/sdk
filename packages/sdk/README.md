@@ -73,33 +73,42 @@ the secret.
 
 ## Resources
 
-`opts` on write methods: `{ idempotencyKey?: string; timeoutMs?: number; signal?: AbortSignal; maxRetries?: number }`.
+`options` on every method: `{ idempotencyKey?: string; timeoutMs?: number; signal?: AbortSignal; maxRetries?: number }`
+(`idempotencyKey` only does anything on a write). `params` sits BETWEEN `id` and `options` on
+every method below, even the ones that don't take any yet (`retrieve`, `cancel`,
+`reissueLink`, `sendTestEvent` — `params` is `{}` for these today, but still occupies that
+position): pass `{}` explicitly, or an object literal, to reach `options` as the third argument.
 
 | Method | Route |
 |---|---|
-| `fianto.application.retrieve(opts?)` | `GET v1/application` |
-| `fianto.checkoutSessions.create(params, opts?)` | `POST v1/checkout-sessions` |
-| `fianto.checkoutSessions.retrieve(id, opts?)` | `GET v1/checkout-sessions/:id` |
-| `fianto.checkoutSessions.cancel(id, opts?)` | `POST v1/checkout-sessions/:id/cancel` |
-| `fianto.checkoutSessions.reissueLink(id, opts?)` | `POST v1/checkout-sessions/:id/link` |
-| `fianto.orders.retrieve(id, opts?)` | `GET v1/orders/:id` |
-| `fianto.orders.retrieveByOrderId(orderId, opts?)` | `GET v1/orders/lookup?order_id=` |
-| `fianto.orders.list(params?, opts?)` | `GET v1/orders` |
-| `fianto.payments.retrieve(id, opts?)` | `GET v1/payments/:id` |
-| `fianto.payments.list(params?, opts?)` | `GET v1/payments` |
-| `fianto.subscriptions.retrieve(id, opts?)` | `GET v1/subscriptions/:id` |
-| `fianto.subscriptions.list(params?, opts?)` | `GET v1/subscriptions` |
-| `fianto.subscriptions.cancel(id, { at: 'now' \| 'period_end' }, opts?)` | `POST v1/subscriptions/:id/cancel` |
-| `fianto.products.retrieve(id, opts?)` | `GET v1/products/:id` |
-| `fianto.products.list(params?, opts?)` | `GET v1/products` |
-| `fianto.prices.retrieve(id, opts?)` | `GET v1/prices/:id` |
-| `fianto.prices.list(params?, opts?)` | `GET v1/prices` |
-| `fianto.events.retrieve(id, opts?)` | `GET v1/events/:id` |
-| `fianto.events.list(params?, opts?)` | `GET v1/events` |
-| `fianto.webhookEndpoint.sendTestEvent(opts?)` | `POST v1/webhook/test-event` |
+| `fianto.application.retrieve(params?, options?)` | `GET v1/application` |
+| `fianto.checkoutSessions.create(params, options?)` | `POST v1/checkout-sessions` |
+| `fianto.checkoutSessions.retrieve(id, params?, options?)` | `GET v1/checkout-sessions/:id` |
+| `fianto.checkoutSessions.cancel(id, params?, options?)` | `POST v1/checkout-sessions/:id/cancel` |
+| `fianto.checkoutSessions.reissueLink(id, params?, options?)` | `POST v1/checkout-sessions/:id/link` |
+| `fianto.orders.retrieve(id, params?, options?)` | `GET v1/orders/:id` |
+| `fianto.orders.retrieveByOrderId(orderId, options?)` | `GET v1/orders/lookup?order_id=` |
+| `fianto.orders.list(params?, options?)` | `GET v1/orders` |
+| `fianto.payments.retrieve(id, params?, options?)` | `GET v1/payments/:id` |
+| `fianto.payments.list(params?, options?)` | `GET v1/payments` |
+| `fianto.subscriptions.retrieve(id, params?, options?)` | `GET v1/subscriptions/:id` |
+| `fianto.subscriptions.list(params?, options?)` | `GET v1/subscriptions` |
+| `fianto.subscriptions.cancel(id, { at: 'now' \| 'period_end' }, options?)` | `POST v1/subscriptions/:id/cancel` |
+| `fianto.products.retrieve(id, params?, options?)` | `GET v1/products/:id` |
+| `fianto.products.list(params?, options?)` | `GET v1/products` |
+| `fianto.prices.retrieve(id, params?, options?)` | `GET v1/prices/:id` |
+| `fianto.prices.list(params?, options?)` | `GET v1/prices` |
+| `fianto.events.retrieve(id, params?, options?)` | `GET v1/events/:id` |
+| `fianto.events.list(params?, options?)` | `GET v1/events` |
+| `fianto.webhookEndpoint.sendTestEvent(params?, options?)` | `POST v1/webhook/test-event` |
 
 Path ids are validated client-side against `^[A-Za-z0-9_]{1,64}$` before any request is sent —
 an invalid id never reaches the network.
+
+`fianto.events.retrieve`/`.list` resolve to `FiantoEvent` — the same typed union `@fianto/sdk/webhooks`
+delivers, plus the wire's own `object: 'event'` discriminator. It's named `FiantoEvent`, not
+`Event`: the generated schema's own name would otherwise shadow the DOM global and break
+`instanceof Event` and similar checks for anyone importing it.
 
 ## Pagination
 
@@ -133,7 +142,7 @@ cursor after a full last page, so the next fetch comes back empty rather than lo
 ## Idempotency and retries
 
 Every `POST` sends an `Idempotency-Key` — `crypto.randomUUID()` by default, generated **once
-per logical call and reused on every retry** of that call (pass `opts.idempotencyKey` to supply
+per logical call and reused on every retry** of that call (pass `options.idempotencyKey` to supply
 your own). This matters because a checkout session's `url` is returned exactly once, in the
 create response: if the response is lost after the API created the session, a retry under the
 same key gets the stored response back (`Idempotent-Replayed: true` header) with the same `url`,
@@ -196,12 +205,19 @@ FiantoError
 │  ├─ RateLimitError          429 (retryAfterSeconds?)
 │  ├─ ServiceUnavailableError 503
 │  └─ InternalServerError     other 5xx
-├─ ConnectionError   the request never got a response
-└─ TimeoutError      the request didn't finish within timeoutMs
+├─ ConnectionError   the request never got a response (incl. a redirect: see below)
+├─ TimeoutError      the request didn't finish within timeoutMs — code: 'timeout'
+├─ AbortError        options.signal was aborted — code: 'aborted'
+└─ UsdcError         thrown by `usdc.*` (see Amounts below) — code: 'invalid_usdc_amount'
 ```
 
 `code` is a stable machine-readable string (see `ErrorCode`); `message` is for humans. A
-non-JSON error body still yields an `APIError` with `code: 'unknown'`.
+non-JSON error body still yields an `APIError` with `code: 'unknown'`. A redirect response is
+never followed (`redirect: 'manual'` under the hood) — it's treated as a `ConnectionError` like
+any other response that never produced usable data, not silently sent somewhere else. A
+retryable response whose `Retry-After` exceeds 10 s is not waited out: the `RateLimitError` (or
+other retryable error) is thrown at once, with `retryAfterSeconds` set, rather than holding the
+call for an unpredictable amount of time.
 
 ```ts
 import { APIError, ErrorCode, Fianto, isFiantoError, type CheckoutSessionCreateParams } from '@fianto/sdk';
@@ -221,6 +237,14 @@ try {
   throw err;
 }
 ```
+
+`isFiantoError(err)` (any `FiantoError`) and `isFiantoError(err, code)` (narrowed to that code)
+are brand-based (`Symbol.for`, not a class check), so they — and, specifically,
+`err instanceof FiantoError` itself — correctly recognise an error even from a different copy of
+this package (ESM+CJS in the same app, or two versions in a monorepo), unlike
+`instanceof <a specific subclass>` (`APIError`, `RateLimitError`, …), which still uses the
+ordinary prototype-chain check and can miss across copies. Prefer `isFiantoError`/`isAPIError`
+over `instanceof` for anything that decides behaviour.
 
 Every `APIError` carries `requestId` (from the body's `request_id`, falling back to the
 `X-Request-Id` response header) — include it when contacting support.
@@ -538,10 +562,13 @@ you cannot see from there whether a transaction is still confirming on-chain.
   backend yourself. Double check it (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the
   deployment you intend.
 
-- **`instanceof FiantoError` is false for an error you know came from the SDK** — the package
-  ships both ESM and CommonJS builds. If one app loads `@fianto/sdk` through both `require` and
-  `import` (directly or via a dependency), it gets two copies with two sets of classes. Use one
-  module format throughout (or compare `err.name` as a last resort).
+- **`err instanceof RateLimitError` (or any other specific subclass) is false for an error you
+  know came from the SDK** — the package ships both ESM and CommonJS builds, so an app that
+  loads `@fianto/sdk` through both `require` and `import` (directly or via a dependency) gets two
+  copies with two sets of classes; a subclass check still uses the ordinary prototype chain and
+  can miss across copies. `err instanceof FiantoError` itself doesn't have this problem (see
+  [Errors](#errors)); for a specific subclass or code, use `isFiantoError(err, code)` /
+  `isAPIError(err)` instead of `instanceof`.
 
 ## License
 
