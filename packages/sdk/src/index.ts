@@ -1,4 +1,5 @@
 export { Fianto } from './client.js';
+export { DEFAULT_BASE_URL } from './core/config.js';
 export type { ClientOptions } from './core/config.js';
 export type { RequestOptions } from './core/transport.js';
 export { PagePromise } from './core/pagination.js';

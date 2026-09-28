@@ -19,7 +19,7 @@ checkout from a page), see `@fianto/js`.
 ```ts
 import { Fianto } from '@fianto/sdk';
 
-// Reads FIANTO_APP_ID, FIANTO_APP_SECRET, FIANTO_BASE_URL from the environment.
+// Reads FIANTO_APP_ID, FIANTO_APP_SECRET from the environment (FIANTO_BASE_URL is optional).
 const fianto = new Fianto();
 
 const session = await fianto.checkoutSessions.create({
@@ -44,7 +44,7 @@ Never fulfil an order from this response alone — see [Money safety](#money-saf
 new Fianto({
   appId, // default: process.env.FIANTO_APP_ID
   appSecret, // default: process.env.FIANTO_APP_SECRET — server-side only
-  baseUrl, // default: process.env.FIANTO_BASE_URL
+  baseUrl, // default: process.env.FIANTO_BASE_URL, else https://api.fianto.xyz
   timeoutMs: 30_000,
   maxRetries: 2,
   fetch, // optional custom fetch
@@ -56,14 +56,14 @@ new Fianto({
 |---|---|---|---|
 | `appId` | `FIANTO_APP_ID` | — (required) | |
 | `appSecret` | `FIANTO_APP_SECRET` | — (required) | Never send to a browser. |
-| `baseUrl` | `FIANTO_BASE_URL` | — (required) | **No default.** Mainnet and devnet are separate deployments with no fixed production domain, so an implicit default could silently point devnet code at mainnet. Point this at whichever deployment you're integrating against. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
+| `baseUrl` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` | The production fianto API. Override it for devnet, self-hosting or a local backend, e.g. `http://localhost:3000`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
 | `dangerouslyAllowBrowser` | — | `false` | Constructing `Fianto` where `window`/`document` exist throws unless this is `true`. There is no publishable/browser-safe key: the merchant's server always creates checkout sessions (see [Checkout route](#checkout-route)). |
 
-A missing `appId`, `appSecret` or `baseUrl` throws a `FiantoError` at construction, naming the
-option and the env var to set.
+A missing `appId` or `appSecret` throws a `FiantoError` at construction, naming the option and
+the env var to set. `baseUrl` needs neither: it falls back to the production API.
 
 ## Resources
 
@@ -398,8 +398,8 @@ you cannot see from there whether a transaction is still confirming on-chain.
 
 ## Troubleshooting
 
-- **`Missing appId: pass it to new Fianto({ appId }) or set FIANTO_APP_ID.`** (or `appSecret` /
-  `baseUrl`) — the named env var isn't set and no option was passed.
+- **`Missing appId: pass it to new Fianto({ appId }) or set FIANTO_APP_ID.`** (or `appSecret`) —
+  the named env var isn't set and no option was passed.
 - **`401` / `code: 'invalid_api_credentials'`** — wrong `appId`/`appSecret` pair, or credentials
   for the wrong deployment (see the next point).
 - **Webhook signature verification fails intermittently or always** — almost always a re-encoded
@@ -407,9 +407,10 @@ you cannot see from there whether a transaction is still confirming on-chain.
   that string-decodes non-UTF-8 bytes) ran before your handler and handed you bytes that differ
   from what fianto signed. Read the raw body yourself, before any parser touches it (see the
   Express adapter's README for the concrete fix).
-- **Requests succeed against the wrong environment** — `baseUrl` has no default on purpose:
-  mainnet and devnet are separate deployments with separate credentials. Double check
-  `FIANTO_BASE_URL` (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the deployment you intend.
+- **Requests succeed against the wrong environment** — `baseUrl` defaults to the production API
+  (`https://api.fianto.xyz`), so devnet or a local backend needs an explicit `FIANTO_BASE_URL` (or
+  the `baseUrl` option). Double check it (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the
+  deployment you intend.
 
 - **`instanceof FiantoError` is false for an error you know came from the SDK** — the package
   ships both ESM and CommonJS builds. If one app loads `@fianto/sdk` through both `require` and

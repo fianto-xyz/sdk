@@ -1,5 +1,5 @@
 import { FiantoError } from './errors.js';
-import { resolveConfig } from './config.js';
+import { DEFAULT_BASE_URL, resolveConfig } from './config.js';
 
 const base = { appId: 'fian_app_x', appSecret: 'fian_sk_live_y', baseUrl: 'https://api.example.com/' };
 
@@ -20,8 +20,24 @@ it('reads credentials and base URL from the environment', () => {
   expect(resolveConfig({})).toMatchObject({ appId: 'fian_app_env', baseUrl: 'https://env.example.com' });
 });
 
+it('defaults baseUrl to the production API when no option or env var is set', () => {
+  expect(resolveConfig({ appId: 'a', appSecret: 's' }).baseUrl).toBe(DEFAULT_BASE_URL);
+  expect(DEFAULT_BASE_URL).toBe('https://api.fianto.xyz');
+});
+
+it('lets FIANTO_BASE_URL override the default', () => {
+  vi.stubEnv('FIANTO_BASE_URL', 'https://env.example.com');
+  expect(resolveConfig({ appId: 'a', appSecret: 's' }).baseUrl).toBe('https://env.example.com');
+});
+
+it('lets the baseUrl option override the environment and the default', () => {
+  vi.stubEnv('FIANTO_BASE_URL', 'https://env.example.com');
+  expect(resolveConfig({ appId: 'a', appSecret: 's', baseUrl: 'https://option.example.com' }).baseUrl).toBe(
+    'https://option.example.com',
+  );
+});
+
 it('names the missing environment variable', () => {
-  expect(() => resolveConfig({ appId: 'a', appSecret: 's' })).toThrow(/FIANTO_BASE_URL/);
   expect(() => resolveConfig({ baseUrl: 'https://x.test', appSecret: 's' })).toThrow(/FIANTO_APP_ID/);
   expect(() => resolveConfig({ baseUrl: 'https://x.test', appId: 'a' })).toThrow(/FIANTO_APP_SECRET/);
 });

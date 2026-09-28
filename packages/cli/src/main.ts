@@ -45,7 +45,7 @@ Commands:
 Global flags:
   --app-id <id>          overrides FIANTO_APP_ID
   --app-secret <secret>  overrides FIANTO_APP_SECRET
-  --base-url <url>       overrides FIANTO_BASE_URL
+  --base-url <url>       overrides FIANTO_BASE_URL (default https://api.fianto.xyz)
   --help                 show this help`;
 
 const OPTIONS = {

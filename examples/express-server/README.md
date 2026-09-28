@@ -21,7 +21,7 @@ cp .env.example .env
 | Env var | Meaning |
 |---|---|
 | `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials. Server-side only. |
-| `FIANTO_BASE_URL` | The fianto deployment these credentials belong to (mainnet or devnet — there is no default). |
+| `FIANTO_BASE_URL` | Optional. The fianto deployment these credentials belong to; defaults to the production API (`https://api.fianto.xyz`). |
 | `FIANTO_WEBHOOK_SECRET` | The signing secret for the endpoint you register at `/webhooks/fianto`. |
 | `FIANTO_PRICE_PRO` | Only needed if you adapt the "pro" plan into a subscription price. |
 | `PORT` | Optional; defaults to `3100`. |

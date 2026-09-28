@@ -6,7 +6,8 @@ export class UsageError extends Error {
 export interface CliCredentials {
   appId: string;
   appSecret: string;
-  baseUrl: string;
+  /** Undefined when neither `--base-url` nor `FIANTO_BASE_URL` is set: the SDK's own default applies. */
+  baseUrl: string | undefined;
 }
 
 function required(value: string | undefined, flag: string, variable: string): string {
@@ -22,7 +23,7 @@ export function credentialsFrom(
   return {
     appId: required(flags['app-id'] ?? env.FIANTO_APP_ID, '--app-id', 'FIANTO_APP_ID'),
     appSecret: required(flags['app-secret'] ?? env.FIANTO_APP_SECRET, '--app-secret', 'FIANTO_APP_SECRET'),
-    baseUrl: required(flags['base-url'] ?? env.FIANTO_BASE_URL, '--base-url', 'FIANTO_BASE_URL'),
+    baseUrl: flags['base-url'] ?? env.FIANTO_BASE_URL,
   };
 }
 

@@ -19,13 +19,15 @@ machine or a trusted CI job — never ship it to a browser.
 Most commands call the fianto API and need application credentials, from the environment or
 flags (**flags win**):
 
-| Flag | Env var |
-|---|---|
-| `--app-id <id>` | `FIANTO_APP_ID` |
-| `--app-secret <secret>` | `FIANTO_APP_SECRET` |
-| `--base-url <url>` | `FIANTO_BASE_URL` |
+| Flag | Env var | Default |
+|---|---|---|
+| `--app-id <id>` | `FIANTO_APP_ID` | — (required) |
+| `--app-secret <secret>` | `FIANTO_APP_SECRET` | — (required) |
+| `--base-url <url>` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` |
 
-A missing one exits `2` and names exactly which flag or env var to set.
+A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exactly which flag or
+env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
+or set it for devnet, self-hosting or a local backend.
 
 Commands that sign or verify webhooks instead take a **webhook** secret:
 
@@ -199,8 +201,9 @@ webhook endpoint.
 
 ## Troubleshooting
 
-- **`Missing --app-id: pass --app-id or set FIANTO_APP_ID.`** (or `--app-secret` / `--base-url`)
-  — set the named flag or env var. `trigger --forward-to` and `sign` don't need any of these.
+- **`Missing --app-id: pass --app-id or set FIANTO_APP_ID.`** (or `--app-secret`) — set the named
+  flag or env var. `trigger --forward-to` and `sign` don't need any of these. `--base-url` is
+  never required: it defaults to the production API.
 - **`Missing --secret: pass --secret or set FIANTO_WEBHOOK_SECRET.`** — needed by `events tail`,
   `trigger --forward-to` and `sign`; use the signing secret for the endpoint you registered.
 - **`events tail` prints nothing** — the account has produced no events inside `--since` (default

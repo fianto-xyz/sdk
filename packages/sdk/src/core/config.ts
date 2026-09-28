@@ -1,11 +1,14 @@
 import { FiantoError } from './errors.js';
 
+/** The production fianto API, used when neither `baseUrl` nor `FIANTO_BASE_URL` is set. */
+export const DEFAULT_BASE_URL = 'https://api.fianto.xyz';
+
 export interface ClientOptions {
   /** Default: process.env.FIANTO_APP_ID */
   appId?: string;
   /** Default: process.env.FIANTO_APP_SECRET. Server-side only. */
   appSecret?: string;
-  /** Default: process.env.FIANTO_BASE_URL. Required: mainnet and devnet are separate deployments. */
+  /** Default: FIANTO_BASE_URL, else https://api.fianto.xyz. Override for devnet, self-hosting or a local backend. */
   baseUrl?: string;
   /** Per attempt. Default 30 000. */
   timeoutMs?: number;
@@ -83,7 +86,7 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
   return {
     appId: required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID'),
     appSecret: required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET'),
-    baseUrl: normaliseBaseUrl(required(options.baseUrl ?? env('FIANTO_BASE_URL'), 'baseUrl', 'FIANTO_BASE_URL')),
+    baseUrl: normaliseBaseUrl(options.baseUrl ?? env('FIANTO_BASE_URL') ?? DEFAULT_BASE_URL),
     timeoutMs: options.timeoutMs === undefined ? 30_000 : assertTimeoutMs(options.timeoutMs),
     maxRetries: options.maxRetries === undefined ? 2 : assertMaxRetries(options.maxRetries),
     fetch: fetchImpl.bind(globalThis),

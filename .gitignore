@@ -4,3 +4,6 @@ dist/
 coverage/
 *.tsbuildinfo
 .next/
+.env
+.env.local
+.env.*.local
