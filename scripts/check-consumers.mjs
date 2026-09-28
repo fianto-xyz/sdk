@@ -1,0 +1,164 @@
+// Packs every published @fianto/* package (the tarball npm would actually publish, not the
+// checkout) and typechecks a tiny consumer against it under all three TypeScript module
+// resolution modes — node10 (moduleResolution: node, module: commonjs; e.g. NestJS),
+// node16 and bundler — with skipLibCheck: false, so a d.ts a real consumer can't resolve, or
+// can't parse (e.g. a JS directive banner like 'use client' leaking into a .d.ts — TS1036 under
+// skipLibCheck: false), fails CI instead of only showing up downstream.
+//
+// Run after `pnpm build`. Node >=22 only (uses recursive fs helpers and the workspace's own
+// tsc); this is a CI-only diagnostic, not something published.
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+const TSC = resolve('node_modules/.bin/tsc');
+
+// Every package.json under packages/** with a `check` script is published (examples/* are
+// private and have no `check` script — same filter check:packages uses).
+const PUBLISHED = readdirSync('packages').filter((name) => {
+  try {
+    return JSON.parse(readFileSync(`packages/${name}/package.json`, 'utf8')).scripts?.check !== undefined || name === 'cli';
+  } catch {
+    return false;
+  }
+});
+
+// What a consumer can actually `import`. @fianto/cli ships only a `bin` (no main/types/exports)
+// — nothing to import — so it's packed below (packing every published package matters: a file
+// missing from `files` would go undetected otherwise) but left out of the consumer's imports.
+const IMPORTS = {
+  sdk: ["import '@fianto/sdk';", "import '@fianto/sdk/webhooks';", "import '@fianto/sdk/handlers';"],
+  js: ["import '@fianto/js';", "import '@fianto/js/button';", "import '@fianto/js/button-core';"],
+  react: ["import '@fianto/react';"],
+  nextjs: ["import '@fianto/nextjs';"],
+  hono: ["import '@fianto/hono';"],
+  express: ["import '@fianto/express';"],
+};
+
+// Type-only dependencies the packed packages' own .d.ts files reference (@fianto/hono ->
+// `hono`, @fianto/express -> `express`/`@types/express`, @fianto/react -> `react`). Sourced
+// from the workspace's own installed copies rather than reinstalled, so the check uses exactly
+// the versions already pinned in the lockfile.
+const PEER_TYPE_DEPS = [
+  { from: 'packages/react/node_modules/react', as: 'react' },
+  { from: 'packages/react/node_modules/@types/react', as: '@types/react' },
+  { from: 'packages/hono/node_modules/hono', as: 'hono' },
+  { from: 'packages/express/node_modules/express', as: 'express' },
+  { from: 'packages/express/node_modules/@types/express', as: '@types/express' },
+];
+
+const RESOLUTIONS = {
+  node10: { module: 'commonjs', moduleResolution: 'node' },
+  node16: { module: 'node16', moduleResolution: 'node16' },
+  bundler: { module: 'esnext', moduleResolution: 'bundler' },
+};
+
+/**
+ * Cheap, precise check that runs before the (slower, less specific) compile below: a .d.ts/
+ * .d.cts must never start with a JS directive banner (e.g. react's 'use client') — that's
+ * invalid ambient-context syntax (TS1036) the moment a consumer sets skipLibCheck: false.
+ */
+function checkNoDirectiveInDts() {
+  const offenders = [];
+  for (const name of PUBLISHED) {
+    const dist = `packages/${name}/dist`;
+    if (!existsSync(dist)) continue;
+    for (const file of readdirSync(dist)) {
+      if (!/\.d\.(c|m)?ts$/.test(file)) continue;
+      const firstLine = readFileSync(join(dist, file), 'utf8').split('\n', 1)[0]?.trim();
+      if (firstLine && /^(['"])use [a-z]+\1;?$/.test(firstLine)) {
+        offenders.push(`packages/${name}/dist/${file} starts with ${JSON.stringify(firstLine)}`);
+      }
+    }
+  }
+  if (offenders.length > 0) {
+    console.error('check-consumers: a directive banner leaked into a built .d.ts:\n');
+    for (const offender of offenders) console.error(`  - ${offender}`);
+    process.exit(1);
+  }
+}
+
+function packAll(scratch) {
+  const scopeDir = join(scratch, 'node_modules', '@fianto');
+  mkdirSync(scopeDir, { recursive: true });
+  for (const name of PUBLISHED) {
+    const dir = resolve(`packages/${name}`);
+    const tarball = execFileSync('npm', ['pack', '--silent', '--pack-destination', scratch], { cwd: dir, encoding: 'utf8' }).trim();
+    const dest = join(scopeDir, name);
+    mkdirSync(dest, { recursive: true });
+    execFileSync('tar', ['xf', join(scratch, tarball), '-C', dest, '--strip-components=1']);
+  }
+}
+
+function linkPeerTypeDeps(scratch) {
+  for (const { from, as } of PEER_TYPE_DEPS) {
+    if (!existsSync(from)) continue;
+    const dest = join(scratch, 'node_modules', as);
+    mkdirSync(resolve(dest, '..'), { recursive: true });
+    symlinkSync(realpathSync(from), dest, 'dir');
+  }
+}
+
+function writeConsumer(scratch) {
+  const lines = ['// Auto-generated by scripts/check-consumers.mjs — imports every published entry point.'];
+  for (const name of PUBLISHED) {
+    if (IMPORTS[name]) lines.push(...IMPORTS[name]);
+  }
+  writeFileSync(join(scratch, 'consumer.ts'), `${lines.join('\n')}\n`);
+}
+
+function typecheck(scratch) {
+  let ok = true;
+  for (const [name, options] of Object.entries(RESOLUTIONS)) {
+    const tsconfigPath = join(scratch, `tsconfig.${name}.json`);
+    writeFileSync(
+      tsconfigPath,
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'es2022',
+            module: options.module,
+            moduleResolution: options.moduleResolution,
+            esModuleInterop: true,
+            strict: true,
+            skipLibCheck: false,
+            noEmit: true,
+            types: [],
+          },
+          include: ['consumer.ts'],
+        },
+        null,
+        2,
+      ),
+    );
+    try {
+      execFileSync(TSC, ['-p', tsconfigPath], { cwd: scratch, encoding: 'utf8', stdio: 'pipe' });
+      console.log(`check-consumers: ${name} OK`);
+    } catch (error) {
+      ok = false;
+      console.error(`check-consumers: ${name} FAILED`);
+      console.error(error.stdout || error.stderr || error.message);
+    }
+  }
+  return ok;
+}
+
+checkNoDirectiveInDts();
+
+const scratch = mkdtempSync(join(tmpdir(), 'fianto-check-consumers-'));
+let ok = false;
+try {
+  packAll(scratch);
+  linkPeerTypeDeps(scratch);
+  writeConsumer(scratch);
+  ok = typecheck(scratch);
+} finally {
+  rmSync(scratch, { recursive: true, force: true });
+}
+
+if (!ok) {
+  console.error('\ncheck-consumers: FAILED');
+  process.exit(1);
+}
+console.log('check-consumers: every published package resolves under node10, node16 and bundler');
