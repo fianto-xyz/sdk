@@ -8,5 +8,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   exports: true,
-  external: ['@fianto/sdk', 'express'],
+  deps: { neverBundle: ['@fianto/sdk', 'express'] },
 });

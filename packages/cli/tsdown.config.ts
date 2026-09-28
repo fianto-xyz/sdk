@@ -12,5 +12,5 @@ export default defineConfig({
   // platform: 'node' defaults fixedExtension to true (.mjs); the package's bin points at
   // dist/bin.js and "type": "module" already disambiguates ESM, so force the plain extension.
   fixedExtension: false,
-  external: ['@fianto/sdk'],
+  deps: { neverBundle: ['@fianto/sdk'] },
 });

@@ -8,5 +8,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   exports: true,
-  external: ['@fianto/sdk', 'hono'],
+  deps: { neverBundle: ['@fianto/sdk', 'hono'] },
 });

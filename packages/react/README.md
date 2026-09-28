@@ -59,7 +59,8 @@ export const POST = Checkout({
 not the custom element — so there is no hydration flash in Next.js: the server and the client
 render the same DOM.
 
-`fetchCheckoutSession` (re-exported from `@fianto/js`, with `CheckoutSessionError`) `POST`s its
+`fetchCheckoutSession` (re-exported from `@fianto/js`, with its errors `FiantoCheckoutError`,
+`CheckoutSessionError`, `InvalidSessionError` and `PopupBlockedError`) `POST`s its
 `body` as JSON to your route and rejects with a `CheckoutSessionError` carrying the route's
 `code` (`payment_in_progress`, `order_session_mismatch`, `rate_limited`, …), `status` and
 `retryAfter` — see [`@fianto/js`](https://github.com/fianto-xyz/sdk/tree/master/packages/js#fetchcheckoutsession).

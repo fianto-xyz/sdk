@@ -8,7 +8,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   exports: true,
-  external: ['react', 'react/jsx-runtime', '@fianto/js', '@fianto/js/button-core'],
+  deps: { neverBundle: ['react', 'react/jsx-runtime', '@fianto/js', '@fianto/js/button-core'] },
   // Next.js's App Router bundler reads the RSC boundary directive off the built file, not the
   // source: a source-level `'use client'` in src/index.ts is a rolldown "module level directive"
   // that the bundler only warns it "may not preserve" (it depends on the output staying a single
