@@ -18,6 +18,13 @@
       "rules": {
         "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*", "@fianto/sdk"], "message": "@fianto/js is browser-only: never import node:* or @fianto/sdk." }] }]
       }
+    },
+    {
+      "files": ["packages/react/src/**/*.ts", "packages/react/src/**/*.tsx"],
+      "excludeFiles": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*", "@fianto/sdk"], "message": "@fianto/react is browser-only: never import node:* or @fianto/sdk." }] }]
+      }
     }
   ]
 }
