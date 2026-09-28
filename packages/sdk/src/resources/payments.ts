@@ -11,7 +11,7 @@ export class Payments {
     return this.transport.request({ method: 'GET', path: `/v1/payments/${pathId(id)}`, query: { ...params } }, options);
   }
 
-  list(params: PaymentListParams = {}, options?: RequestOptions): PagePromise<Payment, string> {
+  list(params: PaymentListParams = {}, options?: RequestOptions): PagePromise<Payment> {
     const { cursor, ...filters } = params;
     return new PagePromise(
       (next) => this.transport.request<{ items: Payment[]; next_cursor: number | null }>(

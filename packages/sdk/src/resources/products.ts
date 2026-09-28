@@ -11,7 +11,7 @@ export class Products {
     return this.transport.request({ method: 'GET', path: `/v1/products/${pathId(id)}`, query: { ...params } }, options);
   }
 
-  list(params: ProductListParams = {}, options?: RequestOptions): PagePromise<Product, string> {
+  list(params: ProductListParams = {}, options?: RequestOptions): PagePromise<Product> {
     const { cursor, ...filters } = params;
     return new PagePromise(
       (next) => this.transport.request<{ items: Product[]; next_cursor: number | null }>(

@@ -8,23 +8,26 @@ import type { Page } from '../types.js';
  * `spec/openapi.json`; an unparseable value just starts from the first page), so this loses
  * nothing on the wire.
  */
-export function stringifyCursor<T>(raw: { items: T[]; next_cursor: number | null }): Page<T, string> {
+export function stringifyCursor<T>(raw: { items: T[]; next_cursor: number | null }): Page<T> {
   return { items: raw.items, next_cursor: raw.next_cursor === null ? null : String(raw.next_cursor) };
 }
 
 /**
  * `await` it for one page, or `for await` it for every item. Pages are fetched lazily. Iteration
  * ends on `next_cursor: null` or on an empty page (the API returns a cursor after a full last page).
+ * Not generic over the cursor's wire type: every `list()` normalises it to `Page<T>`'s opaque
+ * string (`stringifyCursor`) before it ever reaches here, so there is only one cursor shape to
+ * advertise, not a numeric one some resources never actually produce (F7/A7 fix round 1).
  */
-export class PagePromise<T, C extends string | number> implements PromiseLike<Page<T, C>>, AsyncIterable<T> {
-  private first: Promise<Page<T, C>> | undefined;
+export class PagePromise<T> implements PromiseLike<Page<T>>, AsyncIterable<T> {
+  private first: Promise<Page<T>> | undefined;
 
   constructor(
-    private readonly fetchPage: (cursor: string | undefined) => Promise<Page<T, C>>,
+    private readonly fetchPage: (cursor: string | undefined) => Promise<Page<T>>,
     private readonly startCursor?: string,
   ) {}
 
-  private firstPage(): Promise<Page<T, C>> {
+  private firstPage(): Promise<Page<T>> {
     this.first ??= this.fetchPage(this.startCursor);
     return this.first;
   }
@@ -32,18 +35,18 @@ export class PagePromise<T, C extends string | number> implements PromiseLike<Pa
   // Deliberately thenable: `await`ing a list() call is the documented way to get its first page,
   // alongside `for await` for every item.
   // oxlint-disable-next-line unicorn/no-thenable -- see comment above
-  then<R1 = Page<T, C>, R2 = never>(
-    onfulfilled?: ((value: Page<T, C>) => R1 | PromiseLike<R1>) | null,
+  then<R1 = Page<T>, R2 = never>(
+    onfulfilled?: ((value: Page<T>) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
   ): Promise<R1 | R2> {
     return this.firstPage().then(onfulfilled, onrejected);
   }
 
-  catch<R = never>(onrejected?: ((reason: unknown) => R | PromiseLike<R>) | null): Promise<Page<T, C> | R> {
+  catch<R = never>(onrejected?: ((reason: unknown) => R | PromiseLike<R>) | null): Promise<Page<T> | R> {
     return this.firstPage().catch(onrejected);
   }
 
-  finally(onfinally?: (() => void) | null): Promise<Page<T, C>> {
+  finally(onfinally?: (() => void) | null): Promise<Page<T>> {
     return this.firstPage().finally(onfinally);
   }
 
@@ -52,7 +55,7 @@ export class PagePromise<T, C extends string | number> implements PromiseLike<Pa
     for (;;) {
       yield* page.items;
       if (page.next_cursor === null || page.items.length === 0) return;
-      page = await this.fetchPage(String(page.next_cursor));
+      page = await this.fetchPage(page.next_cursor);
       if (page.items.length === 0) return;
     }
   }

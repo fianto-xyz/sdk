@@ -11,7 +11,7 @@ export class Subscriptions {
     return this.transport.request({ method: 'GET', path: `/v1/subscriptions/${pathId(id)}`, query: { ...params } }, options);
   }
 
-  list(params: SubscriptionListParams = {}, options?: RequestOptions): PagePromise<Subscription, string> {
+  list(params: SubscriptionListParams = {}, options?: RequestOptions): PagePromise<Subscription> {
     const { cursor, ...filters } = params;
     return new PagePromise(
       (next) => this.transport.request<{ items: Subscription[]; next_cursor: number | null }>(

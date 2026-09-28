@@ -16,7 +16,7 @@ export class Orders {
     return this.transport.request({ method: 'GET', path: '/v1/orders/lookup', query: { order_id: orderId } }, options);
   }
 
-  list(params: OrderListParams = {}, options?: RequestOptions): PagePromise<Order, string> {
+  list(params: OrderListParams = {}, options?: RequestOptions): PagePromise<Order> {
     const { cursor, ...filters } = params;
     return new PagePromise(
       (next) => this.transport.request<{ items: Order[]; next_cursor: number | null }>(

@@ -11,10 +11,10 @@ export class Events {
     return this.transport.request({ method: 'GET', path: `/v1/events/${pathId(id)}`, query: { ...params } }, options);
   }
 
-  list(params: EventListParams = {}, options?: RequestOptions): PagePromise<FiantoEvent, string> {
+  list(params: EventListParams = {}, options?: RequestOptions): PagePromise<FiantoEvent> {
     const { cursor, ...filters } = params;
     return new PagePromise(
-      (next) => this.transport.request<Page<FiantoEvent, string>>(
+      (next) => this.transport.request<Page<FiantoEvent>>(
         { method: 'GET', path: '/v1/events', query: { ...filters, cursor: next } },
         options,
       ),

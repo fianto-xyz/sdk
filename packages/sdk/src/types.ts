@@ -48,7 +48,11 @@ export type ProductListParams = Query<'products.list'>;
 export type PriceListParams = Query<'prices.list'>;
 export type EventListParams = Query<'events.list'>;
 
-export interface Page<T, C> {
+/**
+ * A `next_cursor` is always this opaque string (or `null`, on the last page) — every `list()`
+ * normalises it, whatever the wire sent (F7/A7; see `core/pagination.ts`'s `stringifyCursor`).
+ */
+export interface Page<T> {
   items: T[];
-  next_cursor: C | null;
+  next_cursor: string | null;
 }
