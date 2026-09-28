@@ -87,7 +87,12 @@ for (const readme of readmes) {
     }
     const ext = lang === 'tsx' ? 'tsx' : 'ts';
     const name = `${slug(readme)}-${index}.${ext}`;
-    writeFileSync(join(OUT_DIR, name), body);
+    // Every block is wrapped as its own module (the brief's wording), whether or not it happens
+    // to carry an import/export of its own — otherwise a block with neither (e.g. a bare
+    // `for await`/top-level `await`) fails with "await expressions are only allowed at the top
+    // level of a file when that file is a module" for a reason that has nothing to do with the
+    // snippet actually being wrong.
+    writeFileSync(join(OUT_DIR, name), `export {};\n${body}`);
     files.push(name);
   }
 }
