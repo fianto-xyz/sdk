@@ -8,7 +8,12 @@ export interface ClientOptions {
   appId?: string;
   /** Default: process.env.FIANTO_APP_SECRET. Server-side only. */
   appSecret?: string;
-  /** Default: FIANTO_BASE_URL, else https://api.fianto.xyz. Override for devnet, self-hosting or a local backend. */
+  /**
+   * Default: FIANTO_BASE_URL, else https://api.fianto.xyz. Override for a self-hosted or local
+   * backend. There is no separate "devnet" API host to switch to — the Solana cluster a
+   * deployment settles against (devnet vs. mainnet-beta) is that backend's own configuration,
+   * not something `baseUrl` selects.
+   */
   baseUrl?: string;
   /** Per attempt. Default 30 000. */
   timeoutMs?: number;
