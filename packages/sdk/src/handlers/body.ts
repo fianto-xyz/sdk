@@ -14,6 +14,10 @@ function tooLarge(limit: number): WebhookVerificationError {
   return new WebhookVerificationError('payload_too_large', `The webhook body is larger than ${limit} bytes.`);
 }
 
+function notBytes(): WebhookVerificationError {
+  return new WebhookVerificationError('invalid_payload', 'The webhook body stream did not yield bytes.');
+}
+
 /**
  * Reads the request body into one buffer that starts with `prefix` (what the signature covers
  * ahead of the body), so verification needs no further copy. Refuses a declared content-length
@@ -31,6 +35,14 @@ export async function readBoundedBody(request: Request, prefix: Uint8Array, limi
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      // A well-behaved ReadableStream<Uint8Array> only ever yields Uint8Array chunks, but
+      // nothing enforces that at runtime (a mocked or third-party stream could yield anything).
+      // A non-Uint8Array chunk makes `.byteLength` undefined and `size` NaN, and `size > limit`
+      // is always false for NaN — silently bypassing the bound this function exists to enforce.
+      if (!(value instanceof Uint8Array)) {
+        reader.cancel().catch(() => undefined);
+        throw notBytes();
+      }
       size += value.byteLength;
       if (size > limit) {
         reader.cancel().catch(() => undefined);
