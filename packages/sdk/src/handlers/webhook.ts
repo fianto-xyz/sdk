@@ -1,4 +1,4 @@
-import { WebhookVerificationError } from '../webhooks/errors.js';
+import { isWebhookVerificationError, type WebhookVerificationError } from '../webhooks/errors.js';
 import type { UnknownWebhookEvent, WebhookEvent, WebhookEventOf, WebhookEventType } from '../webhooks/events.js';
 import { verifyWebhook } from '../webhooks/verify.js';
 import { json } from './respond.js';
@@ -71,7 +71,7 @@ export function createWebhookHandler(options: WebhookHandlerOptions = {}): (requ
       const body = new Uint8Array(await request.arrayBuffer());
       event = await verifyWebhook(body, request.headers, { secret: options.secret, toleranceSeconds: options.toleranceSeconds });
     } catch (error) {
-      if (!(error instanceof WebhookVerificationError)) throw error;
+      if (!isWebhookVerificationError(error)) throw error;
       report(() => options.onVerificationError?.(error));
       return json(400, { error: 'invalid_webhook' });
     }

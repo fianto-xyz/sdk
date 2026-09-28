@@ -1,4 +1,4 @@
-import { FiantoError } from '../core/errors.js';
+import { FiantoError, isFiantoError } from '../core/errors.js';
 
 export type WebhookVerificationFailure =
   | 'missing_headers'
@@ -12,4 +12,12 @@ export class WebhookVerificationError extends FiantoError {
   constructor(readonly reason: WebhookVerificationFailure, message: string) {
     super(message);
   }
+}
+
+/**
+ * Brand-based, cross-copy-safe check (see `isFiantoError`): true for a `WebhookVerificationError`
+ * even one thrown by a different copy of this package, unlike `instanceof`.
+ */
+export function isWebhookVerificationError(error: unknown): error is WebhookVerificationError {
+  return isFiantoError(error) && error.name === 'WebhookVerificationError';
 }

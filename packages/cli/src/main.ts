@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { APIError, FiantoError, type Fianto } from '@fianto/sdk';
+import { isAPIError, isFiantoError, type Fianto } from '@fianto/sdk';
 import { eventsGet } from './commands/events-get.js';
 import { eventsList } from './commands/events-list.js';
 import { eventsTail } from './commands/events-tail.js';
@@ -174,11 +174,11 @@ function parseTimestamp(raw: string | undefined): number | undefined {
 
 function handleError(deps: Deps, error: unknown): number {
   if (error instanceof UsageError) return usageFail(deps, error.message);
-  if (error instanceof APIError) {
+  if (isAPIError(error)) {
     deps.output.err(`${error.code}: ${error.message} (request ${error.requestId ?? 'unknown'})`);
     return 1;
   }
-  if (error instanceof FiantoError) {
+  if (isFiantoError(error)) {
     deps.output.err(error.message);
     return 1;
   }

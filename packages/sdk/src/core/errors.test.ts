@@ -1,7 +1,7 @@
 import {
-  APIError, AuthenticationError, ConflictError, FiantoError, InternalServerError,
+  AbortError, APIError, AuthenticationError, ConflictError, ConnectionError, FiantoError, InternalServerError,
   InvalidRequestError, NotFoundError, PermissionDeniedError, RateLimitError,
-  ServiceUnavailableError, errorFromResponse, isFiantoError, parseRetryAfter,
+  ServiceUnavailableError, errorFromResponse, isAPIError, isFiantoError, parseRetryAfter,
 } from './errors.js';
 
 const body = (code: string, extra: Record<string, unknown> = {}) => ({
@@ -58,4 +58,51 @@ it('narrows by code', () => {
   expect(isFiantoError(error, 'payment_in_progress')).toBe(true);
   expect(isFiantoError(error, 'order_already_paid')).toBe(false);
   expect(isFiantoError(new Error('x'))).toBe(false);
+});
+
+it('narrows a non-API FiantoError by its own stable code too', () => {
+  const abort: unknown = new AbortError(new Error('cancel'));
+  expect(isFiantoError(abort, 'aborted')).toBe(true);
+  expect(isFiantoError(abort, 'timeout')).toBe(false);
+});
+
+it('isAPIError picks out the HTTP-response family, not every FiantoError', () => {
+  const api = errorFromResponse(500, body('internal_error'), new Headers());
+  expect(isAPIError(api)).toBe(true);
+  expect(isAPIError(new ConnectionError('down'))).toBe(false);
+  expect(isAPIError(new AbortError())).toBe(false);
+  expect(isAPIError(new Error('x'))).toBe(false);
+  expect(isAPIError(null)).toBe(false);
+});
+
+it('AbortError carries the abort reason as cause and a stable code', () => {
+  const reason = new Error('user cancelled');
+  const error = new AbortError(reason);
+  expect(error).toBeInstanceOf(FiantoError);
+  expect(error.code).toBe('aborted');
+  expect(error.cause).toBe(reason);
+});
+
+// F4/B8: `instanceof FiantoError` must recognise an error minted by a *different* copy of this
+// module (simulated here by an object with the same brand but a foreign prototype), the way a
+// dual ESM/CJS install or two versions in a monorepo would produce one.
+it('instanceof FiantoError recognises a brand from a different copy of this module', () => {
+  class OtherCopyError extends Error {}
+  const foreign = Object.assign(new OtherCopyError('from another copy'), { [Symbol.for('fianto.error')]: true });
+  expect(foreign instanceof FiantoError).toBe(true);
+  expect(isFiantoError(foreign)).toBe(true);
+  expect(foreign instanceof OtherCopyError).toBe(true);
+});
+
+it('a tagged non-Error is never mistaken for a FiantoError', () => {
+  const notAnError = { [Symbol.for('fianto.error')]: true };
+  expect(notAnError instanceof FiantoError).toBe(false);
+  expect(isFiantoError(notAnError)).toBe(false);
+});
+
+it('instanceof on a specific subclass still uses the ordinary prototype chain', () => {
+  const api = errorFromResponse(429, body('rate_limited'), new Headers());
+  expect(api).toBeInstanceOf(RateLimitError);
+  expect(api).not.toBeInstanceOf(InvalidRequestError);
+  expect(new ConnectionError('down')).not.toBeInstanceOf(RateLimitError);
 });

@@ -2,8 +2,15 @@ import {
   createCheckoutHandler, createWebhookHandler,
   type CheckoutHandlerOptions, type WebhookHandlerOptions,
 } from '@fianto/sdk/handlers';
+import { isFiantoError } from '@fianto/sdk';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { PayloadTooLargeError, sendFetchResponse, toFetchRequest } from './bridge.js';
+import { sendFetchResponse, toFetchRequest } from './bridge.js';
+
+function isPayloadTooLargeError(error: unknown): boolean {
+  // Brand-based, cross-copy-safe check (see isFiantoError): PayloadTooLargeError extends
+  // @fianto/sdk's FiantoError, so instanceof would fail across a dual-package install.
+  return isFiantoError(error) && error.name === 'PayloadTooLargeError';
+}
 
 function adapt(handler: (request: globalThis.Request) => Promise<globalThis.Response>): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -11,7 +18,7 @@ function adapt(handler: (request: globalThis.Request) => Promise<globalThis.Resp
       .then(handler)
       .then((response) => sendFetchResponse(res, response))
       .catch((error: unknown) => {
-        if (error instanceof PayloadTooLargeError) {
+        if (isPayloadTooLargeError(error)) {
           res.status(413).json({ error: 'payload_too_large' });
           return;
         }

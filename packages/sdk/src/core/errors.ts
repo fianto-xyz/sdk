@@ -1,6 +1,38 @@
+import type { ErrorCode } from '../generated/error-codes.js';
+
+/**
+ * A well-known symbol (via `Symbol.for`, the global symbol registry) that every `FiantoError`
+ * carries. `isFiantoError`/`isAPIError` check this brand instead of `instanceof` so error
+ * detection survives a dual-package install (two copies of `@fianto/sdk` — ESM+CJS, or two
+ * versions in a monorepo): `instanceof` fails across copies because each copy has its own
+ * `FiantoError` constructor/prototype, but `Symbol.for` always returns the same symbol.
+ */
+const BRAND = Symbol.for('fianto.error');
+
+function hasBrand(value: unknown): value is FiantoError {
+  // `instanceof Error` (the realm-global built-in, not our own `FiantoError`) is what keeps this
+  // from mistaking an unrelated tagged object for a real error, while still crossing package copies.
+  return value instanceof Error && (value as unknown as Record<PropertyKey, unknown>)[BRAND] === true;
+}
+
 /** Base class of every error this SDK throws. */
 export class FiantoError extends Error {
   override name = 'FiantoError';
+  /** @internal cross-copy brand, see `isFiantoError`. */
+  readonly [BRAND] = true;
+
+  /**
+   * Makes `x instanceof FiantoError` recognise an instance created by a different copy of this
+   * package (see `BRAND`). Subclasses (`APIError`, `RateLimitError`, ...) inherit this static
+   * method too, but `this` is bound to whichever class is on the right of `instanceof`, so
+   * `x instanceof RateLimitError` still falls through to the ordinary prototype-chain check —
+   * only `x instanceof FiantoError` itself gets the brand-based, cross-copy behaviour. Prefer
+   * `isFiantoError`/`isAPIError` over `instanceof` for anything that decides behaviour.
+   */
+  static [Symbol.hasInstance](instance: unknown): instance is FiantoError {
+    if (this === FiantoError) return hasBrand(instance);
+    return Function.prototype[Symbol.hasInstance].call(this, instance) as boolean;
+  }
 }
 
 export interface ApiErrorBody {
@@ -71,12 +103,22 @@ export class ConnectionError extends FiantoError {
 /** The request did not finish within `timeoutMs`. */
 export class TimeoutError extends FiantoError {
   override name = 'TimeoutError';
+  readonly code = 'timeout';
   readonly requestId: string | undefined;
   readonly idempotencyKey: string | undefined;
   constructor(message: string, options: NetworkErrorOptions = {}) {
     super(message, options);
     this.requestId = options.requestId;
     this.idempotencyKey = options.idempotencyKey;
+  }
+}
+
+/** `options.signal` was aborted. `cause` is the signal's abort reason. */
+export class AbortError extends FiantoError {
+  override name = 'AbortError';
+  readonly code = 'aborted';
+  constructor(reason?: unknown) {
+    super('The request was aborted.', { cause: reason });
   }
 }
 
@@ -109,10 +151,22 @@ export function parseRetryAfter(value: string | null, nowMs = Date.now()): numbe
   return Math.max(0, Math.ceil((at - nowMs) / 1000));
 }
 
+/**
+ * Brand-based, cross-copy-safe check: true for any `FiantoError` (from this copy of the SDK or
+ * another), unlike `instanceof <specific subclass>`. With `code`, also narrows on the error's own
+ * `.code` (an API error's stable `code`, or another `FiantoError` subclass's stable code, e.g.
+ * `AbortError`'s `'aborted'`) — duck-typed, so it works for any branded error that has one.
+ */
 export function isFiantoError(error: unknown): error is FiantoError;
-export function isFiantoError<C extends string>(error: unknown, code: C): error is APIError & { code: C };
+export function isFiantoError<C extends ErrorCode | (string & {})>(error: unknown, code: C): error is APIError & { code: C };
 export function isFiantoError(error: unknown, code?: string): boolean {
-  if (!(error instanceof FiantoError)) return false;
+  if (!hasBrand(error)) return false;
   if (code === undefined) return true;
-  return error instanceof APIError && error.code === code;
+  const actual: unknown = (error as { code?: unknown }).code;
+  return typeof actual === 'string' && actual === code;
+}
+
+/** Brand-based, cross-copy-safe check for the HTTP-response family of errors (has `.status`). */
+export function isAPIError(error: unknown): error is APIError {
+  return hasBrand(error) && typeof (error as { status?: unknown }).status === 'number';
 }

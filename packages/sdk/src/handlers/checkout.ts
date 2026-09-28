@@ -1,5 +1,5 @@
 import { Fianto } from '../client.js';
-import { APIError } from '../core/errors.js';
+import { isAPIError } from '../core/errors.js';
 import type { CheckoutSessionCreateParams } from '../types.js';
 import { json } from './respond.js';
 
@@ -44,7 +44,7 @@ export function createCheckoutHandler(options: CheckoutHandlerOptions): (request
       return json(200, { id: session.id, url: session.url });
     } catch (error) {
       options.onError?.(error);
-      if (error instanceof APIError && error.status !== 401 && error.status !== 403) {
+      if (isAPIError(error) && error.status !== 401 && error.status !== 403) {
         const retryAfter = error.headers.get('retry-after');
         return json(error.status, { error: { code: error.code, message: error.message } }, retryAfter ? { 'retry-after': retryAfter } : {});
       }
