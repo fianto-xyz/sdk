@@ -162,9 +162,8 @@ every status the browser SDK can report.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow, and how a change gets
 released (CI on every PR, a [Changesets](https://github.com/changesets/changesets) "Version
-packages" PR, then an npm publish once it merges and CI passes). The first push to master
-publishes 0.1.0 once CI passes — create the @fianto npm org and the NPM_TOKEN secret first; later
-releases go through the Changesets 'Version packages' PR.
+packages" PR, then an npm publish once it merges and CI passes) — including the one-time setup a
+maintainer needs before the first release.
 
 ## Security
 

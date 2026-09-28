@@ -35,7 +35,8 @@ Releases are automatic and run from the `release` job in `.github/workflows/ci.y
 `needs: check`: it runs only on a push to `master`, and only after every CI leg passed — a red CI
 never publishes. Nobody runs `pnpm release` by hand outside of local testing.
 
-The first push to master publishes 0.1.0 once CI passes — create the @fianto npm org and the NPM_TOKEN secret first; later releases go through the Changesets 'Version packages' PR:
+The first push to master publishes 0.1.0 once CI passes (see the maintainer setup below); later
+releases go through the Changesets 'Version packages' PR:
 
 1. Every change that affects a published package needs a changeset (see above), committed with
    the change's PR.
@@ -47,6 +48,8 @@ The first push to master publishes 0.1.0 once CI passes — create the @fianto n
    with provenance (`pnpm release`, i.e. `check:packages` then `changeset publish`) and creating
    the matching GitHub releases/tags.
 
-Before the first release can run, the `NPM_TOKEN` repository secret and the `@fianto` npm
-organization must already exist — the workflow has no way to create either. The first publish
-ships every package at `0.1.0`; only add a changeset for a version after that.
+### Maintainer setup (before the first release)
+
+The `NPM_TOKEN` repository secret and the `@fianto` npm organization must already exist before
+the first release can run — the workflow has no way to create either. Create both first. The
+first publish ships every package at `0.1.0`; only add a changeset for a version after that.
