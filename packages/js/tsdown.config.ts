@@ -2,7 +2,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig([
   {
-    entry: { index: 'src/index.ts' },
+    entry: { index: 'src/index.ts', 'button-core': 'src/button-core/index.ts' },
     format: ['esm', 'cjs'],
     platform: 'browser',
     target: 'es2022',

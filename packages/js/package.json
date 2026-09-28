@@ -42,6 +42,10 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./button-core": {
+      "import": "./dist/button-core.js",
+      "require": "./dist/button-core.cjs"
+    },
     "./package.json": "./package.json"
   }
 }
