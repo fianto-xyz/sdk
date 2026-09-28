@@ -60,13 +60,13 @@ importers:
   examples/express-server:
     dependencies:
       '@fianto/express':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/express
       '@fianto/js':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/js
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/sdk
       express:
         specifier: 5.2.1
@@ -88,13 +88,13 @@ importers:
   examples/nextjs-app:
     dependencies:
       '@fianto/nextjs':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/nextjs
       '@fianto/react':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/react
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/sdk
       next:
         specifier: 16.3.6
@@ -122,13 +122,13 @@ importers:
   packages/cli:
     dependencies:
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
 
   packages/express:
     dependencies:
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       '@types/express':
@@ -141,7 +141,7 @@ importers:
   packages/hono:
     dependencies:
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       hono:
@@ -153,7 +153,7 @@ importers:
   packages/nextjs:
     dependencies:
       '@fianto/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
       next:
         specifier: '>=15'
@@ -162,7 +162,7 @@ importers:
   packages/react:
     dependencies:
       '@fianto/js':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../js
     devDependencies:
       '@testing-library/react':

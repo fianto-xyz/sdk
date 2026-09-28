@@ -33,6 +33,6 @@
     "check": "publint"
   },
   "dependencies": {
-    "@fianto/sdk": "workspace:*"
+    "@fianto/sdk": "workspace:^"
   }
 }

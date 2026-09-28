@@ -10,9 +10,9 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@fianto/express": "workspace:*",
-    "@fianto/js": "workspace:*",
-    "@fianto/sdk": "workspace:*",
+    "@fianto/express": "workspace:^",
+    "@fianto/js": "workspace:^",
+    "@fianto/sdk": "workspace:^",
     "express": "5.2.1"
   },
   "devDependencies": {

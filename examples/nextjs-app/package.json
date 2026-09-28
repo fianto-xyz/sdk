@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fianto/nextjs": "workspace:*",
-    "@fianto/react": "workspace:*",
-    "@fianto/sdk": "workspace:*",
+    "@fianto/nextjs": "workspace:^",
+    "@fianto/react": "workspace:^",
+    "@fianto/sdk": "workspace:^",
     "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0"
