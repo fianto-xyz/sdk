@@ -112,6 +112,10 @@ devnet vs. mainnet `baseUrl`). Express-specific:
   needs the exact bytes fianto signed.
 - **Checkout route always answers `403`** — a form or `fetch` call is posting cross-site. Pass
   `allowedOrigins` if you intentionally call it from another origin you control.
+- **Checkout route answers `403` behind a TLS-terminating proxy** — Express sees `http://` and
+  the internal host, so the request's own origin never matches the browser's `https://` `Origin`.
+  Set `app.set('trust proxy', …)` to match your proxy setup, or pass
+  `allowedOrigins: ['https://shop.example']`.
 
 ## License
 

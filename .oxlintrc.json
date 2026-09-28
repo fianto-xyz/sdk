@@ -6,7 +6,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/sdk/src/**/*.ts"],
+      "files": ["packages/sdk/src/**/*.ts", "packages/hono/src/**/*.ts"],
       "excludeFiles": ["**/*.test.ts"],
       "rules": {
         "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*"], "message": "@fianto/sdk must stay runtime-neutral: use fetch/WebCrypto." }] }]

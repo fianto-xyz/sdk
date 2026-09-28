@@ -143,6 +143,20 @@ await fianto.checkoutSessions.create(params, {
 replaying the same call (same key, same body) within the key's 24-hour lifetime returns the
 original session, `url` included, instead of creating a new one.
 
+When the SDK gives up on a network failure, the `ConnectionError` / `TimeoutError` it throws
+carries `requestId` and, for a `POST`, the `idempotencyKey` it used. The request may or may not
+have reached the API; to recover, retry the same call with that key:
+
+```ts
+try {
+  session = await fianto.checkoutSessions.create(params);
+} catch (err) {
+  if ((err instanceof ConnectionError || err instanceof TimeoutError) && err.idempotencyKey) {
+    session = await fianto.checkoutSessions.create(params, { idempotencyKey: err.idempotencyKey });
+  } else throw err;
+}
+```
+
 ## Errors
 
 ```
@@ -255,6 +269,20 @@ into `500 {"error":"handler_failed"}` so fianto retries delivery. A verification
 `400 {"error":"invalid_webhook"}` without leaking the reason; pass `onVerificationError` to log
 it server-side. Non-`POST` requests get `405`.
 
+**Always wire `onVerificationError` and `onError`.** A missing or wrong secret fails exactly like
+a forged request (`400`, no detail in the response), so without `onVerificationError` a
+misconfigured deployment silently rejects every delivery. `onError(error, event)` receives
+whatever your callback or `onEvent` threw (the response is still `500`, so fianto retries).
+Neither reporter can change the response: if one throws, the throw is swallowed.
+
+```ts
+createWebhookHandler({
+  secret: process.env.FIANTO_WEBHOOK_SECRET,
+  onVerificationError: (err) => logger.warn({ reason: err.reason }, 'fianto webhook rejected'),
+  onError: (err, event) => logger.error({ err, eventId: event.id }, 'fianto webhook handler failed'),
+});
+```
+
 ### Dedupe in the same transaction as the side effect
 
 At-least-once delivery means your handler **will** see the same event more than once. Insert the
@@ -342,6 +370,9 @@ export const POST = createCheckoutHandler({
   `500 { error: { code: 'internal_error', ... } }`. Neither ever echoes your credentials or the
   full upstream error body.
 
+`onError(error)` is called for every error, including API errors passed through to the browser
+(the response is unchanged).
+
 Return a `Response` from `createSession` instead of session params to refuse the request
 yourself (a login check, a closed cart, etc.) — it's returned as-is.
 
@@ -379,6 +410,11 @@ you cannot see from there whether a transaction is still confirming on-chain.
 - **Requests succeed against the wrong environment** — `baseUrl` has no default on purpose:
   mainnet and devnet are separate deployments with separate credentials. Double check
   `FIANTO_BASE_URL` (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the deployment you intend.
+
+- **`instanceof FiantoError` is false for an error you know came from the SDK** — the package
+  ships both ESM and CommonJS builds. If one app loads `@fianto/sdk` through both `require` and
+  `import` (directly or via a dependency), it gets two copies with two sets of classes. Use one
+  module format throughout (or compare `err.name` as a last resort).
 
 ## License
 
