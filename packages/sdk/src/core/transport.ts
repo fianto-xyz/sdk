@@ -1,6 +1,6 @@
 import { VERSION } from '../version.js';
 import { assertMaxRetries, assertTimeoutMs, type ResolvedConfig } from './config.js';
-import { ConnectionError, TimeoutError, errorFromResponse, parseRetryAfter, type APIError } from './errors.js';
+import { ConnectionError, FiantoError, TimeoutError, errorFromResponse, parseRetryAfter, type APIError } from './errors.js';
 import { assertIdempotencyKey } from './ids.js';
 
 export interface RequestOptions {
@@ -24,6 +24,11 @@ export interface TransportDeps {
   now(): number;
 }
 
+/** A response body that did not parse as JSON. */
+class NotJson {
+  constructor(readonly text: string) {}
+}
+
 const RETRYABLE_409 = new Set(['idempotency_request_in_progress', 'checkout_unavailable']);
 const MAX_RETRY_AFTER_MS = 60_000;
 const MAX_BACKOFF_MS = 8_000;
@@ -31,8 +36,9 @@ const MAX_BACKOFF_MS = 8_000;
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason);
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+    const onAbort = () => { clearTimeout(timer); reject(signal!.reason); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
@@ -85,14 +91,17 @@ export class Transport {
       } catch (error) {
         if (options.signal?.aborted) throw options.signal.reason ?? error;
         const failure = (error as { name?: string })?.name === 'TimeoutError'
-          ? new TimeoutError(`fianto API request timed out after ${timeoutMs} ms`, { cause: error })
-          : new ConnectionError('Could not reach the fianto API', { cause: error });
+          ? new TimeoutError(`fianto API request timed out after ${timeoutMs} ms`, { cause: error, requestId, idempotencyKey })
+          : new ConnectionError('Could not reach the fianto API', { cause: error, requestId, idempotencyKey });
         if (last) throw failure;
         await this.deps.sleep(this.backoff(attempt), options.signal);
         continue;
       }
-      if (response.ok) return parsed as T;
-      const error = errorFromResponse(response.status, parsed, response.headers);
+      if (response.ok) {
+        if (parsed instanceof NotJson) throw new FiantoError(`fianto API answered HTTP ${response.status} with a body that is not JSON (request ${requestId})`);
+        return parsed as T;
+      }
+      const error = errorFromResponse(response.status, parsed instanceof NotJson ? parsed.text : parsed, response.headers);
       if (last || !isRetryable(error)) throw error;
       await this.deps.sleep(this.retryDelay(attempt, response.headers), options.signal);
     }
@@ -113,7 +122,7 @@ export class Transport {
     try {
       return JSON.parse(text);
     } catch {
-      return text;
+      return new NotJson(text);
     }
   }
 

@@ -1,4 +1,4 @@
-import { ConnectionError, InvalidRequestError, RateLimitError, TimeoutError } from './errors.js';
+import { ConnectionError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError } from './errors.js';
 import { resolveConfig } from './config.js';
 import { Transport } from './transport.js';
 
@@ -155,4 +155,54 @@ it('recovers a POST from a body-read failure using the same Idempotency-Key', as
   expect(result).toEqual({ id: 'fian_cs_1' });
   expect(calls).toHaveLength(2);
   expect(header(0, 'idempotency-key')).toBe(header(1, 'idempotency-key'));
+});
+
+it('attaches requestId and idempotencyKey to a network failure after giving up', async () => {
+  const { transport, header } = setup([new TypeError('fetch failed')], { maxRetries: 0 });
+  const error = await transport.request({ method: 'POST', path: '/v1/x', body: {} }, { idempotencyKey: 'k-1' }).catch((e) => e);
+  expect(error).toBeInstanceOf(ConnectionError);
+  expect(error.idempotencyKey).toBe('k-1');
+  expect(error.requestId).toBe(header(0, 'x-request-id'));
+  const t = setup([new DOMException('timed out', 'TimeoutError')], { maxRetries: 0 });
+  const timeout = await t.transport.request({ method: 'GET', path: '/v1/x' }).catch((e) => e);
+  expect(timeout).toBeInstanceOf(TimeoutError);
+  expect(timeout.requestId).toBe(t.header(0, 'x-request-id'));
+  expect(timeout.idempotencyKey).toBeUndefined();
+});
+
+it('throws FiantoError on a 2xx whose body is not JSON', async () => {
+  const { transport } = setup([new Response('<html>ok</html>', { status: 200 })]);
+  const error = await transport.request({ method: 'GET', path: '/v1/x' }).catch((e) => e);
+  expect(error).toBeInstanceOf(FiantoError);
+});
+
+it('sends an identical body and caller key on every attempt', async () => {
+  const { transport, calls, header } = setup([json(500, err('internal_error')), new TypeError('fetch failed'), json(200, {})]);
+  await transport.request({ method: 'POST', path: '/v1/x', body: { a: 1, b: [2] } }, { idempotencyKey: 'mine-1' });
+  expect(calls.map((c) => c.init.body)).toEqual(Array(3).fill('{"a":1,"b":[2]}'));
+  expect([0, 1, 2].map((i) => header(i, 'idempotency-key'))).toEqual(['mine-1', 'mine-1', 'mine-1']);
+});
+
+it('honours an HTTP-date Retry-After against deps.now', async () => {
+  const { transport, sleeps } = setup([json(503, err('x'), { 'retry-after': 'Mon, 28 Sep 2026 10:00:07 GMT' }), json(200, {})]);
+  await transport.request({ method: 'GET', path: '/v1/x' });
+  expect(sleeps).toEqual([7_000]);
+});
+
+it('retries 408, and 409 checkout_unavailable without Retry-After with backoff', async () => {
+  const { transport, calls, sleeps } = setup([json(408, err('request_timeout')), json(409, err('checkout_unavailable')), json(200, {})]);
+  await transport.request({ method: 'POST', path: '/v1/x', body: {} });
+  expect(calls).toHaveLength(3);
+  expect(sleeps).toEqual([500, 1_000]);
+});
+
+it('removes its abort listener when the default sleep timer fires', async () => {
+  const config = resolveConfig({
+    appId: 'fian_app_1', appSecret: 'fian_sk_live_2', baseUrl: 'https://api.test', maxRetries: 1,
+    fetch: (() => { let n = 0; return async () => (n++ === 0 ? json(503, err('x'), { 'retry-after': '0' }) : json(200, {})); })() as unknown as typeof fetch,
+  });
+  const controller = new AbortController();
+  const remove = vi.spyOn(controller.signal, 'removeEventListener');
+  await new Transport(config).request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal });
+  expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
 });

@@ -51,11 +51,34 @@ export class RateLimitError extends APIError {
   }
 }
 
-/** The request never produced a response (DNS, TCP, TLS, reset). */
-export class ConnectionError extends FiantoError { override name = 'ConnectionError'; }
+export interface NetworkErrorOptions extends ErrorOptions {
+  requestId?: string;
+  idempotencyKey?: string;
+}
+
+/** The request never produced a response (DNS, TCP, TLS, reset). Retry a POST with `idempotencyKey` to recover. */
+export class ConnectionError extends FiantoError {
+  override name = 'ConnectionError';
+  readonly requestId: string | undefined;
+  readonly idempotencyKey: string | undefined;
+  constructor(message: string, options: NetworkErrorOptions = {}) {
+    super(message, options);
+    this.requestId = options.requestId;
+    this.idempotencyKey = options.idempotencyKey;
+  }
+}
 
 /** The request did not finish within `timeoutMs`. */
-export class TimeoutError extends FiantoError { override name = 'TimeoutError'; }
+export class TimeoutError extends FiantoError {
+  override name = 'TimeoutError';
+  readonly requestId: string | undefined;
+  readonly idempotencyKey: string | undefined;
+  constructor(message: string, options: NetworkErrorOptions = {}) {
+    super(message, options);
+    this.requestId = options.requestId;
+    this.idempotencyKey = options.idempotencyKey;
+  }
+}
 
 function asBody(body: unknown): ApiErrorBody | undefined {
   return body && typeof body === 'object' && !Array.isArray(body) ? (body as ApiErrorBody) : undefined;
