@@ -64,8 +64,8 @@
   },
   "typesVersions": {
     "*": {
-      "button": ["./dist/button.d.ts"],
-      "button-core": ["./dist/button-core.d.ts"]
+      "button": ["./dist/button.d.cts"],
+      "button-core": ["./dist/button-core.d.cts"]
     }
   }
 }

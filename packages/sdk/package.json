@@ -60,8 +60,8 @@
   },
   "typesVersions": {
     "*": {
-      "handlers": ["./dist/handlers.d.ts"],
-      "webhooks": ["./dist/webhooks.d.ts"]
+      "handlers": ["./dist/handlers.d.cts"],
+      "webhooks": ["./dist/webhooks.d.cts"]
     }
   }
 }
