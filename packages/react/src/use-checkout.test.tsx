@@ -30,3 +30,21 @@ it('records an error and resolves undefined', async () => {
   expect(result.current.error?.message).toBe('nope');
   vi.unstubAllGlobals();
 });
+
+it('leaves open when a redirected page returns from the bfcache', async () => {
+  vi.stubGlobal('open', vi.fn(() => null));
+  const assign = vi.fn();
+  vi.stubGlobal('location', { ...window.location, assign });
+  const { result } = renderHook(() => useCheckout({ session: { id: 'fian_cs_1', url: 'https://pay.test/c/x' } }));
+  let pending!: Promise<unknown>;
+  act(() => { pending = result.current.open(); });
+  await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+  await act(async () => {
+    const event = new Event('pageshow');
+    Object.defineProperty(event, 'persisted', { value: true });
+    window.dispatchEvent(event);
+    await pending;
+  });
+  expect(result.current).toMatchObject({ status: 'done', isOpen: false, result: { status: 'closed', session_id: 'fian_cs_1' } });
+  vi.unstubAllGlobals();
+});

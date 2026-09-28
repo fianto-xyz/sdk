@@ -28,20 +28,33 @@ let cancelActive: (() => void) | null = null;
 export function openCheckout(options: OpenCheckoutOptions): Promise<CheckoutResult> {
   cancelActive?.();
   const popup = window.open('', POPUP_NAME, popupFeatures(options.popup?.width, options.popup?.height));
+
+  // A generation token, taken synchronously before `session` (which may take a while) is
+  // awaited — also on the popup-blocked path, so an older call still waiting on its session can
+  // never navigate its popup once this newer call has started. A later openCheckout() call bumps
+  // `generation` at its own entry, via `cancelActive` above if this call is already listening,
+  // or — if this call is still waiting on its own session — via the `own !== generation` check
+  // below once that session finally settles.
+  const own = ++generation;
+
   if (!popup) {
     if ((options.fallback ?? 'redirect') === 'none') return Promise.reject(new PopupBlockedError());
     return resolveSession(options.session).then((session) => {
       window.location.assign(session.url);
-      return new Promise<never>(() => {});
+      // Normally the page unloads and this never settles. If the payer comes back via the
+      // back/forward cache, this page resumes as it was: settle `closed` (UNKNOWN) so the
+      // button leaves its loading state.
+      return new Promise<CheckoutResult>((resolve) => {
+        const onPageShow = (event: PageTransitionEvent) => {
+          if (!event.persisted) return;
+          window.removeEventListener('pageshow', onPageShow);
+          resolve({ status: 'closed', session_id: session.id });
+        };
+        window.addEventListener('pageshow', onPageShow);
+      });
     });
   }
   showLoading(popup);
-
-  // A generation token, captured synchronously before `session` (which may take a while) is
-  // awaited: a later openCheckout() call bumps `generation` at its own entry, via `cancelActive`
-  // above if this call is already listening, or — if this call is still waiting on its own
-  // session — via the `own !== generation` check below once that session finally settles.
-  const own = ++generation;
 
   return resolveSession(options.session).then(
     (session) => {

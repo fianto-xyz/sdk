@@ -157,3 +157,33 @@ it('removes its listener after settling', async () => {
   await promise;
   expect(remove).toHaveBeenCalledWith('message', expect.any(Function));
 });
+
+function pageshow(persisted: boolean) {
+  const event = new Event('pageshow');
+  Object.defineProperty(event, 'persisted', { value: persisted });
+  window.dispatchEvent(event);
+}
+
+it('settles closed when the redirected page comes back from the bfcache', async () => {
+  open.mockReturnValue(null);
+  const assign = vi.fn();
+  vi.stubGlobal('location', { ...window.location, assign });
+  const remove = vi.spyOn(window, 'removeEventListener');
+  const promise = openCheckout({ session: SESSION });
+  await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(SESSION.url));
+  pageshow(false);
+  pageshow(true);
+  await expect(promise).resolves.toEqual({ status: 'closed', session_id: SESSION.id });
+  expect(remove).toHaveBeenCalledWith('pageshow', expect.any(Function));
+});
+
+it('a popup-blocked call supersedes an older pending call', async () => {
+  let resolveFirst!: (session: typeof SESSION) => void;
+  const pending = new Promise<typeof SESSION>((resolve) => { resolveFirst = resolve; });
+  const first = openCheckout({ session: () => pending });
+  open.mockReturnValue(null);
+  await expect(openCheckout({ session: SESSION, fallback: 'none' })).rejects.toBeInstanceOf(PopupBlockedError);
+  resolveFirst(SESSION);
+  await expect(first).resolves.toEqual({ status: 'closed', session_id: SESSION.id });
+  expect(popup.location.replace).not.toHaveBeenCalled();
+});
