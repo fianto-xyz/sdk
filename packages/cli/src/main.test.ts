@@ -61,6 +61,36 @@ describe('main', () => {
     expect(lines.join('\n')).toContain('Usage: fianto <command> [options]');
     expect(errors).toEqual([]);
   });
+
+  // B10
+  it('prints the version and exits 0 for --version, without touching credentials', async () => {
+    const { VERSION } = await import('./version.js');
+    const { d, lines, errors } = deps({ env: {} });
+    expect(await main(['--version'], d)).toBe(0);
+    expect(lines).toEqual([VERSION]);
+    expect(errors).toEqual([]);
+  });
+
+  it('prints the version and exits 0 for -v', async () => {
+    const { VERSION } = await import('./version.js');
+    const { d, lines } = deps({ env: {} });
+    expect(await main(['-v'], d)).toBe(0);
+    expect(lines).toEqual([VERSION]);
+  });
+
+  it('prints the cause of a top-level error on the same line, when one is present', async () => {
+    const { d, errors, client } = deps();
+    client.application.retrieve.mockRejectedValue(new Error('request failed', { cause: new Error('ECONNREFUSED') }));
+    expect(await main(['whoami'], d)).toBe(1);
+    expect(errors).toEqual(['request failed (cause: ECONNREFUSED)']);
+  });
+
+  it('omits the cause suffix when a top-level error carries none', async () => {
+    const { d, errors, client } = deps();
+    client.application.retrieve.mockRejectedValue(new Error('request failed'));
+    expect(await main(['whoami'], d)).toBe(1);
+    expect(errors).toEqual(['request failed']);
+  });
 });
 
 const SECRET = 'whsec_' + Buffer.alloc(32, 1).toString('base64');
@@ -178,6 +208,50 @@ describe('main: events tail, trigger, sign usage errors', () => {
     expect(code).toBe(0);
     expect(lines.join('\n')).toContain('webhook-id: evt_x');
     expect(lines.join('\n')).not.toContain(SECRET);
+  });
+
+  // C16
+  it('reads --secret-file (trimmed) end to end through main for sign', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'fianto-cli-main-secret-file-'));
+    const payloadFile = join(dir, 'payload.json');
+    const secretFile = join(dir, 'secret.txt');
+    writeFileSync(payloadFile, JSON.stringify({ id: 'evt_x', type: 'order.paid', timestamp: 't', data: {} }));
+    writeFileSync(secretFile, `${SECRET}\n`);
+    const { d, lines } = deps();
+    const code = await main(['sign', '--payload', payloadFile, '--secret-file', secretFile], d);
+    rmSync(dir, { recursive: true, force: true });
+    expect(code).toBe(0);
+    expect(lines.join('\n')).not.toContain(SECRET);
+  });
+
+  // C5
+  it('rejects trigger --forward-to at a non-loopback URL without --allow-remote', async () => {
+    const { d, errors } = deps({ env: {} });
+    const code = await main(['trigger', 'order.paid', '--forward-to', 'https://attacker.example/wh', '--secret', SECRET], d);
+    expect(code).toBe(2);
+    expect(errors.join('\n')).toMatch(/loopback|--allow-remote/);
+  });
+
+  it('accepts trigger --forward-to at a non-loopback URL with --allow-remote', async () => {
+    const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+    const { d, lines } = deps({ env: {}, fetch: fetch as never });
+    const code = await main(
+      ['trigger', 'order.paid', '--forward-to', 'https://ok.example/wh', '--secret', SECRET, '--allow-remote'],
+      d,
+    );
+    expect(code).toBe(0);
+    expect(lines).toEqual(['→ 200 order.paid (local sample)']);
+  });
+
+  it('warns through main when trigger --forward-to signs with FIANTO_WEBHOOK_SECRET from the env', async () => {
+    const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+    const { d, errors } = deps({ env: { FIANTO_WEBHOOK_SECRET: SECRET }, fetch: fetch as never });
+    const code = await main(['trigger', 'order.paid', '--forward-to', 'http://localhost:3000/wh'], d);
+    expect(code).toBe(0);
+    expect(errors.some((l) => /warning/i.test(l) && /environment/i.test(l))).toBe(true);
   });
 
   it('wires events tail through main and stops immediately when already aborted', async () => {

@@ -23,13 +23,18 @@ function remember(seen: Set<string>, id: string): void {
   }
 }
 
+/** What fianto actually delivers: `id`, `type`, `timestamp`, `data` — `object` is list/retrieve-only (A6). */
+function toDeliveryEnvelope(event: FiantoEvent): { id: string; type: string; timestamp: string; data: unknown } {
+  return { id: event.id, type: event.type, timestamp: event.timestamp, data: event.data };
+}
+
 async function forwardEvent(
   event: FiantoEvent,
   secret: string,
   forwardTo: string,
   deps: Pick<Deps, 'fetch' | 'now' | 'output'>,
 ): Promise<void> {
-  const { body, headers } = await signWebhook({ event, secret });
+  const { body, headers } = await signWebhook({ event: toDeliveryEnvelope(event), secret });
   const startedAt = deps.now();
   try {
     const response = await deps.fetch(forwardTo, { method: 'POST', headers, body });
@@ -46,9 +51,12 @@ async function forwardEvent(
 
 /**
  * Polls `GET v1/events` and forwards new events to a local URL, signed as fianto would sign them.
- * Runs until `deps.signal` aborts (Ctrl-C in the CLI). At-most-once per process: a crash or
- * restart re-forwards nothing already delivered and may miss events during the gap — this is a
- * dev convenience, not a delivery guarantee.
+ * Runs until `deps.signal` aborts (Ctrl-C in the CLI, see `bin.ts`) — checked only between polls,
+ * so whichever single forward is in flight at that moment always finishes first (forwards are
+ * sequential, never concurrent) before the loop notices and stops; `bin.ts` then exits 130. A
+ * second Ctrl-C exits immediately instead of waiting for that. At-most-once per process: a crash
+ * or restart re-forwards nothing already delivered and may miss events during the gap — this is
+ * a dev convenience, not a delivery guarantee.
  */
 export async function eventsTail(
   client: Fianto,
@@ -68,23 +76,37 @@ export async function eventsTail(
   );
 
   while (!deps.signal?.aborted) {
-    let page: Awaited<ReturnType<Fianto['events']['list']>>;
-    try {
-      page = await client.events.list({ limit: 100, type: options.type });
-    } catch (error) {
-      // A transient API or network failure must not end the tail: log it and poll again later.
-      const message = error instanceof Error ? error.message : String(error);
-      deps.output.out(`✗ poll failed: ${message}`);
-      await deps.sleep(options.intervalMs, deps.signal);
-      continue;
-    }
-    const candidates = page.items
-      .filter((event) => !seen.has(event.id) && Date.parse(event.timestamp) >= threshold)
-      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+    const candidates: FiantoEvent[] = [];
+    let cursor: string | undefined;
+    let pollFailed = false;
 
-    for (const event of candidates) {
-      await forwardEvent(event, options.secret, options.forwardTo, deps);
-      remember(seen, event.id);
+    // v1/events pages newest-first. Keep following next_cursor while a page still adds events
+    // this poll hasn't forwarded yet, so a burst bigger than one page (100 events) is never
+    // silently dropped (A6). Stop as soon as a page adds nothing new — everything past it is
+    // guaranteed either already forwarded or older than --since — or the pages run out.
+    for (;;) {
+      let page: Awaited<ReturnType<Fianto['events']['list']>>;
+      try {
+        page = await client.events.list({ limit: 100, type: options.type, cursor });
+      } catch (error) {
+        // A transient API or network failure must not end the tail: log it and poll again later.
+        const message = error instanceof Error ? error.message : String(error);
+        deps.output.out(`✗ poll failed: ${message}`);
+        pollFailed = true;
+        break;
+      }
+      const fresh = page.items.filter((event) => !seen.has(event.id) && Date.parse(event.timestamp) >= threshold);
+      candidates.push(...fresh);
+      if (fresh.length === 0 || page.next_cursor === null || page.items.length === 0) break;
+      cursor = page.next_cursor;
+    }
+
+    if (!pollFailed) {
+      candidates.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+      for (const event of candidates) {
+        await forwardEvent(event, options.secret, options.forwardTo, deps);
+        remember(seen, event.id);
+      }
     }
 
     await deps.sleep(options.intervalMs, deps.signal);

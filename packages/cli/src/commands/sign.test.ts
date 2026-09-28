@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -73,6 +74,30 @@ describe('sign', () => {
     await sign({ payload: odd, secret }, output);
     const curlLine = lines.find((l) => l.startsWith('curl '))!;
     expect(curlLine).toContain(`--data-binary '@${odd.replace("'", "'\\''")}'`);
+  });
+
+  // C4: every value interpolated into the printed curl command goes through the same
+  // POSIX shell-quote helper, so a hostile --id can't break out of its quoting.
+  it('single-quotes a webhook-id header containing a quote, $(...), a space and a newline (C4)', async () => {
+    const lines: string[] = [];
+    const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+    const dangerousId = "evt_x' $(touch /tmp/should-not-exist) has spaces\nand a newline";
+    await sign({ payload: file, secret, id: dangerousId, timestamp: 1_790_000_000 }, output);
+    const curlLine = lines.find((l) => l.startsWith('curl '))!;
+    const expectedQuoted = `'webhook-id: ${dangerousId.replaceAll("'", "'\\''")}'`;
+    expect(curlLine).toContain(`-H ${expectedQuoted}`);
+  });
+
+  it('evaluates the printed curl command in a real POSIX shell and proves a hostile --id runs nothing (C4)', async () => {
+    const marker = join(dir, 'PWNED');
+    const dangerousId = `evt_x' ; touch ${marker} ; echo 'y$(touch ${marker})`;
+    const lines: string[] = [];
+    const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+    await sign({ payload: file, secret, id: dangerousId, timestamp: 1_790_000_000 }, output);
+    const curlLine = lines.find((l) => l.startsWith('curl '))!;
+    // Stub out curl (no network in tests) but otherwise hand bash the exact printed line.
+    execFileSync('bash', ['-c', `curl() { :; }\n${curlLine}\n`]);
+    expect(existsSync(marker)).toBe(false);
   });
 
   it('rejects a payload file with malformed JSON, naming the file', async () => {

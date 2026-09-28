@@ -9,6 +9,7 @@ import { whoami } from './commands/whoami.js';
 import { credentialsFrom, UsageError, webhookSecretFrom, type CliCredentials } from './config.js';
 import { parseDuration } from './duration.js';
 import type { Output } from './output.js';
+import { VERSION } from './version.js';
 
 export interface Deps {
   output: Output;
@@ -32,13 +33,14 @@ Commands:
   whoami                                      application, merchant and webhook status
   events list [--type <type>] [--limit <n>]   list recent events (limit default 20, max 100)
   events get <evt_id>                         print one event as JSON
-  events tail --forward-to <url> [--secret <whsec_>] [--since <duration>] [--type <type>] [--interval <ms>]
+  events tail --forward-to <url> [--secret <whsec_>|--secret-file <path>] [--since <duration>] [--type <type>] [--interval <ms>]
                                                forward live events to a local URL (since default 5m,
                                                interval default 2000ms, Ctrl-C to stop)
-  trigger <type> [--forward-to <url>] [--secret <whsec_>]
+  trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote]
                                                send test.event via fianto, or POST a signed local
-                                               sample of <type> to --forward-to
-  sign --payload <file> [--secret <whsec_>] [--id <id>] [--timestamp <unix>]
+                                               sample of <type> to --forward-to (loopback only
+                                               unless --allow-remote)
+  sign --payload <file> [--secret <whsec_>|--secret-file <path>] [--id <id>] [--timestamp <unix>]
                                                print signed webhook headers and a curl command for a payload
   help                                        show this help
 
@@ -46,6 +48,7 @@ Global flags:
   --app-id <id>          overrides FIANTO_APP_ID
   --app-secret <secret>  overrides FIANTO_APP_SECRET
   --base-url <url>       overrides FIANTO_BASE_URL (default https://api.fianto.xyz)
+  --version, -v          print the CLI version
   --help                 show this help`;
 
 const OPTIONS = {
@@ -53,10 +56,13 @@ const OPTIONS = {
   'app-secret': { type: 'string' },
   'base-url': { type: 'string' },
   help: { type: 'boolean' },
+  version: { type: 'boolean', short: 'v' },
   type: { type: 'string' },
   limit: { type: 'string' },
   'forward-to': { type: 'string' },
   secret: { type: 'string' },
+  'secret-file': { type: 'string' },
+  'allow-remote': { type: 'boolean' },
   since: { type: 'string' },
   interval: { type: 'string' },
   payload: { type: 'string' },
@@ -74,6 +80,11 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
     return usageFail(deps, error instanceof Error ? error.message : String(error));
   }
   const { values, positionals } = parsed;
+
+  if (values.version) {
+    deps.output.out(VERSION);
+    return 0;
+  }
 
   if (values.help || positionals.length === 0 || positionals[0] === 'help') {
     deps.output.out(USAGE);
@@ -95,18 +106,23 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
         const type = rest[0];
         if (!type) throw new UsageError('trigger requires an event type, e.g. fianto trigger test.event');
         const forwardTo = values['forward-to'];
-        const secret = forwardTo ? webhookSecretFrom(values, deps.env) : undefined;
+        const secret = forwardTo ? await webhookSecretFrom(values, deps.env) : undefined;
         // Lazy: a --forward-to run makes no API call and must not require app credentials.
         const getClient = () => deps.makeClient(credentialsFrom(values, deps.env));
-        await trigger(type, { forwardTo, secret }, getClient, deps);
+        await trigger(
+          type,
+          { forwardTo, secret: secret?.secret, secretFromEnv: secret?.fromEnv, allowRemote: values['allow-remote'] },
+          getClient,
+          deps,
+        );
         return 0;
       }
       case 'sign': {
         const payload = values.payload;
         if (!payload) throw new UsageError('sign requires --payload <file>');
-        const secret = webhookSecretFrom(values, deps.env);
+        const secret = await webhookSecretFrom(values, deps.env);
         const timestamp = parseTimestamp(values.timestamp);
-        await sign({ payload, secret, id: values.id, timestamp }, deps.output);
+        await sign({ payload, secret: secret.secret, id: values.id, timestamp }, deps.output);
         return 0;
       }
       default:
@@ -135,11 +151,11 @@ async function dispatchEvents(rest: string[], values: Flags, deps: Deps): Promis
   if (sub === 'tail') {
     const forwardTo = values['forward-to'];
     if (!forwardTo) throw new UsageError('events tail requires --forward-to <url>');
-    const secret = webhookSecretFrom(values, deps.env);
+    const secret = await webhookSecretFrom(values, deps.env);
     const sinceMs = values.since === undefined ? DEFAULT_SINCE_MS : parseDuration(values.since);
     const intervalMs = parseInterval(values.interval);
     const client = deps.makeClient(credentialsFrom(values, deps.env));
-    await eventsTail(client, { forwardTo, secret, sinceMs, type: values.type, intervalMs }, deps);
+    await eventsTail(client, { forwardTo, secret: secret.secret, sinceMs, type: values.type, intervalMs }, deps);
     return 0;
   }
   throw new UsageError(`Unknown command: events ${sub ?? ''}`.trimEnd());
@@ -175,15 +191,22 @@ function parseTimestamp(raw: string | undefined): number | undefined {
 function handleError(deps: Deps, error: unknown): number {
   if (error instanceof UsageError) return usageFail(deps, error.message);
   if (isAPIError(error)) {
-    deps.output.err(`${error.code}: ${error.message} (request ${error.requestId ?? 'unknown'})`);
+    deps.output.err(withCause(`${error.code}: ${error.message} (request ${error.requestId ?? 'unknown'})`, error));
     return 1;
   }
   if (isFiantoError(error)) {
-    deps.output.err(error.message);
+    deps.output.err(withCause(error.message, error));
     return 1;
   }
-  deps.output.err(error instanceof Error ? error.message : String(error));
+  deps.output.err(withCause(error instanceof Error ? error.message : String(error), error));
   return 1;
+}
+
+/** Appends ` (cause: ...)` when `error.cause` is present, so a wrapped error's real reason isn't lost. One line. */
+function withCause(message: string, error: unknown): string {
+  if (!(error instanceof Error) || error.cause === undefined) return message;
+  const cause = error.cause instanceof Error ? error.cause.message : String(error.cause);
+  return `${message} (cause: ${cause})`;
 }
 
 function usageFail(deps: Deps, message: string): number {

@@ -65,4 +65,78 @@ describe('trigger', () => {
     ).rejects.toThrow(UsageError);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  // C5
+  describe('loopback restriction', () => {
+    it('rejects a non-loopback --forward-to by default, and never calls fetch', async () => {
+      const { output, fetch } = fakeDeps();
+      await expect(
+        trigger('order.paid', { forwardTo: 'https://attacker.example/wh', secret }, noClient, { fetch: fetch as never, output }),
+      ).rejects.toThrow(/loopback|--allow-remote/);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('accepts a non-loopback --forward-to when --allow-remote is set', async () => {
+      const { output, fetch, lines } = fakeDeps();
+      await trigger(
+        'order.paid',
+        { forwardTo: 'https://attacker.example/wh', secret, allowRemote: true },
+        noClient,
+        { fetch: fetch as never, output },
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(lines).toEqual(['→ 200 order.paid (local sample)']);
+    });
+
+    it('still accepts loopback URLs (127.0.0.0/8, [::1]) with no --allow-remote', async () => {
+      const { output, fetch } = fakeDeps();
+      await trigger('order.paid', { forwardTo: 'http://127.0.0.1:4000/wh', secret }, noClient, { fetch: fetch as never, output });
+      await trigger('order.paid', { forwardTo: 'http://[::1]:4000/wh', secret }, noClient, { fetch: fetch as never, output });
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // C5
+  it('warns on stderr when the signing secret came from the environment, and still forwards', async () => {
+    const { output, fetch, lines } = fakeDeps();
+    await trigger(
+      'order.paid',
+      { forwardTo: 'http://localhost:3000/wh', secret, secretFromEnv: true },
+      noClient,
+      { fetch: fetch as never, output },
+    );
+    expect(lines.some((l) => /warning/i.test(l) && /env/i.test(l))).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('never warns when the secret came from --secret', async () => {
+    const { output, fetch, lines } = fakeDeps();
+    await trigger(
+      'order.paid',
+      { forwardTo: 'http://localhost:3000/wh', secret, secretFromEnv: false },
+      noClient,
+      { fetch: fetch as never, output },
+    );
+    expect(lines.some((l) => /warning/i.test(l))).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  // B10
+  it('throws (exit 1 at the main() level) when the local endpoint answers non-2xx', async () => {
+    const { output, lines } = fakeDeps();
+    const fetch = vi.fn(async () => new Response('nope', { status: 500 }));
+    await expect(
+      trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output }),
+    ).rejects.toThrow(/500/);
+    // The status line is still printed before the failure is raised.
+    expect(lines).toEqual(['→ 500 order.paid (local sample)']);
+  });
+
+  it('does not throw when the local endpoint answers any 2xx', async () => {
+    const { output } = fakeDeps();
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    await expect(
+      trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output }),
+    ).resolves.toBeUndefined();
+  });
 });

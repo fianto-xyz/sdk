@@ -29,16 +29,18 @@ A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exac
 env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
 or set it for devnet, self-hosting or a local backend.
 
-Commands that sign or verify webhooks instead take a **webhook** secret:
+Commands that sign or verify webhooks instead take a **webhook** secret. Set it once as
+`FIANTO_WEBHOOK_SECRET` in your shell/CI env — the safest place for it — or override it per
+invocation with a flag:
 
-| Flag | Env var |
-|---|---|
-| `--secret <whsec_...>` | `FIANTO_WEBHOOK_SECRET` |
+| Env var | Flag | Notes |
+|---|---|---|
+| `FIANTO_WEBHOOK_SECRET` | `--secret <whsec_...>` | Highest precedence when given. |
+| — | `--secret-file <path>` | Reads the file as UTF-8 and trims it — handy for a secret mounted from a file (e.g. a Docker/K8s secret) rather than an env var. Beaten by `--secret`. |
 
-**`fianto trigger <type> --forward-to <url>` and `fianto sign` need only `--secret` /
-`FIANTO_WEBHOOK_SECRET` — no `--app-id`, `--app-secret` or `--base-url`, and no network call to
-fianto at all.** They only sign a local payload and (for `trigger --forward-to`) POST it to a
-URL you gave them.
+**`fianto trigger <type> --forward-to <url>` and `fianto sign` need only the webhook secret — no
+`--app-id`, `--app-secret` or `--base-url`, and no network call to fianto at all.** They only
+sign a local payload and (for `trigger --forward-to`) POST it to a URL you gave them.
 
 The secret is never printed — not in normal output, not in an error, not in `--help`.
 
@@ -82,7 +84,7 @@ $ fianto events get evt_x
 }
 ```
 
-### `fianto events tail --forward-to <url> [--secret <whsec_>] [--since <duration>] [--type <type>] [--interval <ms>]`
+### `fianto events tail --forward-to <url> [--secret <whsec_>|--secret-file <path>] [--since <duration>] [--type <type>] [--interval <ms>]`
 
 Polls `GET v1/events`, re-signs each new one exactly as fianto would (`signWebhook` from
 `@fianto/sdk/webhooks`), and `POST`s it to your local `--forward-to` URL — a stand-in for a real
@@ -99,8 +101,11 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   `s`, `m`, `h` or `d`). On start, only events **newer** than `now - --since` are forwarded —
   never the full 90-day event store, however far back `--since` reaches.
 - **`--interval`** defaults to `2000` (ms) and must be an integer of at least `500`.
-- **Each poll reads the newest 100 events** (`GET v1/events?limit=100`). If more than 100 events
-  arrive within one interval, the older ones in that burst are skipped — shorten `--interval`.
+- **Each poll reads events 100 at a time** (`GET v1/events?limit=100`) and follows `next_cursor`
+  across as many pages as it takes to catch up, so a burst of more than 100 new events in one
+  interval is never skipped.
+- **What's forwarded is the delivery envelope fianto itself would send** — `id`, `type`,
+  `timestamp`, `data` — not the `list`/`get` shape (which also carries `object: "event"`).
 - **A failed poll** (API or network error) prints `✗ poll failed: <message>` and tries again after
   `--interval`; the tail keeps running.
 - **Each event id is forwarded once, oldest first** — within a single poll and across polls for
@@ -110,20 +115,34 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   seen rather than retried, and a crash or restart of the CLI itself forwards nothing that
   already went out and may miss whatever landed during the gap. For fianto's own at-least-once,
   retried delivery to a real endpoint, register one in the dashboard.
+- **Ctrl-C** stops the tail after the current poll's batch finishes forwarding (never mid-request)
+  and exits `130` — it won't start a new poll. A second Ctrl-C stops immediately instead of
+  waiting.
 
-### `fianto trigger <type> [--forward-to <url>] [--secret <whsec_>]`
+### `fianto trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote]`
 
 Two different things depending on the type and `--forward-to` — see [Safety
 split](#safety-split) below.
 
 **Any** known event type (including `test.event`) **with** `--forward-to`: signs a realistic
 local sample (`sampleEvent(type)`) and `POST`s it to that URL only. No API call, no app
-credentials needed — only `--secret` / `FIANTO_WEBHOOK_SECRET`.
+credentials needed — only the webhook secret.
 
 ```
 $ fianto trigger order.paid --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
 → 200 order.paid (local sample)
 ```
+
+- **`--forward-to` only accepts a loopback URL** — `localhost`, an address in `127.0.0.0/8`, or
+  `[::1]` — **unless `--allow-remote` is passed.** A signed sample is indistinguishable from a
+  real delivery to whatever receives it; sending one to an arbitrary public URL could be mistaken
+  for (and act on) a real order. The sample data also carries unmistakable ids (`order_id:
+  "sample_order_1001"` and similar) for the same reason.
+- **A non-2xx response from `--forward-to` is treated as a failure**: the status line is still
+  printed, then the command exits `1`.
+- **A warning is printed to stderr** when the signing secret came from `FIANTO_WEBHOOK_SECRET`
+  rather than `--secret`/`--secret-file` — a nudge to notice you're about to sign with whatever
+  secret happens to be in your environment.
 
 `test.event` with **no** `--forward-to`: asks fianto itself to deliver a real, signed
 `test.event` to your registered webhook endpoint (`POST v1/webhook/test-event`, sharing the
@@ -138,11 +157,13 @@ Sent test.event evt_abc123 to your registered endpoint
 Any *other* business event type with no `--forward-to` is refused as a usage error — fianto
 will never send one of those on your behalf (see [Safety split](#safety-split)).
 
-### `fianto sign --payload <file> [--secret <whsec_>] [--id <id>] [--timestamp <unix>]`
+### `fianto sign --payload <file> [--secret <whsec_>|--secret-file <path>] [--id <id>] [--timestamp <unix>]`
 
 Reads a JSON event from `<file>`, signs it exactly as fianto would, and prints the signed body
 followed by a ready `curl` command (with `$URL` left for you to fill in). No API call — only
-`--secret` / `FIANTO_WEBHOOK_SECRET` is needed.
+the webhook secret is needed. Every value interpolated into that `curl` line — including `--id`
+— is POSIX-shell-quoted, so pasting it is safe even if `--id` contains a quote, `$(...)`, spaces
+or a newline.
 
 ```
 $ fianto sign --payload event.json --secret whsec_...
@@ -152,6 +173,10 @@ curl -X POST "$URL" -H 'content-type: application/json' -H 'webhook-id: evt_fixe
 
 `--id` defaults to the payload's own `id` field (else a fresh `evt_` id); `--timestamp` (Unix
 seconds) defaults to now.
+
+### `fianto --version` / `fianto -v`
+
+Prints the installed `@fianto/cli` version and exits `0`.
 
 ### `fianto help` / `fianto --help` / `fianto`
 
@@ -172,8 +197,9 @@ signed with your own secret — fianto's delivery pipeline is not involved.
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | A handled error. An `APIError` prints `code: message (request req_id)` to stderr; any other error prints its message to stderr. |
+| `1` | A handled error. An `APIError` prints `code: message (request req_id)` to stderr; any other error prints its message to stderr (with ` (cause: ...)` appended when the error carries a `cause`). |
 | `2` | A usage error — unknown command, unknown flag, or a required flag/env var missing. The reason, then the full usage text, go to stderr. |
+| `130` | `events tail` was stopped with Ctrl-C. |
 
 ```
 $ fianto whoami
@@ -204,8 +230,12 @@ webhook endpoint.
 - **`Missing --app-id: pass --app-id or set FIANTO_APP_ID.`** (or `--app-secret`) — set the named
   flag or env var. `trigger --forward-to` and `sign` don't need any of these. `--base-url` is
   never required: it defaults to the production API.
-- **`Missing --secret: pass --secret or set FIANTO_WEBHOOK_SECRET.`** — needed by `events tail`,
-  `trigger --forward-to` and `sign`; use the signing secret for the endpoint you registered.
+- **`Missing --secret: pass --secret, --secret-file <path>, or set FIANTO_WEBHOOK_SECRET.`** —
+  needed by `events tail`, `trigger --forward-to` and `sign`; use the signing secret for the
+  endpoint you registered.
+- **`--forward-to must be a loopback URL ... unless --allow-remote is passed.`** — `trigger` only
+  posts a signed sample to `localhost`/`127.0.0.0/8`/`[::1]` by default; pass `--allow-remote` if
+  you really mean to send it somewhere else (see [Safety split](#safety-split)).
 - **`events tail` prints nothing** — the account has produced no events inside `--since` (default
   the last 5 minutes); widen it, e.g. `--since 1d`.
 - **`events tail` shows `✗ ... fetch failed`** — your local server (`--forward-to`) isn't

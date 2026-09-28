@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { credentialsFrom, UsageError, webhookSecretFrom } from './config.js';
 
 describe('credentialsFrom', () => {
@@ -30,17 +33,67 @@ describe('credentialsFrom', () => {
 });
 
 describe('webhookSecretFrom', () => {
-  it('prefers the --secret flag over the env var', () => {
-    expect(webhookSecretFrom({ secret: 'whsec_flag' }, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).toBe('whsec_flag');
+  it('prefers the --secret flag over the env var', async () => {
+    await expect(webhookSecretFrom({ secret: 'whsec_flag' }, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).resolves.toEqual({
+      secret: 'whsec_flag',
+      fromEnv: false,
+    });
   });
 
-  it('falls back to FIANTO_WEBHOOK_SECRET when no flag is given', () => {
-    expect(webhookSecretFrom({}, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).toBe('whsec_env');
+  it('falls back to FIANTO_WEBHOOK_SECRET when no flag is given, and reports it came from the env', async () => {
+    await expect(webhookSecretFrom({}, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).resolves.toEqual({
+      secret: 'whsec_env',
+      fromEnv: true,
+    });
   });
 
-  it('throws a UsageError naming --secret and FIANTO_WEBHOOK_SECRET when neither is set', () => {
-    expect(() => webhookSecretFrom({}, {})).toThrow(UsageError);
-    expect(() => webhookSecretFrom({}, {})).toThrow(/--secret/);
-    expect(() => webhookSecretFrom({}, {})).toThrow(/FIANTO_WEBHOOK_SECRET/);
+  it('throws a UsageError naming --secret, --secret-file and FIANTO_WEBHOOK_SECRET when none is set', async () => {
+    await expect(webhookSecretFrom({}, {})).rejects.toThrow(UsageError);
+    await expect(webhookSecretFrom({}, {})).rejects.toThrow(/--secret/);
+    await expect(webhookSecretFrom({}, {})).rejects.toThrow(/--secret-file/);
+    await expect(webhookSecretFrom({}, {})).rejects.toThrow(/FIANTO_WEBHOOK_SECRET/);
+  });
+
+  describe('--secret-file', () => {
+    let dir: string;
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'fianto-cli-config-secret-file-'));
+    });
+
+    afterEach(() => {
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('reads and trims the file, and is not reported as coming from the env', async () => {
+      const file = join(dir, 'secret.txt');
+      writeFileSync(file, '  whsec_from_file  \n');
+      await expect(webhookSecretFrom({ 'secret-file': file }, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).resolves.toEqual({
+        secret: 'whsec_from_file',
+        fromEnv: false,
+      });
+    });
+
+    it('is beaten by --secret when both are given', async () => {
+      const file = join(dir, 'secret.txt');
+      writeFileSync(file, 'whsec_from_file');
+      await expect(webhookSecretFrom({ secret: 'whsec_flag', 'secret-file': file }, {})).resolves.toEqual({
+        secret: 'whsec_flag',
+        fromEnv: false,
+      });
+    });
+
+    it('rejects an empty (or all-whitespace) file', async () => {
+      const file = join(dir, 'empty.txt');
+      writeFileSync(file, '   \n');
+      await expect(webhookSecretFrom({ 'secret-file': file }, {})).rejects.toThrow(UsageError);
+    });
+
+    it('rejects a missing file, naming the path', async () => {
+      const missing = join(dir, 'nope.txt');
+      const error: unknown = await webhookSecretFrom({ 'secret-file': missing }, {}).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toContain(missing);
+    });
   });
 });

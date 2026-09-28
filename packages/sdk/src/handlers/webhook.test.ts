@@ -20,7 +20,7 @@ it('routes a verified event to its callback, then onEvent', async () => {
   const response = await handler(await post(sampleEvent('order.paid')));
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ received: true });
-  expect(order).toEqual(['paid:order_1001', 'any:order.paid']);
+  expect(order).toEqual(['paid:sample_order_1001', 'any:order.paid']);
 });
 
 it('answers the verification probe with its challenge and calls nothing else', async () => {

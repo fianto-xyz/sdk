@@ -38,16 +38,20 @@ export async function sign(options: SignInput, output: Output): Promise<void> {
   output.out(
     [
       'curl -X POST "$URL"',
-      "-H 'content-type: application/json'",
-      `-H 'webhook-id: ${headers['webhook-id']}'`,
-      `-H 'webhook-timestamp: ${headers['webhook-timestamp']}'`,
-      `-H 'webhook-signature: ${headers['webhook-signature']}'`,
+      `-H ${shellQuote('content-type: application/json')}`,
+      `-H ${shellQuote(`webhook-id: ${headers['webhook-id']}`)}`,
+      `-H ${shellQuote(`webhook-timestamp: ${headers['webhook-timestamp']}`)}`,
+      `-H ${shellQuote(`webhook-signature: ${headers['webhook-signature']}`)}`,
       `--data-binary ${shellQuote(`@${options.payload}`)}`,
     ].join(' '),
   );
 }
 
-/** Single-quotes a value for a POSIX shell, escaping embedded single quotes. */
+/**
+ * Single-quotes a value for a POSIX shell, escaping embedded single quotes (`'\''`). Every
+ * interpolated value in the printed `curl` command goes through this — an id containing `'`,
+ * `$(...)`, spaces or a newline stays inert text inside the quotes instead of breaking out (C4).
+ */
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }

@@ -91,6 +91,81 @@ describe('eventsTail extra coverage', () => {
   });
 });
 
+// A6
+it('forwards the delivery envelope only (id, type, timestamp, data), dropping object', async () => {
+  const { run, fetch } = setup([{ items: [ev('evt_x', 8)] }]);
+  await run();
+  const [, init] = fetch.mock.calls[0]!;
+  const sent = JSON.parse((init as RequestInit).body as string) as Record<string, unknown>;
+  expect(Object.keys(sent).sort()).toEqual(['data', 'id', 'timestamp', 'type']);
+  expect(sent).not.toHaveProperty('object');
+});
+
+// A6
+it('follows next_cursor across pages within one poll when more than 100 events are new, forwarding oldest first overall', async () => {
+  const controller = new AbortController();
+  const posted: string[] = [];
+  const list = vi.fn(async ({ cursor }: { cursor?: string }) => {
+    if (!cursor) return { items: [ev('evt_b', 7), ev('evt_a', 6)], next_cursor: 'p2' };
+    controller.abort();
+    return { items: [ev('evt_c', 5)], next_cursor: null };
+  });
+  const client = { events: { list } };
+  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    posted.push(JSON.parse(init.body as string).id);
+    return new Response('ok', { status: 200 });
+  });
+  await eventsTail(
+    client as never,
+    { forwardTo: 'http://localhost:3000/wh', secret, sinceMs: 5 * 60_000, intervalMs: 2000 },
+    { fetch: fetch as never, now: () => Date.parse(at(10)), sleep: async () => {}, signal: controller.signal, output: { out: () => {}, err: () => {} } },
+  );
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(list.mock.calls[1]![0]).toMatchObject({ cursor: 'p2' });
+  expect(posted).toEqual(['evt_c', 'evt_a', 'evt_b']);
+});
+
+// A6
+it('stops following next_cursor once a page adds nothing new, even if the API offers more pages', async () => {
+  const controller = new AbortController();
+  const list = vi.fn(async () => {
+    controller.abort();
+    // Older than --since (5m before now=at(10), so threshold is at(5)); every item here is
+    // filtered out, so paging must stop despite a non-null next_cursor.
+    return { items: [ev('evt_old', 0)], next_cursor: 'more' };
+  });
+  const client = { events: { list } };
+  const fetch = vi.fn();
+  await eventsTail(
+    client as never,
+    { forwardTo: 'http://localhost:3000/wh', secret, sinceMs: 5 * 60_000, intervalMs: 2000 },
+    { fetch: fetch as never, now: () => Date.parse(at(10)), sleep: async () => {}, signal: controller.signal, output: { out: () => {}, err: () => {} } },
+  );
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+// Ctrl-C: forwards run strictly sequentially (never concurrently), so whichever one is in
+// flight when the signal aborts always completes — including the rest of its poll's already
+// gathered batch — before the outer loop notices and stops starting new polls (see `bin.ts` for
+// where that becomes exit code 130).
+it('finishes the whole batch already gathered for a poll even if the signal aborts mid-poll', async () => {
+  const controller = new AbortController();
+  const posted: string[] = [];
+  const client = { events: { list: vi.fn(async () => ({ next_cursor: null, items: [ev('evt_a', 6), ev('evt_b', 7)] })) } };
+  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    posted.push(JSON.parse(init.body as string).id);
+    controller.abort(); // simulate Ctrl-C firing while the first forward is in flight
+    return new Response('ok', { status: 200 });
+  });
+  await eventsTail(
+    client as never,
+    { forwardTo: 'http://localhost:3000/wh', secret, sinceMs: 5 * 60_000, intervalMs: 2000 },
+    { fetch: fetch as never, now: () => Date.parse(at(10)), sleep: async () => {}, signal: controller.signal, output: { out: () => {}, err: () => {} } },
+  );
+  expect(posted).toEqual(['evt_a', 'evt_b']);
+});
+
 it('logs a failed poll and keeps polling after the interval', async () => {
   const controller = new AbortController();
   let calls = 0;

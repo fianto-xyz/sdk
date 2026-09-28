@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 /** A bad flag, a missing flag/env var, or an unknown command: exits 2 with usage on stderr. */
 export class UsageError extends Error {
   override name = 'UsageError';
@@ -27,7 +29,34 @@ export function credentialsFrom(
   };
 }
 
-/** Flags win over env. Throws `UsageError` naming the missing flag/env var. */
-export function webhookSecretFrom(flags: { secret?: string }, env: NodeJS.ProcessEnv): string {
-  return required(flags.secret ?? env.FIANTO_WEBHOOK_SECRET, '--secret', 'FIANTO_WEBHOOK_SECRET');
+export interface WebhookSecret {
+  secret: string;
+  /** True when neither `--secret` nor `--secret-file` was given, so `FIANTO_WEBHOOK_SECRET` supplied it. */
+  fromEnv: boolean;
+}
+
+/**
+ * `--secret` wins, then `--secret-file <path>` (read as UTF-8, trimmed), then
+ * `FIANTO_WEBHOOK_SECRET`. Throws `UsageError` naming all three when none is set, or when
+ * `--secret-file` can't be read or is empty after trimming.
+ */
+export async function webhookSecretFrom(
+  flags: { secret?: string; 'secret-file'?: string },
+  env: NodeJS.ProcessEnv,
+): Promise<WebhookSecret> {
+  if (flags.secret) return { secret: flags.secret, fromEnv: false };
+  if (flags['secret-file']) {
+    const path = flags['secret-file'];
+    let raw: string;
+    try {
+      raw = await readFile(path, 'utf8');
+    } catch (error) {
+      throw new UsageError(`Could not read --secret-file ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const secret = raw.trim();
+    if (!secret) throw new UsageError(`--secret-file ${path} is empty.`);
+    return { secret, fromEnv: false };
+  }
+  if (env.FIANTO_WEBHOOK_SECRET) return { secret: env.FIANTO_WEBHOOK_SECRET, fromEnv: true };
+  throw new UsageError('Missing --secret: pass --secret, --secret-file <path>, or set FIANTO_WEBHOOK_SECRET.');
 }

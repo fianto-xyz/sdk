@@ -3,6 +3,10 @@ import type { EndpointVerificationEvent, WebhookEventMap, WebhookEventOf, Webhoo
 const AT = '2026-09-28T10:00:00.000Z';
 const LATER = '2026-09-28T10:05:00.000Z';
 const NEXT = '2026-10-28T10:00:00.000Z';
+// `evt_` ids must stay 32 hex chars (the wire format the backend and this SDK validate), so a
+// literal "sample" can't appear in one (C5) — this all-but-one-digit pattern is unmistakably a
+// placeholder instead. The order/subscription ids below carry the "sample_" prefix that hex
+// can't: a fake `order.paid` forwarded to a real merchant backend should never match a real order.
 const EVENT_ID = `evt_${'0'.repeat(31)}1`;
 const WALLET = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
 const SIGNATURE = '5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW';
@@ -12,7 +16,7 @@ const payment = { id: 'fian_pay_sample', status: 'SUCCEEDED' as const, signature
 type SessionStatus = WebhookEventMap['checkout.session.completed']['status'];
 function session(status: SessionStatus): WebhookEventMap['checkout.session.completed'] {
   return {
-    id: 'fian_cs_sample', object: 'checkout_session', mode: 'payment', status, order_id: 'order_1001',
+    id: 'fian_cs_sample', object: 'checkout_session', mode: 'payment', status, order_id: 'sample_order_1001',
     amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC',
     interval: null, subscription: null, customer,
     payment: status === 'COMPLETED' ? payment : { id: null, status: null, signature: null },
@@ -26,7 +30,7 @@ function session(status: SessionStatus): WebhookEventMap['checkout.session.compl
 type OrderStatus = WebhookEventMap['order.paid']['status'];
 function order(status: OrderStatus): WebhookEventMap['order.paid'] {
   return {
-    id: 'fian_ord_sample', object: 'order', order_id: 'order_1001', checkout_session_id: 'fian_cs_sample', status,
+    id: 'fian_ord_sample', object: 'order', order_id: 'sample_order_1001', checkout_session_id: 'fian_cs_sample', status,
     amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC', customer,
     payment: status === 'PAID' ? { id: payment.id, signature: SIGNATURE } : { id: null, signature: null },
     metadata: { cart: 'c_1' }, created_at: AT,
@@ -38,7 +42,7 @@ function order(status: OrderStatus): WebhookEventMap['order.paid'] {
 type Sub = WebhookEventMap['subscription.created'];
 function subscription(patch: Partial<Sub>): Sub {
   return {
-    id: 'fian_sub_sample', object: 'subscription', status: 'ACTIVE', order_id: 'sub_user_42_pro',
+    id: 'fian_sub_sample', object: 'subscription', status: 'ACTIVE', order_id: 'sample_sub_user_42_pro',
     price_id: 'fian_price_sample', plan_id: 'fian_plan_sample', product_name: 'Pro plan',
     amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC',
     interval: 'MONTH', period_hours: 720, customer: { ...customer, wallet: WALLET },
