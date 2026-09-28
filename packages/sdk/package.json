@@ -23,6 +23,10 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./handlers": {
+      "import": "./dist/handlers.js",
+      "require": "./dist/handlers.cjs"
+    },
     "./webhooks": {
       "import": "./dist/webhooks.js",
       "require": "./dist/webhooks.cjs"

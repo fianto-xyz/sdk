@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', webhooks: 'src/webhooks/index.ts' },
+  entry: { index: 'src/index.ts', webhooks: 'src/webhooks/index.ts', handlers: 'src/handlers/index.ts' },
   format: ['esm', 'cjs'],
   platform: 'neutral',
   target: 'es2022',
