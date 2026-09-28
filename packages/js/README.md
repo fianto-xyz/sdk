@@ -118,9 +118,13 @@ inside that function; never construct the URL yourself.
 
 ### `fetchCheckoutSession`
 
-```ts no-check
-// Pseudo-signature — see the real one below.
-fetchCheckoutSession(endpoint, { body?, headers?, credentials?, signal? }) → Promise<{ id, url }>
+```ts
+import type { CheckoutSession, FetchCheckoutSessionInit } from '@fianto/js';
+
+declare function fetchCheckoutSession(
+  endpoint: string | URL,
+  init?: FetchCheckoutSessionInit, // { body?, headers?, credentials?, signal?, ... any other RequestInit field }
+): Promise<CheckoutSession>; // { id, url }
 ```
 
 `POST`s `body` as JSON (default `{}`, `credentials: 'same-origin'`) to your checkout route and

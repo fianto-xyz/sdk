@@ -37,11 +37,13 @@ To receive webhooks locally, forward events from your fianto dashboard's event l
 with the CLI (from the repo root, in another terminal):
 
 ```bash
-npx @fianto/cli events tail --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
+FIANTO_APP_ID=... FIANTO_APP_SECRET=... \
+  npx @fianto/cli events tail --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
 ```
 
-(the same value as `FIANTO_WEBHOOK_SECRET` above — `events tail` doesn't read your `.env.local`,
-so pass it with `--secret` or export it: `export FIANTO_WEBHOOK_SECRET=whsec_...`).
+(the same values as `.env.local` above — the CLI doesn't read that file, so export or pass them
+on the command line. `events tail` polls your account's events, so — unlike `trigger`/`sign` —
+it needs your app credentials too, not just the webhook secret.)
 
 `typecheck` (`pnpm --filter nextjs-app typecheck`, and the workspace root's `pnpm typecheck`)
 runs `tsc --noEmit` in CI. `next build` is not run in CI — it needs no network, but it's slow —

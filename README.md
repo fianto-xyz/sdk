@@ -96,8 +96,12 @@ export const POST = Webhooks({
 events to that route with the CLI:
 
 ```bash
-npx @fianto/cli events tail --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
+FIANTO_APP_ID=fian_app_... FIANTO_APP_SECRET=fian_sk_... \
+  npx @fianto/cli events tail --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
 ```
+
+(`events tail` polls your account's events, so — unlike `trigger`/`sign` — it needs your app
+credentials too, from **Dashboard → Developers → Applications**, alongside the webhook secret.)
 
 Click the button, pay in the popup, and watch `onOrderPaid` fire. See
 [`@fianto/cli`'s README](packages/cli#readme) for every command.

@@ -74,10 +74,13 @@ the secret.
 ## Resources
 
 `options` on every method: `{ idempotencyKey?: string; timeoutMs?: number; signal?: AbortSignal; maxRetries?: number }`
-(`idempotencyKey` only does anything on a write). `params` sits BETWEEN `id` and `options` on
-every method below, even the ones that don't take any yet (`retrieve`, `cancel`,
-`reissueLink`, `sendTestEvent` — `params` is `{}` for these today, but still occupies that
-position): pass `{}` explicitly, or an object literal, to reach `options` as the third argument.
+(`idempotencyKey` only does anything on a write). Where a method takes an `id`, `params` sits
+between it and `options` — even on `retrieve`, `cancel` and `reissueLink`, which don't take any
+params yet (`params` is `{}` for these today, but still occupies that position): pass `{}`
+explicitly, or an object literal, to reach `options` as the third argument. `create`, `list` and
+`application.retrieve`/`webhookEndpoint.sendTestEvent` have no `id` at all, so `params` is their
+first argument; `orders.retrieveByOrderId` is the one method with neither an `id` slot nor a
+`params` slot — `options` is its second and only other argument.
 
 | Method | Route |
 |---|---|
@@ -500,12 +503,16 @@ Hono: the `Context`, Next.js: the route context) — see each adapter's README.
   `{ error: { code, message } }` with the upstream status for an allowlisted set of codes the
   payer can act on — a session already in flight for this order answers `409 { error: { code:
   'payment_in_progress', ... } }`; the API's own rate limit answers `429 { error: { code:
-  'rate_limited', ... } }` with a `retry-after` header passed through (the handler never waits
-  out a rate limit itself — it answers `429` at once so the payer isn't left staring at a spinner
-  for a long, unpredictable wait). **Every other failure — including a `401`/`403` from fianto
-  itself (a credentials problem) and every `5xx` — answers a generic `500 { error: { code:
-  'internal_error', ... } }`**, never the upstream status or body. Neither response ever echoes
-  your credentials or the full upstream error body.
+  'rate_limited', ... } }` with a `retry-after` header passed through. That 429 isn't necessarily
+  the first thing the payer sees, though: the underlying client (`new Fianto()`) already retries
+  a 429 whose `Retry-After` is 10 s or less, up to `maxRetries` attempts (default 2) — the
+  checkout route only answers `429` at once when `Retry-After` exceeds 10 s, or once those
+  retries are exhausted, not on every rate-limited attempt (see [Idempotency and
+  retries](#idempotency-and-retries)). Pass `fianto: new Fianto({ maxRetries: 0 })` to
+  `createCheckoutHandler` if you'd rather it answer `429` immediately every time. **Every other
+  failure — including a `401`/`403` from fianto itself (a credentials problem) and every `5xx` —
+  answers a generic `500 { error: { code: 'internal_error', ... } }`**, never the upstream status
+  or body. Neither response ever echoes your credentials or the full upstream error body.
 
 `onError(error)` is called for every error, including the ones relayed to the browser and the
 ones collapsed into the generic `500` (the response is unchanged either way) — wire it up, or a
@@ -534,7 +541,12 @@ that starts a real side effect, on top of relying on fianto's own `429 rate_limi
 - `toleranceSeconds` (default 300) must be between 1 and 3600 — replay protection on webhook
   delivery can be neither switched off nor made meaningless by setting it absurdly high.
 - A webhook `secret` must be `whsec_` + base64 of at least 16 raw bytes; anything shorter is
-  refused at handler construction (`WebhookVerificationError('invalid_secret')`).
+  refused with `WebhookVerificationError('invalid_secret')`. An explicit `options.secret` is
+  validated once, at handler construction (a misconfigured route fails when it's set up, not on
+  the first delivery); one left to `process.env.FIANTO_WEBHOOK_SECRET` is read and validated
+  per request instead (construction can't see an env var that might be set later), so a missing
+  or malformed one there fails every delivery with `400 {"error":"invalid_webhook"}` — wire
+  `onVerificationError` to see why (see [The generic handler](#the-generic-handler)).
 
 ## Money safety
 

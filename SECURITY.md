@@ -31,7 +31,7 @@ security@fianto.xyz, but is triaged separately.
 Some things are accepted, documented risk rather than vulnerabilities to report — see each
 package's README "Security" section (`@fianto/sdk`'s in particular) for what's already
 considered and why: for example, `dangerouslyAllowBrowser` shipping the app secret to every
-visitor is opt-in and named for exactly that reason, and a webhook route's Origin/`Sec-Fetch-Site`
-check is CSRF protection only, not a substitute for your own route authenticating and
-rate-limiting the caller (see `@fianto/sdk`'s README, "Authenticate and rate-limit
-`createSession`").
+visitor is opt-in and named for exactly that reason, and the checkout route's
+Origin/`Sec-Fetch-Site` check is CSRF protection only, not a substitute for your own route
+authenticating and rate-limiting the caller (see `@fianto/sdk`'s README, "Authenticate and
+rate-limit `createSession`").

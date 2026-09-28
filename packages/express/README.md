@@ -74,7 +74,13 @@ telling you to move the mount point) rather than silently verifying the wrong by
 
 Fix it either by mounting the fianto route **before** the app-wide parser:
 
-```ts no-check
+```ts
+import express from 'express';
+import { webhooks } from '@fianto/express';
+
+const app = express();
+const secret = process.env.FIANTO_WEBHOOK_SECRET;
+
 app.post('/webhooks/fianto', webhooks({ secret })); // first
 app.use(express.json()); // then everything else
 ```
@@ -82,28 +88,40 @@ app.use(express.json()); // then everything else
 or, if you need the parser mounted globally, give the fianto route
 `express.raw({ type: '*/*' })` so it receives an untouched `Buffer` instead of a parsed body:
 
-```ts no-check
+```ts
+import express from 'express';
+import { webhooks } from '@fianto/express';
+
+const app = express();
+const secret = process.env.FIANTO_WEBHOOK_SECRET;
+
 app.use(express.json()); // global, for other routes
 app.post('/webhooks/fianto', express.raw({ type: '*/*' }), webhooks({ secret }));
 ```
 
 ### Express 4
 
-The same rule applies under Express 4, with one extra trap: `express.json()` /
-`express.urlencoded()` on Express 4 set `req.body = {}` for a request with no matching body,
-which looks like "already parsed" to this middleware even when nothing meaningful ran. Mount the
-fianto handler before the global body parser, or give its route `express.raw({ type: '*/*' })`,
-exactly as above — don't rely on the parser skipping unrecognised content types.
+The same rule applies under Express 4. `express.json()`/`express.urlencoded()` set `req.body =
+{}` (rather than leaving it `undefined`, as Express 5 does) for a request whose content type they
+skip — that `{}` is harmless: the middleware only refuses a body whose *stream* was actually
+read (`req._body`/`readableDidRead`/`readableEnded`), not merely one with a non-`undefined`
+`req.body`, so a parser that ran but didn't match this request still lets it through, and the
+bridge reads the raw stream itself. What still needs mounting before the global parser (or its
+own `express.raw({ type: '*/*' })`, exactly as above) is a parser that *does* match and actually
+consumes the stream — the 500 the middleware answers when that happens names both fixes.
 
 ## Payload size
 
-The middleware reads at most `maxBodyBytes` (default `1_048_576`, 1 MiB — fianto's own webhook
-and checkout payloads are well under this) from an unparsed request body before answering
-`413 {"error":"payload_too_large"}`. Unlike the underlying webhook handler (which checks the
-signature headers before reading any of the body), the Express bridge has to buffer the body
-itself first, to bridge Express's stream to a fetch `Request` — bounded by the same
-`maxBodyBytes` either way, but the 413 it answers is a bridge-level response and does not call
-`onVerificationError`.
+The middleware reads at most 1 MiB (`1_048_576` bytes — fianto's own webhook and checkout
+payloads are well under this) from an unparsed request body before answering
+`413 {"error":"payload_too_large"}`. Only `webhooks()` lets you change that limit, via its
+`maxBodyBytes` option (the same one `@fianto/sdk/handlers`' `createWebhookHandler` takes) — the
+Express bridge reads up to `options.maxBodyBytes ?? 1_048_576` for it. `checkout()` has no such
+option (`CheckoutHandlerOptions` doesn't take one) and the bridge always reads up to the 1 MiB
+default for it. Unlike the underlying webhook handler (which checks the signature headers before
+reading any of the body), the Express bridge has to buffer the body itself first, to bridge
+Express's stream to a fetch `Request` — bounded by the limit either way, but the 413 it answers
+is a bridge-level response and does not call `onVerificationError`.
 
 ## Money safety
 

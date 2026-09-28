@@ -51,12 +51,15 @@ export const POST = Checkout({
 });
 ```
 
-`Webhooks(opts)` and `Checkout(opts)` return `(request: Request) => Promise<Response>` — exactly
-a Next.js App Router route handler, so `export const POST = Webhooks({...})` is the whole
-integration. Every option (`secret`, `toleranceSeconds`, the `on*` callbacks, `onEvent`,
-`onVerificationError` for webhooks; `fianto`, `createSession`, `allowedOrigins`, `onError` for
-checkout) is `@fianto/sdk`'s — see [its README](https://github.com/fianto-xyz/sdk/tree/master/packages/sdk#readme)
-for the full option tables, the webhook event list, the dedupe pattern, retries and errors.
+`Webhooks(opts)` returns `(request: Request) => Promise<Response>`; `Checkout(opts)` returns
+`(request: Request, context?) => Promise<Response>` (`context` is the App Router's own route
+context — `context.params`, for a dynamic route). Either way `export const POST = Webhooks({...})`
+(or `Checkout({...})`) is the whole integration, since that's exactly the shape of a Next.js App
+Router route handler. Every option (`secret`, `toleranceSeconds`, `maxBodyBytes`, the `on*`
+callbacks, `onEvent`, `onVerificationError` for webhooks; `fianto`, `createSession`,
+`allowedOrigins`, `onError` for checkout) is `@fianto/sdk`'s — see
+[its README](https://github.com/fianto-xyz/sdk/tree/master/packages/sdk#readme) for the full
+option tables, the webhook event list, the dedupe pattern, retries and errors.
 
 ## Money safety
 
