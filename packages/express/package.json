@@ -9,11 +9,27 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fianto-xyz/sdk.git",
+    "directory": "packages/express"
+  },
+  "homepage": "https://github.com/fianto-xyz/sdk/tree/master/packages/express#readme",
+  "keywords": [
+    "fianto",
+    "solana",
+    "usdc",
+    "payments",
+    "express",
+    "middleware",
+    "webhooks"
+  ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "check": "publint && attw --pack . --profile node16"
   },
   "dependencies": {
     "@fianto/sdk": "workspace:*"
