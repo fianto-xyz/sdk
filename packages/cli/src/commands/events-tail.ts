@@ -68,7 +68,16 @@ export async function eventsTail(
   );
 
   while (!deps.signal?.aborted) {
-    const page = await client.events.list({ limit: 100, type: options.type });
+    let page: Awaited<ReturnType<Fianto['events']['list']>>;
+    try {
+      page = await client.events.list({ limit: 100, type: options.type });
+    } catch (error) {
+      // A transient API or network failure must not end the tail: log it and poll again later.
+      const message = error instanceof Error ? error.message : String(error);
+      deps.output.out(`✗ poll failed: ${message}`);
+      await deps.sleep(options.intervalMs, deps.signal);
+      continue;
+    }
     const candidates = page.items
       .filter((event) => !seen.has(event.id) && Date.parse(event.timestamp) >= threshold)
       .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));

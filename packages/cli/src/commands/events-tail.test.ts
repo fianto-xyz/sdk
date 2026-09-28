@@ -90,3 +90,25 @@ describe('eventsTail extra coverage', () => {
     expect(posted.filter((id) => id === 'evt_bulk_00000')).toHaveLength(2);
   });
 });
+
+it('logs a failed poll and keeps polling after the interval', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const client = { events: { list: vi.fn(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error('503 upstream');
+    controller.abort();
+    return { next_cursor: null, items: [ev('evt_z', 9)] };
+  }) } };
+  const posted: string[] = [];
+  const fetch = vi.fn(async (_url: string, init: RequestInit) => { posted.push(JSON.parse(init.body as string).id); return new Response('ok'); });
+  const sleep = vi.fn(async () => {});
+  const lines: string[] = [];
+  await eventsTail(client as never, { forwardTo: 'http://localhost:3000/wh', secret, sinceMs: 5 * 60_000, intervalMs: 2000 }, {
+    fetch: fetch as never, now: () => Date.parse(at(10)), sleep, signal: controller.signal,
+    output: { out: (l) => lines.push(l), err: (l) => lines.push(l) },
+  });
+  expect(lines).toContain('✗ poll failed: 503 upstream');
+  expect(sleep).toHaveBeenCalledWith(2000, controller.signal);
+  expect(posted).toEqual(['evt_z']);
+});

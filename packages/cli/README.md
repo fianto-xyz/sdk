@@ -97,6 +97,10 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   `s`, `m`, `h` or `d`). On start, only events **newer** than `now - --since` are forwarded —
   never the full 90-day event store, however far back `--since` reaches.
 - **`--interval`** defaults to `2000` (ms) and must be an integer of at least `500`.
+- **Each poll reads the newest 100 events** (`GET v1/events?limit=100`). If more than 100 events
+  arrive within one interval, the older ones in that burst are skipped — shorten `--interval`.
+- **A failed poll** (API or network error) prints `✗ poll failed: <message>` and tries again after
+  `--interval`; the tail keeps running.
 - **Each event id is forwarded once, oldest first** — within a single poll and across polls for
   the life of the process (an in-memory seen-set, capped at 10,000 ids, oldest dropped first).
 - **This is a local dev convenience, not a delivery guarantee.** It's at-most-once *per run*: if

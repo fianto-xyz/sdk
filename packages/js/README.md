@@ -153,7 +153,7 @@ progress").
 | `size` | `static`, `fill` (100% width) | `static` |
 | `locale` | `en`, `vi`; anything else falls back to the `navigator.language` base language, then `en` | auto |
 | `session-endpoint` | URL `POST`ed on click (`credentials: 'same-origin'`, JSON body = the element's `data-*` attributes); must answer `{ id, url }` | — |
-| `fallback` | `redirect`, `none` — see [`openCheckout`](#openCheckout) | `redirect` |
+| `fallback` | `redirect`, `none` — see [`openCheckout`](#opencheckout) | `redirect` |
 | `disabled` | boolean attribute | — |
 
 The `session` property (a `{ id, url }` or a `() => Promise<{ id, url }>`) overrides
