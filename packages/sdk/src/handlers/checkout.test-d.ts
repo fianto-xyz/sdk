@@ -10,7 +10,8 @@
 // `CheckoutSessionParams` is what `createCheckoutHandler`'s `createSession` callback must
 // return, and every adapter (`@fianto/nextjs`'s `Checkout`, `@fianto/hono`'s `checkout`,
 // `@fianto/express`'s `checkout`) re-exports that same callback shape unchanged.
-import type { CheckoutSessionParams } from './checkout.js';
+import { expectTypeOf } from 'vitest';
+import { createCheckoutHandler, type CheckoutSessionParams } from './checkout.js';
 
 const priceOnly: CheckoutSessionParams = {
   price_id: 'fian_price_1', mode: 'subscription', order_id: 'o-1',
@@ -48,3 +49,30 @@ const withUiMode: CheckoutSessionParams = {
   ui_mode: 'popup',
 };
 void withUiMode;
+
+// --- F11: an adapter's framework context reaches createSession, typed ------------------------
+// The generic layer stays framework-agnostic: the context type is a type parameter (default
+// `unknown`), and the returned handler takes it as its second argument — optional only while
+// `undefined` fits the context type, so an adapter with a real context must always pass it.
+declare const request: Request;
+
+const typed = createCheckoutHandler<{ userId: string }>({
+  createSession: async (_request, context) => {
+    expectTypeOf(context).toEqualTypeOf<{ userId: string }>();
+    return new Response(null, { status: 204 });
+  },
+});
+void typed(request, { userId: 'u_1' });
+// @ts-expect-error a typed context must be passed.
+void typed(request);
+// @ts-expect-error and must have the declared shape.
+void typed(request, { user: 'u_1' });
+
+const untyped = createCheckoutHandler({
+  createSession: async (_request, context) => {
+    expectTypeOf(context).toEqualTypeOf<unknown>();
+    return new Response(null, { status: 204 });
+  },
+});
+void untyped(request);
+void untyped(request, { anything: true });

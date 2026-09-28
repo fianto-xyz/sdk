@@ -2,7 +2,7 @@ import { isWebhookVerificationError, type WebhookVerificationError } from '../we
 import type { FiantoWebhookEvent, WebhookEvent, WebhookEventOf, WebhookEventType } from '../webhooks/events.js';
 import { readSignedHeaders, resolveTolerance, secretKeys, signedPrefix, verifySignedContent } from '../webhooks/verify.js';
 import { readBoundedBody, resolveMaxBodyBytes } from './body.js';
-import { json } from './respond.js';
+import { json, report } from './respond.js';
 
 type Callback<T extends WebhookEventType> = (event: WebhookEventOf<T>) => unknown;
 
@@ -47,14 +47,6 @@ export interface WebhookHandlerOptions extends WebhookCallbacks {
   onVerificationError?: (error: WebhookVerificationError) => void;
   /** A callback or onEvent threw (the response is still 500, so fianto retries). */
   onError?: (error: unknown, event: FiantoWebhookEvent) => void;
-}
-
-function report(fn: () => void): void {
-  try {
-    fn();
-  } catch {
-    // A throwing reporter must not change the response.
-  }
 }
 
 const CALLBACKS: { [K in WebhookEventType]: keyof WebhookCallbacks } = {
