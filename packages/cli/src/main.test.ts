@@ -121,6 +121,38 @@ describe('main: events tail, trigger, sign usage errors', () => {
     expect(lines).toEqual(['Sent test.event evt_abc123 to your registered endpoint']);
   });
 
+  // Controller ruling: `trigger <type> --forward-to <url>` must not require API credentials.
+  it('trigger with --forward-to never needs app credentials: empty env, makeClient never called', async () => {
+    const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+    const { d, lines } = deps({ env: {}, fetch: fetch as never });
+    const code = await main(['trigger', 'order.paid', '--forward-to', 'http://localhost:3000/wh', '--secret', SECRET], d);
+    expect(code).toBe(0);
+    expect(d.makeClient).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual(['→ 200 order.paid (local sample)']);
+  });
+
+  it('rejects a trigger --forward-to that is not http(s), like events tail does', async () => {
+    const { d, errors } = deps({ env: {} });
+    expect(await main(['trigger', 'order.paid', '--forward-to', 'ftp://x', '--secret', SECRET], d)).toBe(2);
+    expect(errors.join('\n')).toMatch(/http/i);
+    expect(d.makeClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects sign with malformed JSON in the payload file, naming the file', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'fianto-cli-main-sign-bad-'));
+    const file = join(dir, 'bad.json');
+    writeFileSync(file, 'not json');
+    const { d, errors } = deps();
+    const code = await main(['sign', '--payload', file, '--secret', SECRET], d);
+    rmSync(dir, { recursive: true, force: true });
+    expect(code).toBe(2);
+    expect(errors.join('\n')).toContain(file);
+  });
+
   it('rejects sign with no --payload', async () => {
     const { d, errors } = deps();
     expect(await main(['sign', '--secret', SECRET], d)).toBe(2);

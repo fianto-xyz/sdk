@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { UsageError } from '../config.js';
 import { sign } from './sign.js';
 
 const secret = 'whsec_' + Buffer.alloc(32, 1).toString('base64');
@@ -48,5 +49,15 @@ describe('sign', () => {
     const curlLine = lines.find((l) => l.startsWith('curl '))!;
     expect(curlLine).toContain('"$URL"');
     expect(curlLine).toContain(`--data-binary @${file}`);
+  });
+
+  it('rejects a payload file with malformed JSON, naming the file', async () => {
+    const badFile = join(dir, 'bad.json');
+    writeFileSync(badFile, '{ not valid json');
+    const lines: string[] = [];
+    const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+    const error: unknown = await sign({ payload: badFile, secret }, output).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as UsageError).message).toContain(badFile);
   });
 });

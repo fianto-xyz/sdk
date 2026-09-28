@@ -12,11 +12,15 @@ function isKnownEventType(type: string): type is WebhookEventType {
  * application's registered webhook endpoint (shares the dashboard's 10/hour budget).
  * Any known type with `--forward-to`: signs a local, realistic sample and POSTs it there —
  * fianto never sends a business-event sample itself (spec §8's safety split).
+ *
+ * `getClient` is called only on the `test.event`-via-API path: a `--forward-to` run makes no
+ * API request at all, so it must not require `FIANTO_APP_ID`/`FIANTO_APP_SECRET`/`FIANTO_BASE_URL`
+ * to be set (`getClient` is what resolves and validates those, in `main.ts`).
  */
 export async function trigger(
   type: string,
   options: { forwardTo?: string; secret?: string },
-  client: Fianto,
+  getClient: () => Fianto,
   deps: Pick<Deps, 'fetch' | 'output'>,
 ): Promise<void> {
   if (!isKnownEventType(type)) {
@@ -24,6 +28,9 @@ export async function trigger(
   }
 
   if (options.forwardTo) {
+    if (!/^https?:\/\//.test(options.forwardTo)) {
+      throw new UsageError(`--forward-to must be an http:// or https:// URL, got: ${options.forwardTo}`);
+    }
     if (!options.secret) throw new UsageError('--secret (or FIANTO_WEBHOOK_SECRET) is required with --forward-to.');
     const { body, headers } = await signWebhook({ event: sampleEvent(type), secret: options.secret });
     const response = await deps.fetch(options.forwardTo, { method: 'POST', headers, body });
@@ -32,7 +39,7 @@ export async function trigger(
   }
 
   if (type === 'test.event') {
-    const result = await client.webhookEndpoint.sendTestEvent();
+    const result = await getClient().webhookEndpoint.sendTestEvent();
     deps.output.out(`Sent test.event ${result.event_id} to your registered endpoint`);
     return;
   }

@@ -96,8 +96,9 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
         if (!type) throw new UsageError('trigger requires an event type, e.g. fianto trigger test.event');
         const forwardTo = values['forward-to'];
         const secret = forwardTo ? webhookSecretFrom(values, deps.env) : undefined;
-        const client = deps.makeClient(credentialsFrom(values, deps.env));
-        await trigger(type, { forwardTo, secret }, client, deps);
+        // Lazy: a --forward-to run makes no API call and must not require app credentials.
+        const getClient = () => deps.makeClient(credentialsFrom(values, deps.env));
+        await trigger(type, { forwardTo, secret }, getClient, deps);
         return 0;
       }
       case 'sign': {
