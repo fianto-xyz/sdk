@@ -1,4 +1,4 @@
-import { ConnectionError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError } from './errors.js';
+import { AbortError, ConnectionError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError } from './errors.js';
 import { resolveConfig } from './config.js';
 import { Transport } from './transport.js';
 
@@ -67,14 +67,35 @@ it('uses a caller-supplied idempotency key', async () => {
   expect(header(0, 'idempotency-key')).toBe('checkout:o-1');
 });
 
-it('honours Retry-After, capped at 60 s', async () => {
+it('honours a Retry-After at or under the 10 s cap', async () => {
   const { transport, sleeps } = setup([
     json(409, err('checkout_unavailable'), { 'retry-after': '5' }),
-    json(429, err('rate_limited'), { 'retry-after': '600' }),
+    json(429, err('rate_limited'), { 'retry-after': '2' }),
     json(200, {}),
   ]);
   await transport.request({ method: 'POST', path: '/v1/x', body: {} });
-  expect(sleeps).toEqual([5_000, 60_000]);
+  expect(sleeps).toEqual([5_000, 2_000]);
+});
+
+// A2: a Retry-After longer than the cap is never waited on — one attempt, thrown at once.
+it('throws at once, with no retry, when Retry-After exceeds the 10 s cap', async () => {
+  const { transport, calls, sleeps } = setup([json(429, err('rate_limited'), { 'retry-after': '3600' })]);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' })).rejects.toMatchObject({
+    code: 'rate_limited', retryAfterSeconds: 3600,
+  });
+  expect(calls).toHaveLength(1);
+  expect(sleeps).toEqual([]);
+});
+
+// A2: a Retry-After of exactly 2 s is honoured and retried after waiting it out.
+it('retries after honouring a 2 s Retry-After', async () => {
+  const { transport, calls, sleeps } = setup([
+    json(429, err('rate_limited'), { 'retry-after': '2' }),
+    json(200, { ok: true }),
+  ]);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' })).resolves.toEqual({ ok: true });
+  expect(calls).toHaveLength(2);
+  expect(sleeps).toEqual([2_000]);
 });
 
 it('backs off exponentially with jitter when there is no Retry-After', async () => {
@@ -119,6 +140,79 @@ it('turns a timeout into TimeoutError and a caller abort into an immediate rejec
   const aborted = setup([new DOMException('aborted', 'AbortError')]);
   await expect(aborted.transport.request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal })).rejects.toThrow(/abort/i);
   expect(aborted.calls).toHaveLength(1);
+});
+
+// F17: a user abort rejects with a FiantoError subclass carrying the abort reason as `cause`.
+it('rejects a caller abort with AbortError, code aborted, cause = the abort reason', async () => {
+  const reason = new Error('user cancelled');
+  const controller = new AbortController();
+  controller.abort(reason);
+  const { transport } = setup([new DOMException('aborted', 'AbortError')]);
+  const error = await transport.request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal }).catch((e) => e);
+  expect(error).toBeInstanceOf(AbortError);
+  expect(error).toBeInstanceOf(FiantoError);
+  expect(error.code).toBe('aborted');
+  expect(error.cause).toBe(reason);
+});
+
+// F17 corollary: aborting mid-retry-wait also rejects with AbortError, not the raw reason.
+it('rejects with AbortError when the caller aborts during a retry wait', async () => {
+  const reason = new Error('user cancelled mid-retry');
+  const controller = new AbortController();
+  const responses = [json(500, err('internal_error')), json(200, {})];
+  const fetch = (async () => responses.shift()!) as unknown as typeof globalThis.fetch;
+  const config = resolveConfig({ appId: 'fian_app_1', appSecret: 'fian_sk_live_2', baseUrl: 'https://api.test', fetch });
+  const transport = new Transport(config, {
+    random: () => 0.5,
+    now: () => Date.now(),
+    sleep: async (_ms, signal) => {
+      controller.abort(reason);
+      if (signal?.aborted) throw signal.reason;
+    },
+  });
+  const error = await transport.request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal }).catch((e) => e);
+  expect(error).toBeInstanceOf(AbortError);
+  expect(error.cause).toBe(reason);
+});
+
+// F3: the transport must not depend on AbortSignal.any (missing on some Edge runtimes).
+it('combines signals without AbortSignal.any', async () => {
+  const original = AbortSignal.any;
+  // @ts-expect-error -- simulating a runtime without AbortSignal.any
+  delete AbortSignal.any;
+  try {
+    const { transport, calls } = setup([json(200, { ok: 1 })]);
+    const controller = new AbortController();
+    await expect(transport.request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal })).resolves.toEqual({ ok: 1 });
+    expect(calls).toHaveLength(1);
+  } finally {
+    AbortSignal.any = original;
+  }
+});
+
+// F3: a signal that is already aborted when the request starts still short-circuits.
+it('rejects immediately when the caller signal is already aborted, without AbortSignal.any', async () => {
+  const original = AbortSignal.any;
+  // @ts-expect-error -- simulating a runtime without AbortSignal.any
+  delete AbortSignal.any;
+  try {
+    const controller = new AbortController();
+    controller.abort(new Error('already gone'));
+    const { transport, calls } = setup([new DOMException('aborted', 'AbortError')]);
+    const error = await transport.request({ method: 'GET', path: '/v1/x' }, { signal: controller.signal }).catch((e) => e);
+    expect(error).toBeInstanceOf(AbortError);
+    expect(calls).toHaveLength(1);
+  } finally {
+    AbortSignal.any = original;
+  }
+});
+
+// C10/F10: every fetch refuses to follow a redirect; a redirect surfaces as a network failure,
+// never as a silently-followed request (which could turn a POST into a GET on another host).
+it('never follows a redirect: passes redirect: error and surfaces it as ConnectionError', async () => {
+  const { transport, calls } = setup([new TypeError('unexpected redirect'), new TypeError('unexpected redirect'), new TypeError('unexpected redirect')]);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' })).rejects.toBeInstanceOf(ConnectionError);
+  expect(calls[0]!.init.redirect).toBe('error');
 });
 
 it('refuses an invalid idempotency key before sending anything', async () => {

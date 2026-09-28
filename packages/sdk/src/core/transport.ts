@@ -1,6 +1,6 @@
 import { VERSION } from '../version.js';
 import { assertMaxRetries, assertTimeoutMs, type ResolvedConfig } from './config.js';
-import { ConnectionError, FiantoError, TimeoutError, errorFromResponse, parseRetryAfter, type APIError } from './errors.js';
+import { AbortError, ConnectionError, FiantoError, TimeoutError, errorFromResponse, parseRetryAfter, type APIError } from './errors.js';
 import { assertIdempotencyKey } from './ids.js';
 
 export interface RequestOptions {
@@ -30,7 +30,8 @@ class NotJson {
 }
 
 const RETRYABLE_409 = new Set(['idempotency_request_in_progress', 'checkout_unavailable']);
-const MAX_RETRY_AFTER_MS = 60_000;
+/** A retryable response whose Retry-After exceeds this is never waited on: it throws at once. */
+const MAX_RETRY_AFTER_MS = 10_000;
 const MAX_BACKOFF_MS = 8_000;
 
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -55,27 +56,65 @@ function runtimeName(): string {
   return g.navigator?.userAgent === 'Cloudflare-Workers' ? 'workerd' : 'unknown';
 }
 
+/**
+ * Combines several AbortSignals into one, without `AbortSignal.any` (added in Node 20.3 and most
+ * browsers, but missing on some Edge runtimes — e.g. Next.js Edge, per the release audit — where
+ * every request would otherwise fail outright). `cleanup()` removes the listeners this added;
+ * call it once the operation this signal guards has settled.
+ */
+function anySignal(signals: readonly AbortSignal[]): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const teardown: Array<() => void> = [];
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    const onAbort = () => controller.abort(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    teardown.push(() => signal.removeEventListener('abort', onAbort));
+  }
+  return { signal: controller.signal, cleanup: () => { for (const fn of teardown) fn(); } };
+}
+
+/**
+ * A signal that aborts after `ms`, built from `setTimeout` + `AbortController` rather than
+ * `AbortSignal.timeout` (same Edge-runtime doubt as `anySignal`). Aborts with a DOMException
+ * named `'TimeoutError'`, the same shape `AbortSignal.timeout` uses, so the request's catch
+ * block still tells a timeout apart from any other failure by `error.name`.
+ */
+function timeoutSignal(ms: number): { signal: AbortSignal; cancel: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException(`The operation timed out after ${ms} ms`, 'TimeoutError')),
+    ms,
+  );
+  return { signal: controller.signal, cancel: () => clearTimeout(timer) };
+}
+
 export class Transport {
+  readonly #config: ResolvedConfig;
   private readonly deps: TransportDeps;
   private readonly userAgent = `fianto-sdk/${VERSION} (${runtimeName()})`;
 
-  constructor(private readonly config: ResolvedConfig, deps: Partial<TransportDeps> = {}) {
+  constructor(config: ResolvedConfig, deps: Partial<TransportDeps> = {}) {
+    this.#config = config;
     this.deps = { sleep: defaultSleep, random: Math.random, now: Date.now, ...deps };
   }
 
   async request<T>(request: ApiRequest, options: RequestOptions = {}): Promise<T> {
-    const maxRetries = options.maxRetries === undefined ? this.config.maxRetries : assertMaxRetries(options.maxRetries);
-    const timeoutMs = options.timeoutMs === undefined ? this.config.timeoutMs : assertTimeoutMs(options.timeoutMs);
+    const maxRetries = options.maxRetries === undefined ? this.#config.maxRetries : assertMaxRetries(options.maxRetries);
+    const timeoutMs = options.timeoutMs === undefined ? this.#config.timeoutMs : assertTimeoutMs(options.timeoutMs);
     const idempotencyKey = request.method === 'POST' ? (options.idempotencyKey ?? crypto.randomUUID()) : undefined;
     if (idempotencyKey !== undefined) assertIdempotencyKey(idempotencyKey);
     const requestId = `req_${crypto.randomUUID().replaceAll('-', '')}`;
     const url = this.url(request);
     const headers = new Headers({
-      authorization: `Basic ${btoa(`${this.config.appId}:${this.config.appSecret}`)}`,
+      authorization: `Basic ${btoa(`${this.#config.appId}:${this.#config.appSecret}`)}`,
       accept: 'application/json',
       'x-request-id': requestId,
     });
-    if (!this.config.browser) headers.set('user-agent', this.userAgent);
+    if (!this.#config.browser) headers.set('user-agent', this.userAgent);
     if (idempotencyKey !== undefined) headers.set('idempotency-key', idempotencyKey);
     const body = request.body === undefined ? undefined : JSON.stringify(request.body);
     if (body !== undefined) headers.set('content-type', 'application/json');
@@ -84,26 +123,39 @@ export class Transport {
       const last = attempt >= maxRetries;
       let response: Response;
       let parsed: unknown;
+      const timeout = timeoutSignal(timeoutMs);
+      const combined = anySignal(options.signal ? [timeout.signal, options.signal] : [timeout.signal]);
       try {
-        const signals = [AbortSignal.timeout(timeoutMs), ...(options.signal ? [options.signal] : [])];
-        response = await this.config.fetch(url, { method: request.method, headers, body, signal: AbortSignal.any(signals) });
-        parsed = await this.parse(response);
-      } catch (error) {
-        if (options.signal?.aborted) throw options.signal.reason ?? error;
-        const failure = (error as { name?: string })?.name === 'TimeoutError'
-          ? new TimeoutError(`fianto API request timed out after ${timeoutMs} ms`, { cause: error, requestId, idempotencyKey })
-          : new ConnectionError('Could not reach the fianto API', { cause: error, requestId, idempotencyKey });
-        if (last) throw failure;
-        await this.deps.sleep(this.backoff(attempt), options.signal);
-        continue;
+        try {
+          response = await this.#config.fetch(url, {
+            method: request.method, headers, body, signal: combined.signal, redirect: 'error',
+          });
+          parsed = await this.parse(response);
+        } catch (error) {
+          if (options.signal?.aborted) throw new AbortError(options.signal.reason);
+          const failure = (error as { name?: string })?.name === 'TimeoutError'
+            ? new TimeoutError(`fianto API request timed out after ${timeoutMs} ms`, { cause: error, requestId, idempotencyKey })
+            : new ConnectionError('Could not reach the fianto API', { cause: error, requestId, idempotencyKey });
+          if (last) throw failure;
+          await this.wait(this.backoff(attempt), options.signal);
+          continue;
+        }
+      } finally {
+        timeout.cancel();
+        combined.cleanup();
       }
       if (response.ok) {
         if (parsed instanceof NotJson) throw new FiantoError(`fianto API answered HTTP ${response.status} with a body that is not JSON (request ${requestId})`);
         return parsed as T;
       }
       const error = errorFromResponse(response.status, parsed instanceof NotJson ? parsed.text : parsed, response.headers);
-      if (last || !isRetryable(error)) throw error;
-      await this.deps.sleep(this.retryDelay(attempt, response.headers), options.signal);
+      if (!isRetryable(error)) throw error;
+      // A2: don't wait out a Retry-After longer than MAX_RETRY_AFTER_MS — throw at once instead
+      // of holding the caller (a checkout popup, a CLI command) for minutes.
+      const retryAfterMs = this.retryAfterMs(response.headers);
+      if (retryAfterMs !== undefined && retryAfterMs > MAX_RETRY_AFTER_MS) throw error;
+      if (last) throw error;
+      await this.wait(retryAfterMs ?? this.backoff(attempt), options.signal);
     }
   }
 
@@ -113,7 +165,7 @@ export class Transport {
       if (value !== undefined) search.set(key, String(value));
     }
     const query = search.toString();
-    return `${this.config.baseUrl}${request.path}${query ? `?${query}` : ''}`;
+    return `${this.#config.baseUrl}${request.path}${query ? `?${query}` : ''}`;
   }
 
   private async parse(response: Response): Promise<unknown> {
@@ -126,10 +178,19 @@ export class Transport {
     }
   }
 
-  private retryDelay(attempt: number, headers: Headers): number {
+  /** Wraps `deps.sleep`: a caller abort during the wait rejects with `AbortError`, not the raw reason. */
+  private async wait(ms: number, signal?: AbortSignal): Promise<void> {
+    try {
+      await this.deps.sleep(ms, signal);
+    } catch (error) {
+      if (signal?.aborted) throw new AbortError(signal.reason);
+      throw error;
+    }
+  }
+
+  private retryAfterMs(headers: Headers): number | undefined {
     const seconds = parseRetryAfter(headers.get('retry-after'), this.deps.now());
-    if (seconds !== undefined) return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
-    return this.backoff(attempt);
+    return seconds === undefined ? undefined : seconds * 1000;
   }
 
   private backoff(attempt: number): number {

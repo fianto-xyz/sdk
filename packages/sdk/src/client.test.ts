@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import { Fianto } from './client.js';
 import { FiantoError } from './core/errors.js';
 
@@ -73,8 +74,51 @@ it('pages a list with its filters and the cursor', async () => {
   expect(calls.map((c) => c.url.search)).toEqual(['?status=PAID&limit=1', '?status=PAID&limit=1&cursor=7']);
 });
 
-it('refuses a malformed id without a request', async () => {
+// Review Focus (F9): a malformed id rejects the returned promise instead of throwing
+// synchronously, so `Promise.allSettled([...])` over a batch of calls never throws.
+it('refuses a malformed id with a rejected promise, not a synchronous throw', async () => {
   const { fianto, calls } = client();
-  expect(() => fianto.orders.retrieve('../admin')).toThrow(FiantoError);
+  let threw = false;
+  let call: Promise<unknown>;
+  try {
+    call = fianto.orders.retrieve('../admin');
+  } catch {
+    threw = true;
+    call = Promise.resolve();
+  }
+  expect(threw).toBe(false);
+  await expect(call).rejects.toThrow(FiantoError);
   expect(calls).toHaveLength(0);
+});
+
+// Review Focus (C3): the app secret (and anything derived from it) must never be reachable
+// through JSON.stringify, util.inspect or String() on the client or any resource.
+describe('never leaks the app secret through reflection', () => {
+  const SECRET = 'fian_sk_live_2';
+
+  it('JSON.stringify(client)', () => {
+    const { fianto } = client();
+    expect(JSON.stringify(fianto)).not.toContain(SECRET);
+  });
+
+  it('JSON.stringify(client.orders)', () => {
+    const { fianto } = client();
+    expect(JSON.stringify(fianto.orders)).not.toContain(SECRET);
+  });
+
+  it('util.inspect(client)', () => {
+    const { fianto } = client();
+    expect(inspect(fianto, { depth: null })).not.toContain(SECRET);
+  });
+
+  it('util.inspect(client.orders)', () => {
+    const { fianto } = client();
+    expect(inspect(fianto.orders, { depth: null })).not.toContain(SECRET);
+  });
+
+  it('String(client)', () => {
+    const { fianto } = client();
+    expect(String(fianto)).not.toContain(SECRET);
+    expect(`${fianto}`).not.toContain(SECRET);
+  });
 });
