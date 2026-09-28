@@ -13,12 +13,14 @@
     "generate": "node scripts/generate.mjs",
     "check:generated": "node scripts/generate.mjs && git diff --exit-code -- packages/sdk/src/generated",
     "build:brand": "node scripts/build-brand.mjs",
-    "check:packages": "pnpm build && pnpm -r --filter \"./packages/**\" run check",
+    "size": "size-limit",
+    "check:packages": "pnpm build && pnpm -r --filter \"./packages/**\" run check && pnpm size",
     "release": "pnpm check:packages && changeset publish"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "@changesets/cli": "3.0.3",
+    "@size-limit/preset-small-lib": "14.1.0",
     "@types/node": "^24",
     "ajv": "8.20.0",
     "axe-core": "4.13.0",
@@ -27,6 +29,7 @@
     "openapi-typescript": "7.13.0",
     "oxlint": "1.85.0",
     "publint": "0.3.24",
+    "size-limit": "14.1.0",
     "standardwebhooks": "1.1.1",
     "tsdown": "0.23.0",
     "typescript": "5.9.3",

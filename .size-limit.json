@@ -1,0 +1,5 @@
+[
+  { "name": "@fianto/js core", "path": "packages/js/dist/index.js", "import": "{ openCheckout }", "limit": "4 kB" },
+  { "name": "@fianto/js button", "path": "packages/js/dist/button.js", "limit": "8 kB" },
+  { "name": "CDN bundle", "path": "packages/js/dist/fianto-button.global.iife.js", "limit": "10 kB" }
+]
