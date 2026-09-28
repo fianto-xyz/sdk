@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "off"
+  },
+  "overrides": [
+    {
+      "files": ["packages/sdk/src/**/*.ts"],
+      "excludeFiles": ["**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*"], "message": "@fianto/sdk must stay runtime-neutral: use fetch/WebCrypto." }] }]
+      }
+    }
+  ]
+}

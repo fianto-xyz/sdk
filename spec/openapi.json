@@ -1,0 +1,4095 @@
+{
+  "components": {
+    "parameters": {
+      "Id": {
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "schema": {
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "type": "string"
+        }
+      },
+      "IdempotencyKey": {
+        "description": "Required on every write. Same key + same request within 24 h replays the stored response.",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[\\x21-\\x7E]+$",
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Error"
+      }
+    },
+    "schemas": {
+      "ApiApplicationResponse": {
+        "description": "The v1 wire format is snake_case, and deliberately not the merchant-dashboard shape: it answers \"whose credentials are these, and where do their webhooks go\".",
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "merchant": {
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "webhook": {
+            "anyOf": [
+              {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "PENDING",
+                      "ACTIVE",
+                      "DISABLED"
+                    ],
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "url"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "app_id",
+          "name",
+          "merchant",
+          "webhook"
+        ],
+        "type": "object"
+      },
+      "ApiEventResponse": {
+        "description": "The v1 event: the SAME envelope a delivery's body carries, plus `object`.",
+        "properties": {
+          "data": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^evt_[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "object": {
+            "const": "event",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "type",
+          "timestamp",
+          "data"
+        ],
+        "type": "object"
+      },
+      "ApiOrderResponse": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "canceled_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkout_session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "has_unmatched_transfer": {
+            "description": "At least one transfer landed under one of this order's checkout sessions' references and could not be adopted as its payment — money the merchant may owe back.",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "object": {
+            "const": "order",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "paid_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "PAID",
+              "EXPIRED",
+              "CANCELED"
+            ],
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "order_id",
+          "checkout_session_id",
+          "status",
+          "description",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "customer",
+          "payment",
+          "metadata",
+          "created_at",
+          "paid_at",
+          "expired_at",
+          "canceled_at",
+          "has_unmatched_transfer"
+        ],
+        "type": "object"
+      },
+      "ApiPaymentResponse": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "block_time": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkout_session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email"
+            ],
+            "type": "object"
+          },
+          "failed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "const": "payment",
+            "type": "string"
+          },
+          "order_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slot": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "PROCESSING",
+              "CONFIRMED",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "succeeded_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "status",
+          "order_id",
+          "checkout_session_id",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "customer",
+          "signature",
+          "slot",
+          "block_time",
+          "created_at",
+          "succeeded_at",
+          "failed_at"
+        ],
+        "type": "object"
+      },
+      "ApiPriceResponse": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "archived_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "MONTH",
+              "YEAR",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object": {
+            "const": "price",
+            "type": "string"
+          },
+          "product_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "ONE_TIME",
+              "RECURRING"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "product_id",
+          "amount",
+          "currency",
+          "type",
+          "interval",
+          "status",
+          "created_at",
+          "archived_at"
+        ],
+        "type": "object"
+      },
+      "ApiProductResponse": {
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "object": {
+            "const": "product",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "name",
+          "description",
+          "metadata",
+          "status",
+          "created_at",
+          "updated_at",
+          "archived_at"
+        ],
+        "type": "object"
+      },
+      "ApiSessionResponse": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "cancel_url": {
+            "type": "string"
+          },
+          "canceled_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interval": {
+            "description": "SUBSCRIPTION mode only. UPPERCASE: an output-only enum no request body carries.",
+            "enum": [
+              "MONTH",
+              "YEAR",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "mode": {
+            "description": "`mode` and `ui_mode` round-trip on the published API (fix round 2, S5): they go in lowercase (`\"payment\"`, `\"redirect\"`) and they come back lowercase, from v1 responses AND from webhook payloads. An integrator can feed a session straight back into a create call.\n\nSTATUS fields deliberately stay UPPERCASE: they are output-only enums that no request body ever carries, so there is nothing for them to round-trip with. The payer-facing `checkout/session` view is an internal contract with our own checkout-frontend and is unchanged.",
+            "enum": [
+              "payment",
+              "subscription"
+            ],
+            "type": "string"
+          },
+          "object": {
+            "const": "checkout_session",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "PENDING",
+                      "PAID",
+                      "EXPIRED",
+                      "CANCELED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "enum": [
+                      "PROCESSING",
+                      "CONFIRMED",
+                      "SUCCEEDED",
+                      "FAILED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "COMPLETED",
+              "EXPIRED",
+              "CANCELED"
+            ],
+            "type": "string"
+          },
+          "subscription": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "ACTIVE",
+                      "PAST_DUE",
+                      "ENDED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "success_url": {
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          },
+          "ui_mode": {
+            "enum": [
+              "redirect",
+              "popup"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "The hosted payment link. Returned ONLY by create and by reissuing the link: the token is never recoverable, so every other read returns null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "url",
+          "mode",
+          "status",
+          "ui_mode",
+          "order_id",
+          "order",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "interval",
+          "subscription",
+          "customer",
+          "payment",
+          "metadata",
+          "success_url",
+          "cancel_url",
+          "expires_at",
+          "created_at",
+          "completed_at",
+          "expired_at",
+          "canceled_at"
+        ],
+        "type": "object"
+      },
+      "ApiSubscriptionResponse": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "cancel_at": {
+            "description": "The EFFECTIVE end once `cancel_at_period_end` is true: the payer's own on-chain expiry when one was recorded, else `current_period_end` — never a raw column read (task-12 review I1; see `publishedCancelAt`). Null until a cancellation is scheduled, and always null once the subscription has ENDED, including an immediate cancel-now end, which clears the schedule entirely (I2).",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "description": "Who asked for a scheduled cancellation — the published `cancel_reason` / `cancelReason`. The same two values `end_reason` takes once the cancellation takes effect.",
+                "enum": [
+                  "PAYER_CANCELED",
+                  "MERCHANT_CANCELED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WHO scheduled the cancellation `cancel_at` dates: `PAYER_CANCELED` (in their own wallet) or `MERCHANT_CANCELED` — the values `end_reason` takes once it ends. Null whenever `cancel_at` is null (nothing scheduled, or ENDED), and ALSO null for a scheduled cancel that recorded no reason (the ALERTed `no_reason` state — see `cancelReasonOf`), where `cancel_at` is non-null. Additive (final review parked #10; m5)."
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "current_period_end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "current_period_index": {
+            "type": "number"
+          },
+          "current_period_start": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "end_reason": {
+            "enum": [
+              "PAYER_CANCELED",
+              "PAYMENT_FAILED",
+              "MERCHANT_CANCELED",
+              "PLAN_ENDED",
+              "PLAN_SUNSET",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ended_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "MONTH",
+              "YEAR"
+            ],
+            "type": "string"
+          },
+          "latest_payment": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "enum": [
+                      "PROCESSING",
+                      "CONFIRMED",
+                      "SUCCEEDED",
+                      "FAILED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest payment of this subscription that SUCCEEDED — the last money that actually arrived (plan-2 re-review O2). Never an in-flight or failed attempt: those surface as `status: PAST_DUE` and the `subscription.payment_failed` webhook. `status` is kept for parity with the webhook `payment` object and always reads `SUCCEEDED`."
+          },
+          "merchant_cancel_requested": {
+            "description": "True when the merchant ALSO asked to cancel at period end while the payer's own cancellation (`cancel_reason: PAYER_CANCELED`) was pending: it stands even if the payer resumes on chain. Additive (2026-09-28).",
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "object": {
+            "const": "subscription",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "period_hours": {
+            "type": "number"
+          },
+          "plan_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price_id": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "PAST_DUE",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "status",
+          "order_id",
+          "price_id",
+          "plan_id",
+          "product_name",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "interval",
+          "period_hours",
+          "customer",
+          "current_period_index",
+          "current_period_start",
+          "current_period_end",
+          "cancel_at_period_end",
+          "cancel_at",
+          "cancel_reason",
+          "merchant_cancel_requested",
+          "end_reason",
+          "started_at",
+          "ended_at",
+          "created_at",
+          "latest_payment",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "ApiTestEventResponse": {
+        "description": "`POST v1/webhook/test-event`'s 202 body: the id of the test.event queued for delivery.",
+        "properties": {
+          "event_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id"
+        ],
+        "type": "object"
+      },
+      "CancelSubscriptionDto": {
+        "properties": {
+          "at": {
+            "enum": [
+              "now",
+              "period_end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "type": "object"
+      },
+      "CreateCheckoutSessionDto": {
+        "properties": {
+          "amount": {
+            "pattern": "^\\d{1,7}(\\.\\d{1,6})?$",
+            "type": "string"
+          },
+          "cancel_url": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "customer_email": {
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "customer_reference": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/LineItemDto"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxProperties": 20,
+            "propertyNames": {
+              "maxLength": 40,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "type": "object"
+          },
+          "mode": {
+            "enum": [
+              "payment",
+              "subscription"
+            ],
+            "type": "string"
+          },
+          "order_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "price_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "success_url": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "ui_mode": {
+            "enum": [
+              "redirect",
+              "popup"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "order_id",
+          "success_url",
+          "cancel_url"
+        ],
+        "type": "object"
+      },
+      "EndpointVerificationPayload": {
+        "description": "The `endpoint.verification` probe's `data`: echo `challenge` back at HTTP 200.",
+        "properties": {
+          "challenge": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge"
+        ],
+        "type": "object"
+      },
+      "Error": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "already_subscribed",
+                  "already_subscribed_on_chain",
+                  "amount_not_allowed",
+                  "amount_or_price_required",
+                  "amount_out_of_range",
+                  "build_limit_reached",
+                  "cancel_at_invalid",
+                  "checkout_link_invalid",
+                  "checkout_link_outdated",
+                  "checkout_session_closed",
+                  "checkout_session_expired",
+                  "checkout_session_not_found",
+                  "checkout_unavailable",
+                  "customer_not_found",
+                  "event_not_found",
+                  "expires_at_out_of_range",
+                  "idempotency_key_invalid",
+                  "idempotency_key_required",
+                  "idempotency_key_reused",
+                  "idempotency_request_in_progress",
+                  "idempotency_response_unreadable",
+                  "insufficient_sol",
+                  "insufficient_usdc",
+                  "internal_error",
+                  "invalid_api_credentials",
+                  "invalid_json",
+                  "merchant_token_account_missing",
+                  "mode_not_supported",
+                  "not_found",
+                  "order_already_paid",
+                  "order_not_found",
+                  "payer_token_account_frozen",
+                  "payer_token_account_missing",
+                  "payload_too_large",
+                  "payment_in_progress",
+                  "payment_not_found",
+                  "plan_limit_reached",
+                  "price_archived",
+                  "price_id_required",
+                  "price_not_found",
+                  "price_not_recurring",
+                  "price_type_mismatch",
+                  "product_archived",
+                  "product_not_found",
+                  "rate_limited",
+                  "session_not_cancelable",
+                  "session_not_reissuable",
+                  "subscription_already_ended",
+                  "subscription_busy",
+                  "subscription_ended_not_closed",
+                  "subscription_not_found",
+                  "subscription_plan_failed",
+                  "subscription_preparing",
+                  "subscription_winding_down",
+                  "subscriptions_paused",
+                  "too_close_to_expiry",
+                  "too_many_probes",
+                  "transaction_mismatch",
+                  "url_insecure",
+                  "validation_failed",
+                  "wallet_invalid",
+                  "webhook_endpoint_not_active"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "Known codes are listed; treat any other string as an unknown error."
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "error": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "statusCode",
+          "error",
+          "code",
+          "message",
+          "request_id"
+        ],
+        "type": "object"
+      },
+      "FindOrderQueryDto": {
+        "properties": {
+          "order_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id"
+        ],
+        "type": "object"
+      },
+      "LineItemDto": {
+        "properties": {
+          "amount": {
+            "pattern": "^\\d{1,7}(\\.\\d{1,6})?$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 1000000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "quantity",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "ListApiEventsQueryDto": {
+        "properties": {
+          "cursor": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z_.]*$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListApiOrdersQueryDto": {
+        "properties": {
+          "created_gte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "created_lte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "cursor": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "customer_reference": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "default": "ALL",
+            "enum": [
+              "PENDING",
+              "PAID",
+              "EXPIRED",
+              "CANCELED",
+              "ALL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListApiPaymentsQueryDto": {
+        "properties": {
+          "created_gte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "created_lte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "cursor": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "default": "ALL",
+            "enum": [
+              "PROCESSING",
+              "CONFIRMED",
+              "SUCCEEDED",
+              "FAILED",
+              "ALL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListApiPricesQueryDto": {
+        "properties": {
+          "cursor": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "MONTH",
+              "YEAR"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "product_id": {
+            "pattern": "^[A-Za-z0-9_]{1,64}$",
+            "type": "string"
+          },
+          "status": {
+            "default": "ALL",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED",
+              "ALL"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "ONE_TIME",
+              "RECURRING"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListApiProductsQueryDto": {
+        "properties": {
+          "cursor": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "default": "ALL",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED",
+              "ALL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListSubscriptionsQueryDto": {
+        "properties": {
+          "cursor": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "customer_reference": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "order_id": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "status": {
+            "default": "ALL",
+            "enum": [
+              "ACTIVE",
+              "PAST_DUE",
+              "ENDED",
+              "ALL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OrderDuplicatePaymentPayload": {
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "checkout_session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "duplicate": {
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "signature",
+              "amount"
+            ],
+            "type": "object"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "object": {
+            "const": "order",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "paid_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "PAID",
+              "EXPIRED",
+              "CANCELED"
+            ],
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "checkout_session_id",
+          "created_at",
+          "currency",
+          "customer",
+          "duplicate",
+          "expired_at",
+          "fee_amount",
+          "id",
+          "metadata",
+          "object",
+          "order_id",
+          "paid_at",
+          "payment",
+          "status",
+          "total_amount"
+        ],
+        "type": "object"
+      },
+      "OrderEventPayload": {
+        "description": "The webhook body for order.paid / order.expired (spec §6.6, constraints.md's published payload table). Built from EXPLICIT keys, in the published order — never a spread of `toApiOrderResponse`, which also carries `description` and `canceled_at`: fields the published contract does not list. The contract wins; a dashboard-only field must not leak into a webhook just because the API response and the webhook payload happen to share most of their shape.",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "checkout_session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "object": {
+            "const": "order",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "paid_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "PAID",
+              "EXPIRED",
+              "CANCELED"
+            ],
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "order_id",
+          "checkout_session_id",
+          "status",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "customer",
+          "payment",
+          "metadata",
+          "created_at",
+          "paid_at",
+          "expired_at"
+        ],
+        "type": "object"
+      },
+      "SessionEventPayload": {
+        "description": "The webhook body for the three checkout.session.* events (spec §6.6).",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "canceled_at": {
+            "description": "Absent on events created before 2026-09-28.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "MONTH",
+              "YEAR",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "mode": {
+            "description": "`mode` and `ui_mode` round-trip on the published API (fix round 2, S5): they go in lowercase (`\"payment\"`, `\"redirect\"`) and they come back lowercase, from v1 responses AND from webhook payloads. An integrator can feed a session straight back into a create call.\n\nSTATUS fields deliberately stay UPPERCASE: they are output-only enums that no request body ever carries, so there is nothing for them to round-trip with. The payer-facing `checkout/session` view is an internal contract with our own checkout-frontend and is unchanged.",
+            "enum": [
+              "payment",
+              "subscription"
+            ],
+            "type": "string"
+          },
+          "object": {
+            "const": "checkout_session",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "description": "Absent on events created before 2026-09-28.",
+                "enum": [
+                  "PROCESSING",
+                  "CONFIRMED",
+                  "SUCCEEDED",
+                  "FAILED",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "COMPLETED",
+              "EXPIRED",
+              "CANCELED"
+            ],
+            "type": "string"
+          },
+          "subscription": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "ACTIVE",
+                      "PAST_DUE",
+                      "ENDED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "mode",
+          "status",
+          "order_id",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "interval",
+          "subscription",
+          "customer",
+          "payment",
+          "metadata",
+          "expires_at",
+          "created_at",
+          "completed_at",
+          "expired_at"
+        ],
+        "type": "object"
+      },
+      "SubscriptionEventPayload": {
+        "description": "THE webhook payload, identical for all six subscription events (spec §6.6). Public ids only, amounts as base-unit strings, absent values null — never omitted, so an integrator can destructure it without optional chaining.\n\n`payment` is REQUIRED, so every publisher has to decide which payment its event is about (final review I3): the settling payment for `created` / `renewed`, the failing SENT charge for `payment_failed` / `past_due` / `ended(PAYMENT_FAILED)` — or null when the failure was found before anything was sent — and null for `cancel_scheduled` and a cancel's `ended`. Null is published as `{ id: null, status: null, signature: null }`, never a missing key.",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "cancel_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "description": "Who asked for a scheduled cancellation — the published `cancel_reason` / `cancelReason`. The same two values `end_reason` takes once the cancellation takes effect.",
+                "enum": [
+                  "PAYER_CANCELED",
+                  "MERCHANT_CANCELED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string"
+          },
+          "current_period_end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "current_period_index": {
+            "type": "number"
+          },
+          "current_period_start": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "end_reason": {
+            "enum": [
+              "PAYER_CANCELED",
+              "PAYMENT_FAILED",
+              "MERCHANT_CANCELED",
+              "PLAN_ENDED",
+              "PLAN_SUNSET",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ended_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure": {
+            "properties": {
+              "attempt_no": {
+                "type": "number"
+              },
+              "next_attempt_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "INSUFFICIENT_FUNDS",
+                  "DELEGATION_REVOKED",
+                  "ACCOUNT_FROZEN",
+                  "ACCOUNT_CLOSED",
+                  "CANCELLED_ON_CHAIN",
+                  "PLAN_EXPIRED",
+                  "TOO_EARLY",
+                  "CHARGING_KEY_UNFUNDED",
+                  "PROGRAM_ERROR",
+                  "NETWORK_ERROR"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "reason",
+              "attempt_no",
+              "next_attempt_at"
+            ],
+            "type": "object"
+          },
+          "fee_amount": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "MONTH",
+              "YEAR"
+            ],
+            "type": "string"
+          },
+          "merchant_cancel_requested": {
+            "description": "Absent on events created before 2026-09-28.",
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "object": {
+            "const": "subscription",
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "PROCESSING",
+                  "CONFIRMED",
+                  "SUCCEEDED",
+                  "FAILED",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "period": {
+            "properties": {
+              "amount_due": {
+                "type": "string"
+              },
+              "end": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "fee_due": {
+                "type": "string"
+              },
+              "index": {
+                "type": "number"
+              },
+              "start": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "SCHEDULED",
+                  "PAID",
+                  "UNPAID",
+                  "VOID"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "index",
+              "start",
+              "end",
+              "amount_due",
+              "fee_due",
+              "status"
+            ],
+            "type": "object"
+          },
+          "period_hours": {
+            "type": "number"
+          },
+          "plan_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price_id": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "PAST_DUE",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "status",
+          "order_id",
+          "price_id",
+          "plan_id",
+          "product_name",
+          "amount",
+          "fee_amount",
+          "total_amount",
+          "currency",
+          "interval",
+          "period_hours",
+          "customer",
+          "current_period_index",
+          "current_period_start",
+          "current_period_end",
+          "cancel_at_period_end",
+          "cancel_at",
+          "cancel_reason",
+          "end_reason",
+          "started_at",
+          "ended_at",
+          "created_at",
+          "payment",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "TestEventPayload": {
+        "description": "The `test.event` webhook's `data`.",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "basicAuth": {
+        "description": "app_id:app_secret",
+        "scheme": "basic",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "fianto API",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/application": {
+      "get": {
+        "operationId": "application.retrieve",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "The calling application"
+      }
+    },
+    "/v1/checkout-sessions": {
+      "post": {
+        "operationId": "checkoutSessions.create",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutSessionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Create a checkout session"
+      }
+    },
+    "/v1/checkout-sessions/{id}": {
+      "get": {
+        "operationId": "checkoutSessions.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a checkout session"
+      }
+    },
+    "/v1/checkout-sessions/{id}/cancel": {
+      "post": {
+        "operationId": "checkoutSessions.cancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Cancel an open checkout session"
+      }
+    },
+    "/v1/checkout-sessions/{id}/link": {
+      "post": {
+        "operationId": "checkoutSessions.reissueLink",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Issue a new link for an open checkout session"
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "events.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z_.]*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page (an evt_ id). Anything else is 400 validation_failed.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiEventResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List events (90 days)"
+      }
+    },
+    "/v1/events/{id}": {
+      "get": {
+        "operationId": "events.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEventResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve an event"
+      }
+    },
+    "/v1/orders": {
+      "get": {
+        "operationId": "orders.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "PENDING",
+                "PAID",
+                "EXPIRED",
+                "CANCELED",
+                "ALL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_reference",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_gte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_lte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page. An unparseable value starts from the first page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 20,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiOrderResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List orders (with order_id: the legacy lookup, see /v1/orders/lookup)"
+      }
+    },
+    "/v1/orders/lookup": {
+      "get": {
+        "operationId": "orders.retrieveByOrderId",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiOrderResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Find an order by your own order id"
+      }
+    },
+    "/v1/orders/{id}": {
+      "get": {
+        "operationId": "orders.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiOrderResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve an order"
+      }
+    },
+    "/v1/payments": {
+      "get": {
+        "operationId": "payments.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "PROCESSING",
+                "CONFIRMED",
+                "SUCCEEDED",
+                "FAILED",
+                "ALL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_gte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_lte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page. An unparseable value starts from the first page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 20,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiPaymentResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List payments"
+      }
+    },
+    "/v1/payments/{id}": {
+      "get": {
+        "operationId": "payments.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiPaymentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a payment"
+      }
+    },
+    "/v1/prices": {
+      "get": {
+        "operationId": "prices.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_]{1,64}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ONE_TIME",
+                "RECURRING"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interval",
+            "required": false,
+            "schema": {
+              "enum": [
+                "MONTH",
+                "YEAR"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED",
+                "ALL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page. An unparseable value starts from the first page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 20,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiPriceResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List prices"
+      }
+    },
+    "/v1/prices/{id}": {
+      "get": {
+        "operationId": "prices.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiPriceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a price"
+      }
+    },
+    "/v1/products": {
+      "get": {
+        "operationId": "products.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED",
+                "ALL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page. An unparseable value starts from the first page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 20,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiProductResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List products"
+      }
+    },
+    "/v1/products/{id}": {
+      "get": {
+        "operationId": "products.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProductResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a product"
+      }
+    },
+    "/v1/subscriptions": {
+      "get": {
+        "operationId": "subscriptions.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ACTIVE",
+                "PAST_DUE",
+                "ENDED",
+                "ALL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_reference",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_id",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page. An unparseable value starts from the first page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 20,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiSubscriptionResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List subscriptions"
+      }
+    },
+    "/v1/subscriptions/{id}": {
+      "get": {
+        "operationId": "subscriptions.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSubscriptionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a subscription"
+      }
+    },
+    "/v1/subscriptions/{id}/cancel": {
+      "post": {
+        "operationId": "subscriptions.cancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSubscriptionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSubscriptionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Cancel a subscription now or at period end"
+      }
+    },
+    "/v1/webhook/test-event": {
+      "post": {
+        "operationId": "webhookEndpoint.sendTestEvent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTestEventResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Send a signed test.event to the verified endpoint"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "variables": {
+        "baseUrl": {
+          "default": "https://api.example.com"
+        }
+      }
+    }
+  ],
+  "webhooks": {
+    "checkout.session.canceled": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SessionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "checkout.session.canceled"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "checkout.session.completed": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SessionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "checkout.session.completed"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "checkout.session.expired": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SessionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "checkout.session.expired"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "endpoint.verification": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/EndpointVerificationPayload"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "endpoint.verification"
+                  }
+                },
+                "required": [
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Must be exactly HTTP 200 with JSON {\"challenge\": <data.challenge>} within 5 s; any other status or a redirect fails verification."
+          }
+        },
+        "summary": "Answer HTTP 200 with JSON {\"challenge\": <data.challenge>} within 5 s."
+      }
+    },
+    "order.duplicate_payment": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/OrderDuplicatePaymentPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "order.duplicate_payment"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "order.expired": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/OrderEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "order.expired"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "order.paid": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/OrderEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "order.paid"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.cancel_scheduled": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.cancel_scheduled"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.cancel_withdrawn": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.cancel_withdrawn"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.created": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.created"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.ended": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.ended"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.past_due": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.past_due"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.payment_failed": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.payment_failed"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "subscription.renewed": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/SubscriptionEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "subscription.renewed"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "test.event": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/TestEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "test.event"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    }
+  }
+}

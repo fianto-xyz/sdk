@@ -1,0 +1,29 @@
+{
+  "name": "fianto-sdk-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" run build",
+    "typecheck": "pnpm -r --filter \"./packages/**\" run typecheck",
+    "test": "vitest run",
+    "lint": "oxlint packages scripts",
+    "spec:sync": "node scripts/sync-spec.mjs",
+    "generate": "node scripts/generate.mjs",
+    "check:generated": "node scripts/generate.mjs && git diff --exit-code -- packages/sdk/src/generated"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/cli": "3.0.3",
+    "@types/node": "^24",
+    "ajv": "8.20.0",
+    "openapi-typescript": "7.13.0",
+    "oxlint": "1.85.0",
+    "publint": "0.3.24",
+    "standardwebhooks": "1.1.1",
+    "tsdown": "0.23.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
