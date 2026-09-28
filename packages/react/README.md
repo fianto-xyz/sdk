@@ -72,6 +72,7 @@ render the same DOM.
 | `size` | `'static' \| 'fill'` | `'static'` |
 | `locale` | `'en' \| 'vi'` | see [SSR note](#ssr-note) below |
 | `fallback` | `'redirect' \| 'none'` | `'redirect'` |
+| `loading` | `boolean` — forces the spinner/`aria-busy` state on, in addition to the state `useCheckout` already tracks internally while a checkout is open | `false` |
 | `disabled` | `boolean` | `false` |
 | `onResult` | `(result: CheckoutResult) => void` | — |
 | `onError` | `(error: Error) => void` | — |
