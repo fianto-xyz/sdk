@@ -132,6 +132,18 @@ describe('trigger', () => {
     expect(lines).toEqual(['→ 500 order.paid (local sample)']);
   });
 
+  // C5 fix round 1: a redirect must not be followed off-host.
+  it('passes redirect: manual to the forward fetch, and treats a redirect as a failure', async () => {
+    const { output, lines } = fakeDeps();
+    const fetch = vi.fn(async () => new Response(null, { status: 307 }));
+    await expect(
+      trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output }),
+    ).rejects.toThrow(/307/);
+    const [, init] = fetch.mock.calls[0]!;
+    expect((init as RequestInit).redirect).toBe('manual');
+    expect(lines).toEqual(['→ 307 order.paid (local sample)']);
+  });
+
   it('does not throw when the local endpoint answers any 2xx', async () => {
     const { output } = fakeDeps();
     const fetch = vi.fn(async () => new Response(null, { status: 204 }));

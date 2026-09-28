@@ -57,7 +57,11 @@ export async function trigger(
       deps.output.err('Warning: signing with the webhook secret from the environment (FIANTO_WEBHOOK_SECRET).');
     }
     const { body, headers } = await signWebhook({ event: sampleEvent(type), secret: options.secret });
-    const response = await deps.fetch(options.forwardTo, { method: 'POST', headers, body });
+    // redirect: 'manual' — a loopback endpoint answering 307/308 must not carry the signed
+    // sample off-host to wherever Location points; that would defeat the loopback check above.
+    // fetch turns any redirect response into an opaque one (status 0) instead of following it,
+    // which `!response.ok` below already treats as a failure.
+    const response = await deps.fetch(options.forwardTo, { method: 'POST', headers, body, redirect: 'manual' });
     deps.output.out(`→ ${response.status} ${type} (local sample)`);
     if (!response.ok) {
       throw new Error(`${options.forwardTo} answered ${response.status} to the local sample.`);

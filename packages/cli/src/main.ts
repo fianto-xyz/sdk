@@ -202,11 +202,22 @@ function handleError(deps: Deps, error: unknown): number {
   return 1;
 }
 
-/** Appends ` (cause: ...)` when `error.cause` is present, so a wrapped error's real reason isn't lost. One line. */
+/** `withCause` never walks past this many `.cause` links — a guard against a cyclic chain. */
+const MAX_CAUSE_DEPTH = 10;
+
+/**
+ * Appends ` (cause: ...)` — the innermost cause in the chain, so e.g. `ECONNREFUSED` still
+ * surfaces through however many wrapper errors sit on top of it — when `error.cause` is present.
+ * Always one line.
+ */
 function withCause(message: string, error: unknown): string {
   if (!(error instanceof Error) || error.cause === undefined) return message;
-  const cause = error.cause instanceof Error ? error.cause.message : String(error.cause);
-  return `${message} (cause: ${cause})`;
+  let cause: unknown = error.cause;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && cause instanceof Error && cause.cause !== undefined; depth += 1) {
+    cause = cause.cause;
+  }
+  const text = cause instanceof Error ? cause.message : String(cause);
+  return `${message} (cause: ${text})`;
 }
 
 function usageFail(deps: Deps, message: string): number {

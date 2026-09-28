@@ -91,6 +91,22 @@ describe('main', () => {
     expect(await main(['whoami'], d)).toBe(1);
     expect(errors).toEqual(['request failed']);
   });
+
+  it('walks to the innermost cause across a multi-level chain, still on one line', async () => {
+    const { d, errors, client } = deps();
+    const root = new Error('ECONNREFUSED');
+    const middle = new Error('network error', { cause: root });
+    client.application.retrieve.mockRejectedValue(new Error('request failed', { cause: middle }));
+    expect(await main(['whoami'], d)).toBe(1);
+    expect(errors).toEqual(['request failed (cause: ECONNREFUSED)']);
+  });
+
+  it('stringifies a non-Error cause', async () => {
+    const { d, errors, client } = deps();
+    client.application.retrieve.mockRejectedValue(new Error('request failed', { cause: 'boom' }));
+    expect(await main(['whoami'], d)).toBe(1);
+    expect(errors).toEqual(['request failed (cause: boom)']);
+  });
 });
 
 const SECRET = 'whsec_' + Buffer.alloc(32, 1).toString('base64');

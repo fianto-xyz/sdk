@@ -13,6 +13,7 @@
     "generate": "node scripts/generate.mjs",
     "check:generated": "node scripts/generate.mjs && git diff --exit-code -- packages/sdk/src/generated",
     "build:brand": "node scripts/build-brand.mjs",
+    "sync-versions": "node scripts/sync-versions.mjs",
     "size": "size-limit",
     "check:packages": "pnpm build && pnpm -r --filter \"./packages/**\" run check && pnpm size",
     "release": "pnpm check:packages && changeset publish"

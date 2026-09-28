@@ -95,8 +95,10 @@ describe('sign', () => {
     const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
     await sign({ payload: file, secret, id: dangerousId, timestamp: 1_790_000_000 }, output);
     const curlLine = lines.find((l) => l.startsWith('curl '))!;
-    // Stub out curl (no network in tests) but otherwise hand bash the exact printed line.
-    execFileSync('bash', ['-c', `curl() { :; }\n${curlLine}\n`]);
+    // The named risk is a copy-paste into a POSIX shell, not specifically bash — run it under
+    // `sh` (dash on this box, a stricter POSIX shell than bash) with curl stubbed to a no-op
+    // (no network in tests) but otherwise the exact printed line, unmodified.
+    execFileSync('sh', ['-c', `curl() { :; }\n${curlLine}\n`]);
     expect(existsSync(marker)).toBe(false);
   });
 

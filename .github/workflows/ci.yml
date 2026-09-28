@@ -77,7 +77,11 @@ jobs:
           # dist/ is already built and checked by the step above; publish-script only needs to
           # publish it, not rebuild or re-check it.
           publish-script: pnpm exec changeset publish
-          version-script: pnpm changeset version
+          # A single command, not `changeset version && ...`: changesets/action runs this
+          # directly (via @actions/exec), not through a shell, so `&&` would just be a literal
+          # argument to `changeset` rather than a shell operator. scripts/version.mjs does the
+          # version bump, then re-syncs the hand-kept src/version.ts files, then relocks.
+          version-script: node scripts/version.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

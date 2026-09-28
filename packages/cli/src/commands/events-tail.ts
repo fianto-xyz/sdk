@@ -51,12 +51,15 @@ async function forwardEvent(
 
 /**
  * Polls `GET v1/events` and forwards new events to a local URL, signed as fianto would sign them.
- * Runs until `deps.signal` aborts (Ctrl-C in the CLI, see `bin.ts`) — checked only between polls,
- * so whichever single forward is in flight at that moment always finishes first (forwards are
- * sequential, never concurrent) before the loop notices and stops; `bin.ts` then exits 130. A
- * second Ctrl-C exits immediately instead of waiting for that. At-most-once per process: a crash
- * or restart re-forwards nothing already delivered and may miss events during the gap — this is
- * a dev convenience, not a delivery guarantee.
+ * Runs until `deps.signal` aborts (Ctrl-C in the CLI, see `bin.ts`). Since one poll can gather far
+ * more than one page (A6 follows `next_cursor` until it catches up — with a wide `--since`, that
+ * can be thousands of events), the forward loop rechecks the signal before each event: whichever
+ * forward is already in flight when Ctrl-C lands always finishes (forwards are sequential, never
+ * concurrent — nothing preempts an `await` mid-flight), but nothing already-gathered-but-not-yet-
+ * sent from that same batch goes out afterward. `bin.ts` then exits 130; a second Ctrl-C exits
+ * immediately instead of waiting for that. At-most-once per process: a crash or restart
+ * re-forwards nothing already delivered and may miss events during the gap — this is a dev
+ * convenience, not a delivery guarantee.
  */
 export async function eventsTail(
   client: Fianto,
@@ -77,13 +80,19 @@ export async function eventsTail(
 
   while (!deps.signal?.aborted) {
     const candidates: FiantoEvent[] = [];
+    // Scoped to this poll only: `seen` (forwarded-ever) isn't updated until a candidate actually
+    // forwards, below, so without this a page that keeps returning the same items — e.g. a
+    // next_cursor that never actually advances — would look "fresh" forever and this poll would
+    // never stop paging or stop growing `candidates`.
+    const gathered = new Set<string>();
     let cursor: string | undefined;
     let pollFailed = false;
 
     // v1/events pages newest-first. Keep following next_cursor while a page still adds events
     // this poll hasn't forwarded yet, so a burst bigger than one page (100 events) is never
     // silently dropped (A6). Stop as soon as a page adds nothing new — everything past it is
-    // guaranteed either already forwarded or older than --since — or the pages run out.
+    // guaranteed either already forwarded, already gathered this poll, or older than --since —
+    // or the pages run out.
     for (;;) {
       let page: Awaited<ReturnType<Fianto['events']['list']>>;
       try {
@@ -95,7 +104,10 @@ export async function eventsTail(
         pollFailed = true;
         break;
       }
-      const fresh = page.items.filter((event) => !seen.has(event.id) && Date.parse(event.timestamp) >= threshold);
+      const fresh = page.items.filter(
+        (event) => !seen.has(event.id) && !gathered.has(event.id) && Date.parse(event.timestamp) >= threshold,
+      );
+      for (const event of fresh) gathered.add(event.id);
       candidates.push(...fresh);
       if (fresh.length === 0 || page.next_cursor === null || page.items.length === 0) break;
       cursor = page.next_cursor;
@@ -104,6 +116,9 @@ export async function eventsTail(
     if (!pollFailed) {
       candidates.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
       for (const event of candidates) {
+        // Ctrl-C: forwards are sequential, so whichever one is already in flight always
+        // finishes, but nothing else already gathered for this poll goes out after that.
+        if (deps.signal?.aborted) break;
         await forwardEvent(event, options.secret, options.forwardTo, deps);
         remember(seen, event.id);
       }
