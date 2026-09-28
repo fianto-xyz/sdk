@@ -58,5 +58,5 @@ const ERROR_KEYS: Readonly<Record<string, StatusTextKey>> = {
 
 /** The status line for a failed checkout start, from the error's `code` (anything else: generic). */
 export function errorTextKey(code: string | undefined): StatusTextKey {
-  return (code !== undefined && Object.hasOwn(ERROR_KEYS, code) && ERROR_KEYS[code]) || 'generic';
+  return (code !== undefined && Object.prototype.hasOwnProperty.call(ERROR_KEYS, code) && ERROR_KEYS[code]) || 'generic';
 }

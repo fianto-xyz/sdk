@@ -1,4 +1,4 @@
-import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, resolveButtonOptions, STATUS_TEXT } from '../button-core/index.js';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, observeOverflow, resolveButtonOptions, STATUS_TEXT } from '../button-core/index.js';
 import type { ButtonOptions, ResolvedButton, StatusTextKey } from '../button-core/index.js';
 import { FiantoCheckoutError } from '../checkout/errors.js';
 import { fetchCheckoutSession } from '../checkout/fetch-session.js';
@@ -40,7 +40,7 @@ export class FiantoButtonElement extends HTMLElementBase {
 
   #session: CheckoutSessionSource | undefined;
   #loading = false;
-  #resizeObserver: ResizeObserver | undefined;
+  #stopObserving: (() => void) | undefined;
   #statusTimer: ReturnType<typeof setTimeout> | undefined;
   #resolved: ResolvedButton = resolveButtonOptions({});
   #held = false;
@@ -50,7 +50,8 @@ export class FiantoButtonElement extends HTMLElementBase {
     this.attachShadow({ mode: 'open' });
     // A `session` set on the element before `<fianto-button>` was defined is an own data property
     // shadowing the accessor: move it onto the private field (the standard upgrade pattern).
-    if (Object.hasOwn(this, 'session')) {
+    // Not Object.hasOwn: that is ES2022, and the CDN bundle targets es2020 with no polyfills.
+    if (Object.prototype.hasOwnProperty.call(this, 'session')) {
       const value = (this as { session?: CheckoutSessionSource }).session;
       delete (this as { session?: CheckoutSessionSource }).session;
       this.session = value;
@@ -67,15 +68,15 @@ export class FiantoButtonElement extends HTMLElementBase {
 
   connectedCallback(): void {
     this.#render();
-    if (typeof ResizeObserver !== 'undefined') {
-      this.#resizeObserver = new ResizeObserver(() => this.#applyOverflowFallback());
-      this.#resizeObserver.observe(this);
-    }
+    // Not the host: it is display: inline, and ResizeObserver never fires for an inline box.
+    this.#stopObserving?.();
+    const container = this.parentElement ?? (this.getRootNode() as { host?: Element }).host ?? null;
+    this.#stopObserving = observeOverflow(this.shadowRoot!.querySelector('button')!, container);
   }
 
   disconnectedCallback(): void {
-    this.#resizeObserver?.disconnect();
-    this.#resizeObserver = undefined;
+    this.#stopObserving?.();
+    this.#stopObserving = undefined;
     if (this.#statusTimer !== undefined) clearTimeout(this.#statusTimer);
     this.#statusTimer = undefined;
     this.#held = false;

@@ -129,6 +129,24 @@ it('keeps focus while loading via aria-disabled; native disabled only for the pr
   expect(button.disabled).toBe(true);
 });
 
+it('watches the button and its container for resizes', () => {
+  const observed: Element[] = [];
+  vi.stubGlobal('ResizeObserver', class {
+    observe(target: Element) { observed.push(target); }
+    disconnect() {}
+  });
+  const { container } = render(<div id="wrap"><FiantoButton session={{ id: 'fian_cs_1', url: 'https://pay.test/c/x' }} /></div>);
+  expect(observed).toEqual([container.querySelector('button'), container.querySelector('#wrap')]);
+});
+
+it('re-exports the whole @fianto/js error set', async () => {
+  const js = await import('@fianto/js');
+  const react = await import('./index.js');
+  for (const name of ['FiantoCheckoutError', 'CheckoutSessionError', 'InvalidSessionError', 'PopupBlockedError'] as const) {
+    expect(react[name]).toBe(js[name]);
+  }
+});
+
 it('falls back to logo-only when the label overflows', () => {
   let contentWidth = 300;
   vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {

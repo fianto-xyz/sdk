@@ -11,8 +11,10 @@ export const BUTTON_CSS = `
   box-sizing: border-box;
   height: clamp(40px, var(--fianto-button-height, 44px), 55px);
   width: var(--fianto-button-width, auto);
+  /* Never wider than its container: the 160px minimum yields to a narrower one, and the label
+     then falls back to logo-only (applyOverflowFallback) instead of spilling out. */
   max-width: 100%;
-  min-width: 160px;
+  min-width: min(160px, 100%);
   padding: 0 calc(clamp(40px, var(--fianto-button-height, 44px), 55px) / 10 * 2);
   border: none;
   --_fianto-shape-radius: 8px;

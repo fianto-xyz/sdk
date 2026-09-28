@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, us
 import type { CSSProperties } from 'react';
 import { FiantoCheckoutError } from '@fianto/js';
 import type { CheckoutResult, CheckoutSessionSource } from '@fianto/js';
-import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, resolveButtonOptions, STATUS_TEXT } from '@fianto/js/button-core';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, observeOverflow, resolveButtonOptions, STATUS_TEXT } from '@fianto/js/button-core';
 import type { ButtonOptions, StatusTextKey } from '@fianto/js/button-core';
 import { useCheckout } from './use-checkout.js';
 
@@ -105,10 +105,7 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
   });
   useIsomorphicLayoutEffect(() => {
     const button = buttonRef.current;
-    if (!button || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => applyOverflowFallback(button));
-    observer.observe(button);
-    return () => observer.disconnect();
+    return button ? observeOverflow(button, button.parentElement) : undefined;
   }, []);
 
   const busy = resolved.loading || status === 'open';

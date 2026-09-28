@@ -7,4 +7,4 @@ export { buttonText, errorTextKey, STATUS_TEXT } from './labels.js';
 export type { StatusTextKey } from './labels.js';
 export { buttonClassName, buttonMarkup } from './markup.js';
 export { BUTTON_CSS } from './styles.js';
-export { applyOverflowFallback } from './overflow.js';
+export { applyOverflowFallback, observeOverflow } from './overflow.js';

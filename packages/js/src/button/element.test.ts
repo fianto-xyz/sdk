@@ -202,6 +202,27 @@ it('falls back to logo-only when the label overflows, and back when it fits', ()
   expect(el.shadowRoot!.querySelector('button')!.classList.contains('fianto-plain')).toBe(false);
 });
 
+// The host is display: inline, and ResizeObserver never fires for an inline box: observe the
+// inner button and the container instead, and stop on disconnect.
+it('watches the inner button and its container for resizes, not the inline host', () => {
+  const observers: { observed: Element[]; disconnected: boolean }[] = [];
+  vi.stubGlobal('ResizeObserver', class {
+    record = { observed: [] as Element[], disconnected: false };
+    constructor() { observers.push(this.record); }
+    observe(target: Element) { this.record.observed.push(target); }
+    disconnect() { this.record.disconnected = true; }
+  });
+  const wrap = document.createElement('div');
+  document.body.append(wrap);
+  const el = document.createElement('fianto-button') as FiantoButtonElement;
+  wrap.append(el);
+  const button = el.shadowRoot!.querySelector('button')!;
+  expect(observers.at(-1)!.observed).toEqual([button, wrap]);
+  expect(observers.at(-1)!.observed).not.toContain(el);
+  el.remove();
+  expect(observers.at(-1)!.disconnected).toBe(true);
+});
+
 it('leaves loading when a redirected page returns from the bfcache', async () => {
   vi.stubGlobal('open', vi.fn(() => null));
   const assign = vi.fn();
