@@ -85,6 +85,50 @@ app.post('/webhooks/fianto', (c) =>
 );
 ```
 
+`checkout()` needs the same treatment, for the same reason: its default (`new Fianto()`, reading
+`FIANTO_APP_ID`/`FIANTO_APP_SECRET` off `process.env`) can't work on Workers, and a Worker's
+`env` is only available per-request (`c.env`), not at module load time — so build the `Fianto`
+client from `c.env` inside the route handler and pass it as `checkout()`'s own `fianto` option,
+rather than calling `checkout({ ... })` once at the top of the module:
+
+```ts
+import { Hono } from 'hono';
+import { Fianto } from '@fianto/sdk';
+import { checkout } from '@fianto/hono';
+
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/hono.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
+interface Bindings {
+  FIANTO_APP_ID: string;
+  FIANTO_APP_SECRET: string;
+}
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.post('/api/checkout', (c) =>
+  checkout<{ Bindings: Bindings }>({
+    // A fresh client per request, from this request's own c.env — not the module-level default.
+    fianto: new Fianto({ appId: c.env.FIANTO_APP_ID, appSecret: c.env.FIANTO_APP_SECRET }),
+    createSession: async (request) => {
+      const cart = await loadCartForSession(request);
+      return {
+        mode: 'payment',
+        order_id: cart.orderId,
+        amount: cart.totalUsdc,
+        description: cart.description, // required alongside amount
+        success_url: 'https://shop.example/thank-you',
+        cancel_url: 'https://shop.example/cart',
+      };
+    },
+  })(c),
+);
+
+export default app;
+```
+
 ## Money safety
 
 A browser redirect back to your `success_url` is not proof of payment. Fulfil orders only from a
