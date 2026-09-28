@@ -44,7 +44,13 @@ export async function webhookSecretFrom(
   flags: { secret?: string; 'secret-file'?: string },
   env: NodeJS.ProcessEnv,
 ): Promise<WebhookSecret> {
-  if (flags.secret) return { secret: flags.secret, fromEnv: false };
+  // `flags.secret !== undefined` distinguishes "--secret was not passed" from "--secret ''":
+  // an explicit empty value is a usage mistake to report, never a silent fall-through to
+  // --secret-file or FIANTO_WEBHOOK_SECRET as though --secret had never been given.
+  if (flags.secret !== undefined) {
+    if (!flags.secret) throw new UsageError('--secret must not be empty.');
+    return { secret: flags.secret, fromEnv: false };
+  }
   if (flags['secret-file']) {
     const path = flags['secret-file'];
     let raw: string;

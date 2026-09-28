@@ -54,6 +54,18 @@ describe('webhookSecretFrom', () => {
     await expect(webhookSecretFrom({}, {})).rejects.toThrow(/FIANTO_WEBHOOK_SECRET/);
   });
 
+  // An explicit `--secret ''` is a usage mistake, not "--secret wasn't passed" — it must not
+  // silently fall through to --secret-file or FIANTO_WEBHOOK_SECRET as though the flag were
+  // absent.
+  it('rejects an explicit empty --secret instead of falling back to --secret-file or the env', async () => {
+    await expect(webhookSecretFrom({ secret: '' }, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).rejects.toThrow(UsageError);
+    await expect(webhookSecretFrom({ secret: '' }, { FIANTO_WEBHOOK_SECRET: 'whsec_env' })).rejects.toThrow(/--secret/);
+  });
+
+  it('rejects an explicit empty --secret even alongside a valid --secret-file', async () => {
+    await expect(webhookSecretFrom({ secret: '', 'secret-file': '/nonexistent/path' }, {})).rejects.toThrow(UsageError);
+  });
+
   describe('--secret-file', () => {
     let dir: string;
 
