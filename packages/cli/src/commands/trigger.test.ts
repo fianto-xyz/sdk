@@ -151,4 +151,17 @@ describe('trigger', () => {
       trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output }),
     ).resolves.toBeUndefined();
   });
+
+  // A handler deduping on event.id must see a fresh id on every trigger, or it silently drops
+  // every delivery after the first.
+  it('sends a fresh evt_<32 hex> id on every trigger, never the sample default', async () => {
+    const { output, fetch } = fakeDeps();
+    await trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output });
+    await trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output });
+    const ids = fetch.mock.calls.map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { id: string }).id);
+    expect(ids).toHaveLength(2);
+    for (const id of ids) expect(id).toMatch(/^evt_[0-9a-f]{32}$/);
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(ids[0]).not.toBe(`evt_${'0'.repeat(31)}1`);
+  });
 });

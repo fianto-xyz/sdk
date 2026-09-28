@@ -1,11 +1,12 @@
 import type { Fianto } from '@fianto/sdk';
-import { sampleEvent, signWebhook, WEBHOOK_EVENT_TYPES, type WebhookEventType } from '@fianto/sdk/webhooks';
+import { isKnownEventType, sampleEvent, signWebhook, WEBHOOK_EVENT_TYPES } from '@fianto/sdk/webhooks';
 import { UsageError } from '../config.js';
 import { isLoopbackUrl } from '../loopback.js';
 import type { Deps } from '../main.js';
 
-function isKnownEventType(type: string): type is WebhookEventType {
-  return (WEBHOOK_EVENT_TYPES as readonly string[]).includes(type);
+/** evt_<32 hex>, same shape `@fianto/sdk/webhooks`' own `signWebhook` falls back to. */
+function freshEventId(): string {
+  return `evt_${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
 export interface TriggerOptions {
@@ -56,7 +57,10 @@ export async function trigger(
     if (options.secretFromEnv) {
       deps.output.err('Warning: signing with the webhook secret from the environment (FIANTO_WEBHOOK_SECRET).');
     }
-    const { body, headers } = await signWebhook({ event: sampleEvent(type), secret: options.secret });
+    // A fresh id per trigger: `sampleEvent` alone always returns the same evt_000…1 id (it's
+    // deterministic on purpose, for the SDK's own tests), so a handler that dedupes on event.id
+    // would treat every trigger after the first as a repeat delivery and silently ignore it.
+    const { body, headers } = await signWebhook({ event: sampleEvent(type, { id: freshEventId() }), secret: options.secret });
     // redirect: 'manual' — a loopback endpoint answering 307/308 must not carry the signed
     // sample off-host to wherever Location points; that would defeat the loopback check above.
     // fetch turns any redirect response into an opaque one (status 0) instead of following it,
