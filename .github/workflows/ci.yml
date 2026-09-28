@@ -9,11 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: ['20.x', '22.x', '24.x']
+        # tsdown, jsdom, size-limit and @changesets/cli all require Node >=22, so this matrix
+        # can't include 20.x. engines.node stays >=20.3 for consumers; the runtime-node20 job
+        # below is what actually proves the published dist/ output runs there.
+        node: ['22.x', '24.x']
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: '${{ matrix.node }}', cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:generated
@@ -23,10 +26,34 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm check:packages
+      # Packs every published package and typechecks a tiny consumer against it under node10,
+      # node16 and bundler module resolution — needs only the workspace's own tsc, so it runs
+      # once rather than once per matrix leg.
+      - run: node scripts/check-consumers.mjs
+        if: matrix.node == '22.x'
 
-  # Publishing lives in this workflow so it can only run after every `check` leg passed.
+  # Node 20.3.0 is the floor of engines.node, but the tooling in `check` (tsdown, jsdom,
+  # size-limit, @changesets/cli) needs Node >=22 to run at all. This job builds on 22, then
+  # switches to 20.3.0 to import/require the actual built dist/ output of @fianto/sdk and
+  # exercise it end to end, so the floor of engines.node is verified against real artifacts
+  # rather than just asserted in package.json.
+  runtime-node20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: '22.x', cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: '20.3.0' }
+      - run: node scripts/smoke-runtime.mjs
+
+  # Publishing lives in this workflow so it can only run after every check leg (both the
+  # version matrix and the Node 20.3.0 runtime smoke test) has passed.
   release:
-    needs: check
+    needs: [check, runtime-node20]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     concurrency: release-${{ github.ref }}
@@ -35,17 +62,23 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: '22.x', cache: pnpm, registry-url: 'https://registry.npmjs.org' }
       - run: pnpm install --frozen-lockfile
-      - uses: changesets/action@v1
+      # Builds every package and runs publint/attw/size-limit. Deliberately its own step, with
+      # no NPM_TOKEN in scope, so third-party build/check tooling never runs with publish
+      # credentials available to it.
+      - run: pnpm check:packages
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          publish: pnpm release
-          version: pnpm changeset version
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # dist/ is already built and checked by the step above; publish-script only needs to
+          # publish it, not rebuild or re-check it.
+          publish-script: pnpm exec changeset publish
+          version-script: pnpm changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
