@@ -182,3 +182,53 @@ it('honours options.now far from the real clock', async () => {
   await expect(verifyWebhook(body, headers, { secret, now: () => past * 1000 })).resolves.toBeDefined();
   expect(await reason(verifyWebhook(body, headers, { secret }))).toBe('timestamp_out_of_tolerance');
 });
+
+// C14: a short key or an unbounded tolerance is a configuration mistake, refused outright.
+it('rejects a secret whose key is shorter than 16 bytes and accepts one of exactly 16', async () => {
+  const short = `whsec_${randomBytes(15).toString('base64')}`;
+  const { body, headers } = signed({ keys: [short] });
+  expect(await reason(verifyWebhook(body, headers, { secret: short, now }))).toBe('invalid_secret');
+  const sixteen = `whsec_${randomBytes(16).toString('base64')}`;
+  const ok = signed({ keys: [sixteen] });
+  await expect(verifyWebhook(ok.body, ok.headers, { secret: sixteen, now })).resolves.toBeDefined();
+});
+
+it('refuses a toleranceSeconds outside 1…3600', async () => {
+  const { body, headers } = signed();
+  for (const toleranceSeconds of [0.5, 3601, 1e12]) {
+    await expect(verifyWebhook(body, headers, { secret, now, toleranceSeconds })).rejects.toThrow(/toleranceSeconds/);
+  }
+  for (const toleranceSeconds of [1, 3600]) {
+    await expect(verifyWebhook(body, headers, { secret, now, toleranceSeconds })).resolves.toBeDefined();
+  }
+});
+
+// C2: bounded work per request, whatever the signature header holds.
+it('computes the HMAC once per secret, however many candidates the header carries', async () => {
+  const sign = vi.spyOn(crypto.subtle, 'sign');
+  const junk = Array.from({ length: 7 }, () => `v1,${randomBytes(32).toString('base64')}`).join(' ');
+  const { body, headers } = signed({ keys: [secret], extra: junk });
+  await expect(verifyWebhook(body, headers, { secret: [other, secret], now })).resolves.toBeDefined();
+  expect(sign).toHaveBeenCalledTimes(2);
+  sign.mockRestore();
+});
+
+it('rejects more than 8 v1 candidates, even when one of them matches', async () => {
+  const junk = Array.from({ length: 8 }, () => `v1,${randomBytes(32).toString('base64')}`).join(' ');
+  const { body, headers } = signed({ extra: junk });
+  expect(await reason(verifyWebhook(body, headers, { secret, now }))).toBe('invalid_signature_header');
+  const eight = signed({ extra: junk.split(' ').slice(1).join(' ') });
+  await expect(verifyWebhook(eight.body, eight.headers, { secret, now })).resolves.toBeDefined();
+});
+
+it('rejects a webhook-signature header longer than 4 KiB', async () => {
+  const { body, headers } = signed({ extra: `v2,${'A'.repeat(4096)}` });
+  expect(await reason(verifyWebhook(body, headers, { secret, now }))).toBe('invalid_signature_header');
+});
+
+it('skips candidates that do not decode to 32 bytes (a truncated MAC never matches)', async () => {
+  const { body, headers } = signed();
+  const mac = Buffer.from(headers['webhook-signature'].slice(3), 'base64');
+  const truncated = { ...headers, 'webhook-signature': `v1,${mac.subarray(0, 16).toString('base64')}` };
+  expect(await reason(verifyWebhook(body, truncated, { secret, now }))).toBe('no_matching_signature');
+});

@@ -36,9 +36,28 @@ export interface EndpointVerificationEvent {
   data: S['EndpointVerificationPayload'];
 }
 
-export type WebhookEvent = { [K in WebhookEventType]: WebhookEventOf<K> }[WebhookEventType] | EndpointVerificationEvent;
+/**
+ * Every business event this SDK version knows — what `onEvent`/`onError` receive. The URL probe
+ * is not in it: the webhook handler answers that one itself.
+ */
+export type FiantoWebhookEvent = { [K in WebhookEventType]: WebhookEventOf<K> }[WebhookEventType];
 
-/** A type this SDK version does not know yet. Narrow known ones with isEventType(). */
+/**
+ * What `verifyWebhook` returns: every known event, plus the URL probe (no `id`). A closed union,
+ * so `switch (event.type)` narrows `event.data` with no cast.
+ *
+ * fianto may add event types after this SDK version ships, and a newer type still reaches your
+ * code at runtime (its shape is `UnknownWebhookEvent`). Give every `switch (event.type)` a
+ * `default:` branch that ignores what it does not handle (answer 2xx, never throw), or check
+ * `isKnownEventType(event.type)` first.
+ */
+export type WebhookEvent = FiantoWebhookEvent | EndpointVerificationEvent;
+
+/**
+ * The runtime shape of an event type this SDK version does not know yet. `verifyWebhook` and
+ * `onEvent` are typed with the known union (`WebhookEvent`/`FiantoWebhookEvent`); use this in
+ * a `default:` branch or wherever you handle events defensively.
+ */
 export interface UnknownWebhookEvent {
   id: string;
   type: string;
@@ -53,6 +72,13 @@ export const WEBHOOK_EVENT_TYPES = [
   'subscription.ended', 'subscription.cancel_scheduled', 'subscription.cancel_withdrawn',
   'test.event',
 ] as const satisfies readonly WebhookEventType[];
+
+const KNOWN: ReadonlySet<string> = new Set(WEBHOOK_EVENT_TYPES);
+
+/** True for an event type this SDK version knows (the URL probe's `endpoint.verification` is not one). */
+export function isKnownEventType(type: string): type is WebhookEventType {
+  return KNOWN.has(type);
+}
 
 export function isEventType<T extends WebhookEventType>(event: { type: string }, type: T): event is WebhookEventOf<T> {
   return event.type === type;
