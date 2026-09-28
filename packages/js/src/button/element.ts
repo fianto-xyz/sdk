@@ -1,4 +1,4 @@
-import { BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '../button-core/index.js';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '../button-core/index.js';
 import type { ButtonOptions, ResolvedButton } from '../button-core/index.js';
 import { openCheckout } from '../checkout/open.js';
 import { FiantoCheckoutError } from '../checkout/errors.js';
@@ -129,8 +129,7 @@ export class FiantoButtonElement extends HTMLElementBase {
     button.className = buttonClassName(this.#resolved);
     button.innerHTML = buttonMarkup(this.#resolved);
     button.setAttribute('aria-label', buttonText(this.#resolved.label, this.#resolved.locale).ariaLabel);
-    button.setAttribute('aria-busy', String(this.#resolved.loading));
-    button.disabled = this.#resolved.disabled || this.#resolved.loading;
+    this.#applyBusy(button, this.#resolved.loading);
 
     let status = root.querySelector('.fianto-status');
     if (!status) {
@@ -146,13 +145,16 @@ export class FiantoButtonElement extends HTMLElementBase {
 
   #applyOverflowFallback(): void {
     const button = this.shadowRoot?.querySelector('button');
-    const content = button?.querySelector<HTMLElement>('.fianto-content');
-    if (!button || !content) return;
-    if (content.scrollWidth > content.clientWidth) {
-      button.classList.add('fianto-plain');
-    } else {
-      button.classList.remove('fianto-plain');
-    }
+    if (button) applyOverflowFallback(button);
+  }
+
+  // Loading uses aria-disabled (plus #onClick's guard), not native `disabled`, so the button keeps
+  // keyboard focus; native `disabled` is only for the explicit `disabled` attribute.
+  #applyBusy(button: HTMLButtonElement, loading: boolean): void {
+    button.setAttribute('aria-busy', String(loading));
+    if (loading) button.setAttribute('aria-disabled', 'true');
+    else button.removeAttribute('aria-disabled');
+    button.disabled = this.#resolved.disabled;
   }
 
   #setStatusText(text: string): void {
@@ -171,8 +173,7 @@ export class FiantoButtonElement extends HTMLElementBase {
     this.#loading = loading;
     const button = this.shadowRoot?.querySelector('button');
     if (!button) return;
-    button.setAttribute('aria-busy', String(loading));
-    button.disabled = loading || this.#resolved.disabled;
+    this.#applyBusy(button, loading);
   }
 
   #onClick(): void {

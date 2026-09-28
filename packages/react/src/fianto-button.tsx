@@ -1,8 +1,8 @@
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { FiantoCheckoutError } from '@fianto/js';
 import type { CheckoutResult, CheckoutSessionSource } from '@fianto/js';
-import { BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '@fianto/js/button-core';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '@fianto/js/button-core';
 import type { ButtonOptions } from '@fianto/js/button-core';
 import { useCheckout } from './use-checkout.js';
 
@@ -16,6 +16,10 @@ export interface FiantoButtonProps extends ButtonOptions {
 }
 
 const ERROR_DISPLAY_MS = 6000;
+
+// useLayoutEffect on the client (checks overflow before paint); useEffect on the server, where
+// neither runs, so SSR never touches the DOM.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * Native React markup from the shared button-core module (not the `<fianto-button>` custom
@@ -82,11 +86,28 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
     }
   }, [error, onError, resolved.locale]);
 
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement, []);
+
+  // Every render: React rewrites className (dropping fianto-plain) when props change.
+  useIsomorphicLayoutEffect(() => {
+    if (buttonRef.current) applyOverflowFallback(buttonRef.current);
+  });
+  useIsomorphicLayoutEffect(() => {
+    const button = buttonRef.current;
+    if (!button || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => applyOverflowFallback(button));
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, []);
+
   const busy = resolved.loading || status === 'open';
   const ariaLabel = buttonText(resolved.label, resolved.locale).ariaLabel;
   const resolvedClassName = className ? `${buttonClassName(resolved)} ${className}` : buttonClassName(resolved);
 
   const handleClick = (): void => {
+    // Loading keeps the button focusable (aria-disabled, not native disabled), so guard here.
+    if (busy || resolved.disabled) return;
     void open();
   };
 
@@ -96,13 +117,14 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
         {BUTTON_CSS}
       </style>
       <button
-        ref={ref}
+        ref={buttonRef}
         type="button"
         className={resolvedClassName}
         style={style}
         aria-label={ariaLabel}
         aria-busy={busy}
-        disabled={resolved.disabled || busy}
+        aria-disabled={busy ? true : undefined}
+        disabled={resolved.disabled}
         onClick={handleClick}
         dangerouslySetInnerHTML={{ __html: buttonMarkup(resolved) }}
       />

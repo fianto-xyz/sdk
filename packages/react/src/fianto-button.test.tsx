@@ -100,3 +100,34 @@ it('clears the 6s status timer on unmount, not just on a later re-render', async
   expect(vi.getTimerCount()).toBe(0);
   vi.useRealTimers();
 });
+
+it('keeps focus while loading via aria-disabled; native disabled only for the prop', async () => {
+  mountPopup();
+  const { container, rerender } = render(<FiantoButton session={{ id: 'fian_cs_1', url: 'https://pay.test/c/x' }} />);
+  const button = container.querySelector('button')!;
+  button.focus();
+  fireEvent.click(button);
+  expect(button.getAttribute('aria-busy')).toBe('true');
+  expect(button.getAttribute('aria-disabled')).toBe('true');
+  expect(button.disabled).toBe(false);
+  expect(document.activeElement).toBe(button);
+  fireEvent.click(button);
+  expect(window.open).toHaveBeenCalledTimes(1);
+  rerender(<FiantoButton session={{ id: 'fian_cs_1', url: 'https://pay.test/c/x' }} disabled />);
+  expect(button.disabled).toBe(true);
+});
+
+it('falls back to logo-only when the label overflows', () => {
+  let contentWidth = 300;
+  vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+    return this.classList.contains('fianto-content') ? contentWidth : 0;
+  });
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(100);
+  const session = { id: 'fian_cs_1', url: 'https://pay.test/c/x' };
+  const { container, rerender } = render(<FiantoButton session={session} />);
+  expect(container.querySelector('button')!.classList.contains('fianto-plain')).toBe(true);
+  contentWidth = 80;
+  rerender(<FiantoButton session={session} theme="dark" />);
+  expect(container.querySelector('button')!.classList.contains('fianto-plain')).toBe(false);
+  vi.restoreAllMocks();
+});
