@@ -1,0 +1,38 @@
+{
+  "name": "@fianto/cli",
+  "version": "0.1.0",
+  "description": "fianto command line: inspect events, forward webhooks to localhost, trigger and sign test events.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "fianto": "./dist/bin.js"
+  },
+  "engines": {
+    "node": ">=20.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fianto-xyz/sdk.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/fianto-xyz/sdk/tree/master/packages/cli#readme",
+  "keywords": [
+    "fianto",
+    "solana",
+    "usdc",
+    "payments",
+    "webhooks",
+    "cli"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "check": "publint"
+  },
+  "dependencies": {
+    "@fianto/sdk": "workspace:*"
+  }
+}
