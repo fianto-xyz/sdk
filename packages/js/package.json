@@ -6,8 +6,7 @@
   "type": "module",
   "sideEffects": [
     "./dist/button.*",
-    "./dist/fianto-button.global.iife.js",
-    "./src/button/index.ts"
+    "./dist/fianto-button.global.iife.js"
   ],
   "files": [
     "dist"
