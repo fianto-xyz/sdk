@@ -62,7 +62,8 @@ function normaliseBaseUrl(raw: string): string {
   try {
     url = new URL(raw);
   } catch {
-    throw new FiantoError(`Invalid baseUrl ${JSON.stringify(raw)}.`);
+    // Never echo `raw`: it may carry embedded userinfo/credentials (https://user:pass@host).
+    throw new FiantoError('Invalid baseUrl: could not be parsed as a URL.');
   }
   const secure = url.protocol === 'https:' || (url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname));
   if (!secure) throw new FiantoError('baseUrl must be https:// (http:// is allowed only for localhost).');

@@ -42,6 +42,20 @@ it('names the missing environment variable', () => {
   expect(() => resolveConfig({ baseUrl: 'https://x.test', appId: 'a' })).toThrow(/FIANTO_APP_SECRET/);
 });
 
+it('never echoes credentials or userinfo from an unparseable baseUrl', () => {
+  const evil = 'https://user:hunter2@[::1'; // unparseable: unterminated IPv6 literal
+  expect(() => resolveConfig({ ...base, baseUrl: evil })).toThrow(FiantoError);
+  let message = '';
+  try {
+    resolveConfig({ ...base, baseUrl: evil });
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  expect(message.length).toBeGreaterThan(0);
+  expect(message).not.toContain('hunter2');
+  expect(message).not.toContain('user:');
+});
+
 it('refuses plain http except on localhost', () => {
   expect(() => resolveConfig({ ...base, baseUrl: 'http://api.example.com' })).toThrow(FiantoError);
   expect(resolveConfig({ ...base, baseUrl: 'http://localhost:3000' }).baseUrl).toBe('http://localhost:3000');
