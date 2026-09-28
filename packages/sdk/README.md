@@ -25,7 +25,8 @@ export async function createCheckoutSession(): Promise<Response | undefined> {
 
   const session = await fianto.checkoutSessions.create({
     mode: 'payment',
-    order_id: 'order_1001', // your own id — unique per attempt
+    order_id: 'order_1001', // your own id — stable per order: reuse it for the same cart/order,
+    // change it only when the terms change (e.g. include a cart version)
     amount: '10.00', // USDC, decimal string
     description: 'Order order_1001', // required alongside amount — omit only with price_id
     success_url: 'https://shop.example/thank-you',
@@ -482,6 +483,12 @@ a second `context` argument — the framework's own request context (Express: `{
 Hono: the `Context`, Next.js: the route context) — see each adapter's README.
 
 - `POST` only (`405` otherwise).
+- **`success_url`/`cancel_url` must be `https://`.** The production API refuses `http://` for
+  either one — including `http://localhost:...` — with `400 { error: { code: 'url_insecure',
+  ... } }`; it's not just a local-vs-production stand-in like `baseUrl`'s `localhost` exception.
+  For local development, use an `https` `SITE_URL` (e.g. a tunnel such as ngrok or Cloudflare
+  Tunnel) or point `baseUrl`/`FIANTO_BASE_URL` at a local backend that has
+  `CHECKOUT_ALLOW_INSECURE_URLS` set.
 - **CSRF guard:** rejects with `403` before calling the API unless one of two checks passes, in
   order: (1) the browser sent `Sec-Fetch-Site: same-origin` — checked first, and sufficient on
   its own regardless of `Origin`; (2) otherwise, `Origin` is present and is in `allowedOrigins`
