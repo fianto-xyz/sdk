@@ -34,7 +34,8 @@ on your server.
 
 `session-endpoint` is `POST`ed on click (`credentials: 'same-origin'`, a JSON body made of the
 element's `data-*` attributes) and must answer `{ id, url }` — exactly what
-`createCheckoutHandler`/`Checkout()` from `@fianto/sdk` returns. The script also exposes
+`createCheckoutHandler` from `@fianto/sdk/handlers` (or `Checkout()` from `@fianto/nextjs`)
+returns. The script also exposes
 `window.Fianto.openCheckout` and `window.Fianto.redirectToCheckout` for pages with no bundler
 that want the imperative API directly.
 
@@ -73,15 +74,19 @@ user gesture:
 ```
 
 `session` may be `{ id, url }` you already have, or a function returning a `Promise` of it —
-call your server's checkout route (built with `createCheckoutHandler`/`Checkout()`/`checkout()`
-from `@fianto/sdk` or its adapters) from inside that function; never construct the URL yourself.
+call your server's checkout route (built with `createCheckoutHandler` from `@fianto/sdk/handlers`,
+`Checkout()` from `@fianto/nextjs`, or `checkout()` from `@fianto/hono` / `@fianto/express`) from
+inside that function; never construct the URL yourself.
 
 If the popup is blocked (`window.open` returns `null`): `fallback: 'redirect'` (the default)
-awaits `session` and navigates the whole page to its `url` (the returned promise never
-resolves — the page is leaving); `fallback: 'none'` rejects with `PopupBlockedError` instead. A
+awaits `session` and navigates the whole page to its `url` (the returned promise normally never
+resolves — the page is leaving; if the payer comes back through the browser's back/forward cache
+it resolves `closed`, i.e. unknown); `fallback: 'none'` rejects with `PopupBlockedError` instead. A
 session is created at most once either way, and a second `openCheckout()` call while one is
 still open reuses the same popup — the first call's promise then resolves `closed` rather than
 hanging.
+
+A checkout superseded by another `openCheckout()` call resolves `closed` (unknown — never "nothing was charged").
 
 ### `redirectToCheckout`
 
