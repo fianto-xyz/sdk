@@ -16,6 +16,11 @@ Peer dependency: `hono >= 4`.
 import { Hono } from 'hono';
 import { checkout, webhooks } from '@fianto/hono';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/hono.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 const app = new Hono();
 
 app.post(
@@ -31,13 +36,15 @@ app.post(
 app.post(
   '/api/checkout',
   checkout({
-    createSession: async (request) => {
+    createSession: async (request, c) => {
       // Decide price and order_id HERE, on your server — never trust them from the request body.
+      // `c` is the Hono Context (c.env, c.var, …) — see "Workers and Bun notes" below.
       const cart = await loadCartForSession(request);
       return {
         mode: 'payment',
         order_id: cart.orderId,
         amount: cart.totalUsdc,
+        description: cart.description, // required alongside amount
         success_url: 'https://shop.example/thank-you',
         cancel_url: 'https://shop.example/cart',
       };
@@ -62,6 +69,17 @@ Cloudflare Workers and Bun — no Node polyfills needed. On Workers, set `FIANTO
 read them via `c.env` into the options instead of `process.env`, since Workers has no `process`:
 
 ```ts
+import { Hono } from 'hono';
+import { webhooks, type WebhookCallbacks } from '@fianto/hono';
+
+// An untyped `new Hono()` has `c.env: {}` — type your Worker's bindings so `c.env.X` resolves.
+interface Bindings {
+  FIANTO_WEBHOOK_SECRET: string;
+}
+
+declare const onOrderPaid: WebhookCallbacks['onOrderPaid'];
+const app = new Hono<{ Bindings: Bindings }>();
+
 app.post('/webhooks/fianto', (c) =>
   webhooks({ secret: c.env.FIANTO_WEBHOOK_SECRET, onOrderPaid })(c),
 );
@@ -76,7 +94,7 @@ the redirect alone.
 ## Troubleshooting
 
 See `@fianto/sdk`'s README for the shared list (missing env vars, `401 invalid_api_credentials`,
-devnet vs. mainnet `baseUrl`). Hono-specific:
+self-hosted/local vs. production `baseUrl`). Hono-specific:
 
 - **Webhook signature never verifies** — make sure no earlier middleware (`app.use(...)`) reads
   or replaces the request body before `webhooks()` runs; `c.req.raw` must still be the untouched

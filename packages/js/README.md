@@ -15,8 +15,16 @@ on your server.
 
 ## Zero-build: `<fianto-button>` from a CDN `<script>`
 
+Pin an exact version — never `@latest` or an unversioned URL, which can silently start serving a
+newer, unaudited build — and set `integrity`/`crossorigin` so the browser refuses the script if
+jsdelivr (or anything between you and it) ever serves something other than the bytes you pinned:
+
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@fianto/js/dist/fianto-button.global.iife.js"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/@fianto/js@0.1.0/dist/fianto-button.global.iife.js"
+  integrity="sha384-REPLACE_WITH_THE_HASH_BELOW"
+  crossorigin="anonymous"
+></script>
 
 <fianto-button session-endpoint="/api/checkout"></fianto-button>
 
@@ -31,6 +39,17 @@ on your server.
   });
 </script>
 ```
+
+Compute the `integrity` hash for whichever version you pin (this one, for `0.1.0`):
+
+```bash
+curl -s https://cdn.jsdelivr.net/npm/@fianto/js@0.1.0/dist/fianto-button.global.iife.js \
+  | openssl dgst -sha384 -binary | openssl base64 -A
+```
+
+then set `integrity` to `sha384-` followed by that output. Recompute it (and re-pin the version
+in the URL) whenever you upgrade — that's what pinning buys you: an upgrade is something you
+choose and re-verify, not something jsdelivr can push to you silently.
 
 `session-endpoint` is `POST`ed on click (`credentials: 'same-origin'`, a JSON body made of the
 element's `data-*` attributes) and must answer `{ id, url }` — exactly what
@@ -55,6 +74,8 @@ import '@fianto/js/button'; // registers <fianto-button>, if you use it as marku
 ```ts
 import { fetchCheckoutSession, openCheckout } from '@fianto/js';
 
+declare const orderId: string;
+
 const result = await openCheckout({
   session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }), // or { id, url }
   fallback: 'redirect', // 'redirect' (default) | 'none'
@@ -69,15 +90,25 @@ awaiting anything, so the browser's popup blocker still treats it as a direct re
 user gesture:
 
 ```tsx
-<button
-  onClick={() => {
-    openCheckout({ session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }) }).then((result) => {
-      /* ... */
-    });
-  }}
->
-  Pay
-</button>
+import { fetchCheckoutSession, openCheckout, type CheckoutResult } from '@fianto/js';
+
+declare const orderId: string;
+
+function PayButton() {
+  return (
+    <button
+      onClick={() => {
+        openCheckout({ session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }) }).then(
+          (result: CheckoutResult) => {
+            /* ... */
+          },
+        );
+      }}
+    >
+      Pay
+    </button>
+  );
+}
 ```
 
 `session` may be `{ id, url }` you already have, or a function returning a `Promise` of it —
@@ -87,7 +118,8 @@ inside that function; never construct the URL yourself.
 
 ### `fetchCheckoutSession`
 
-```ts
+```ts no-check
+// Pseudo-signature — see the real one below.
 fetchCheckoutSession(endpoint, { body?, headers?, credentials?, signal? }) → Promise<{ id, url }>
 ```
 
@@ -126,6 +158,11 @@ A checkout superseded by another `openCheckout()` call resolves `closed` with `r
 ### `redirectToCheckout`
 
 ```ts
+import { redirectToCheckout } from '@fianto/js';
+
+declare const id: string;
+declare const url: string;
+
 await redirectToCheckout({ id, url }); // or a () => Promise<{ id, url }>
 ```
 
@@ -166,9 +203,21 @@ reason: 'returned_from_redirect' }`, so a spinner you showed can stop.
   popup.
 - **`Cross-Origin-Opener-Policy: same-origin` on your page severs the popup** as soon as it
   navigates to checkout: this page sees it as closed at once (`closed`, `reason: 'unreachable'`)
-  while the payer is still paying in it, and no result ever arrives — set
-  `Cross-Origin-Opener-Policy: same-origin-allow-popups` instead (never plain `same-origin`) on
-  any page that calls `openCheckout`.
+  while the payer is still paying in it, and no result ever arrives — the page must send
+  `Cross-Origin-Opener-Policy: same-origin-allow-popups` instead (never plain `same-origin`), or
+  omit the header entirely (the browser default is unset, which also works). If your framework
+  or a security middleware sets it for you — [`helmet`](https://helmetjs.github.io/), which
+  defaults to `same-origin`, is the common case on an Express app — override it on the page (or
+  route) that calls `openCheckout` / renders `<fianto-button>`:
+
+  ```ts no-check
+  import helmet from 'helmet';
+
+  app.use(helmet()); // defaults to COOP: same-origin — fine for the rest of the app
+  app.get('/checkout-page', helmet({ crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } }), (req, res) => {
+    /* render the page that calls openCheckout() / renders <fianto-button> */
+  });
+  ```
 - Call `openCheckout` (or click the button) **inside the event handler**, synchronously — not
   after an `await`, a `setTimeout`, or from a `useEffect` — or the browser's popup blocker treats
   it as unsolicited and blocks it.
@@ -183,7 +232,12 @@ reason: 'returned_from_redirect' }`, so a spinner you showed can stop.
 or set the `session` property directly from script instead of `session-endpoint`:
 
 ```ts
-document.querySelector('fianto-button').session = () => createCheckoutSession(orderId);
+import '@fianto/js/button'; // registers <fianto-button> and its HTMLElementTagNameMap entry
+
+declare const orderId: string;
+declare function createCheckoutSession(orderId: string): Promise<{ id: string; url: string }>;
+
+document.querySelector('fianto-button')!.session = () => createCheckoutSession(orderId);
 ```
 
 Events (bubbling, composed — listen at any ancestor): `fianto:result` (`detail: { status,
@@ -255,6 +309,20 @@ than clipping or wrapping.
 - Leave clear space of at least `height / 10` around the button (e.g. ~4.4px at the default
   44px height) — like the CSS custom properties, this is the host page's responsibility; the
   button does not reserve margin for itself.
+
+## Browser support and bundle size
+
+Any browser with Custom Elements v1, Shadow DOM and ES2020 syntax support — in practice Safari
+13.1+, Chrome 80+, Firefox 74+, Edge 80+. `<fianto-button>` and `openCheckout` need
+`customElements`/`attachShadow` and `fetch`; `ResizeObserver` (the overflow fallback that
+shrinks a too-wide label to the logo-only layout) is feature-detected and simply skipped where
+it's absent, not a hard requirement. The CDN IIFE bundle (`fianto-button.global.iife.js`) is
+built for ES2020 specifically, with no polyfills, and deliberately avoids anything newer (e.g.
+`Object.hasOwn`, which would otherwise break Safari < 15.4).
+
+Brotli-compressed, minified sizes (enforced in CI, `.size-limit.json` at the repo root):
+`@fianto/js`'s core `{ openCheckout }` import is under 4 kB, `@fianto/js/button` (the custom
+element) under 8 kB, and the CDN bundle under 10 kB.
 
 ## Troubleshooting
 

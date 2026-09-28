@@ -15,6 +15,11 @@ Peer dependency: `express >= 4`.
 import express from 'express';
 import { checkout, webhooks } from '@fianto/express';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/express.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 const app = express();
 
 // Mount BEFORE express.json() / express.urlencoded() — see "Mount before a body parser" below.
@@ -31,13 +36,15 @@ app.post(
 app.post(
   '/api/checkout',
   checkout({
-    createSession: async (request) => {
+    createSession: async (request, { req }) => {
       // Decide price and order_id HERE, on your server — never trust them from the request body.
+      // `req` is Express's own request (e.g. `req.user` set by earlier middleware).
       const cart = await loadCartForSession(request);
       return {
         mode: 'payment',
         order_id: cart.orderId,
         amount: cart.totalUsdc,
+        description: cart.description, // required alongside amount
         success_url: 'https://shop.example/thank-you',
         cancel_url: 'https://shop.example/cart',
       };
@@ -67,7 +74,7 @@ telling you to move the mount point) rather than silently verifying the wrong by
 
 Fix it either by mounting the fianto route **before** the app-wide parser:
 
-```ts
+```ts no-check
 app.post('/webhooks/fianto', webhooks({ secret })); // first
 app.use(express.json()); // then everything else
 ```
@@ -75,7 +82,7 @@ app.use(express.json()); // then everything else
 or, if you need the parser mounted globally, give the fianto route
 `express.raw({ type: '*/*' })` so it receives an untouched `Buffer` instead of a parsed body:
 
-```ts
+```ts no-check
 app.use(express.json()); // global, for other routes
 app.post('/webhooks/fianto', express.raw({ type: '*/*' }), webhooks({ secret }));
 ```
@@ -90,9 +97,13 @@ exactly as above — don't rely on the parser skipping unrecognised content type
 
 ## Payload size
 
-The middleware reads at most 1 MiB from an unparsed request body before answering
-`413 {"error":"payload_too_large"}` (fianto's own webhook and checkout payloads are well under
-this).
+The middleware reads at most `maxBodyBytes` (default `1_048_576`, 1 MiB — fianto's own webhook
+and checkout payloads are well under this) from an unparsed request body before answering
+`413 {"error":"payload_too_large"}`. Unlike the underlying webhook handler (which checks the
+signature headers before reading any of the body), the Express bridge has to buffer the body
+itself first, to bridge Express's stream to a fetch `Request` — bounded by the same
+`maxBodyBytes` either way, but the 413 it answers is a bridge-level response and does not call
+`onVerificationError`.
 
 ## Money safety
 
@@ -103,7 +114,7 @@ the redirect alone.
 ## Troubleshooting
 
 See `@fianto/sdk`'s README for the shared list (missing env vars, `401 invalid_api_credentials`,
-devnet vs. mainnet `baseUrl`). Express-specific:
+self-hosted/local vs. production `baseUrl`). Express-specific:
 
 - **`500` with "mount the fianto handler before express.json()"** — see
   [Mount before a body parser](#mount-before-a-body-parser) above.

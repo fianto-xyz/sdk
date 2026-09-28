@@ -37,6 +37,11 @@ that decides the price and the order id; never trust either from the browser:
 ```ts
 import { Checkout } from '@fianto/nextjs';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/nextjs.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 export const POST = Checkout({
   createSession: async (request) => {
     const cart = await loadCartForSession(request);
@@ -44,6 +49,7 @@ export const POST = Checkout({
       mode: 'payment',
       order_id: cart.orderId,
       amount: cart.totalUsdc, // decimal USDC string, e.g. "10.00"
+      description: cart.description, // required alongside amount
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
     };
@@ -99,12 +105,17 @@ Click the button, pay in the popup, and watch `onOrderPaid` fire. See
 ## Supported runtimes
 
 - **`@fianto/sdk`** (server): anywhere with `fetch` and Web Crypto — Node.js ≥ 20.3, Bun, Deno,
-  Cloudflare Workers, Vercel Edge. No Node-only APIs are used in the request path.
+  Cloudflare Workers, Vercel Edge. No Node-only APIs are used in the request path. Node.js 20
+  reached its own end of life in April 2026 (no more upstream security patches); 20.3+ still
+  works and is verified in CI, but Node.js 22+ (the current LTS) is recommended for anything new.
 - **`@fianto/nextjs`**: `next >= 15`, Node.js and Edge runtimes alike.
 - **`@fianto/hono`**: `hono >= 4`, including Cloudflare Workers, Bun and Deno.
 - **`@fianto/express`**: `express >= 4`, Node.js.
-- **`@fianto/js`** / **`@fianto/react`**: any modern browser; `@fianto/react` needs `react >= 19`.
+- **`@fianto/js`** / **`@fianto/react`**: any modern browser (Safari 13.1+, Chrome 80+, Firefox
+  74+, Edge 80+ — see [`@fianto/js`'s README](packages/js#readme) for the exact floor and its
+  bundle sizes); `@fianto/react` needs `react >= 19`.
 - **`@fianto/cli`**: a Node.js program, Node.js ≥ 20.3.
+- **TypeScript**: 5.0 or newer, for every package's published types.
 
 ## Security model
 
@@ -150,6 +161,10 @@ released (CI on every PR, a [Changesets](https://github.com/changesets/changeset
 packages" PR, then an npm publish once it merges and CI passes). The first push to master
 publishes 0.1.0 once CI passes — create the @fianto npm org and the NPM_TOKEN secret first; later
 releases go through the Changesets 'Version packages' PR.
+
+## Security
+
+See [`SECURITY.md`](SECURITY.md) to report a vulnerability, or for the supported-versions policy.
 
 ## License
 

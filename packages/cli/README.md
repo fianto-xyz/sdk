@@ -8,7 +8,7 @@ test delivery, and sign a payload by hand — the `fianto` binary.
 npx @fianto/cli whoami
 # or, added to your project:
 pnpm add -D @fianto/cli
-npx fianto whoami
+pnpm exec fianto whoami
 ```
 
 Requires Node.js ≥ 20.3. This package holds your app secret, so it belongs on your development
@@ -17,7 +17,8 @@ machine or a trusted CI job — never ship it to a browser.
 ## Credentials
 
 Most commands call the fianto API and need application credentials, from the environment or
-flags (**flags win**):
+flags (**flags win**). Get them from **Dashboard → Developers → Applications**: your app, then
+"Reveal" the secret.
 
 | Flag | Env var | Default |
 |---|---|---|
@@ -27,7 +28,8 @@ flags (**flags win**):
 
 A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exactly which flag or
 env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
-or set it for devnet, self-hosting or a local backend.
+or point it at your own self-hosted deployment or a backend running locally (there's no separate
+"devnet" API host to switch to).
 
 Commands that sign or verify webhooks instead take a **webhook** secret. Set it once as
 `FIANTO_WEBHOOK_SECRET` in your shell/CI env — the safest place for it — or override it per

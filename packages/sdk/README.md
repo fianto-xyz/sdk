@@ -19,20 +19,23 @@ checkout from a page), see `@fianto/js`.
 ```ts
 import { Fianto } from '@fianto/sdk';
 
-// Reads FIANTO_APP_ID, FIANTO_APP_SECRET from the environment (FIANTO_BASE_URL is optional).
-const fianto = new Fianto();
+export async function createCheckoutSession(): Promise<Response | undefined> {
+  // Reads FIANTO_APP_ID, FIANTO_APP_SECRET from the environment (FIANTO_BASE_URL is optional).
+  const fianto = new Fianto();
 
-const session = await fianto.checkoutSessions.create({
-  mode: 'payment',
-  order_id: 'order_1001', // your own id — unique per attempt
-  amount: '10.00', // USDC, decimal string
-  success_url: 'https://shop.example/thank-you',
-  cancel_url: 'https://shop.example/cart',
-});
+  const session = await fianto.checkoutSessions.create({
+    mode: 'payment',
+    order_id: 'order_1001', // your own id — unique per attempt
+    amount: '10.00', // USDC, decimal string
+    description: 'Order order_1001', // required alongside amount — omit only with price_id
+    success_url: 'https://shop.example/thank-you',
+    cancel_url: 'https://shop.example/cart',
+  });
 
-// session.url is the hosted payment link. Redirect the browser to it, or hand it to a popup.
-if (session.url) {
-  return Response.redirect(session.url, 303);
+  // session.url is the hosted payment link. Redirect the browser to it, or hand it to a popup.
+  if (session.url) {
+    return Response.redirect(session.url, 303);
+  }
 }
 ```
 
@@ -40,7 +43,7 @@ Never fulfil an order from this response alone — see [Money safety](#money-saf
 
 ## Configuration
 
-```ts
+```ts no-check
 new Fianto({
   appId, // default: process.env.FIANTO_APP_ID
   appSecret, // default: process.env.FIANTO_APP_SECRET — server-side only
@@ -56,7 +59,7 @@ new Fianto({
 |---|---|---|---|
 | `appId` | `FIANTO_APP_ID` | — (required) | |
 | `appSecret` | `FIANTO_APP_SECRET` | — (required) | Never send to a browser. |
-| `baseUrl` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` | The production fianto API. Override it for devnet, self-hosting or a local backend, e.g. `http://localhost:3000`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
+| `baseUrl` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` | The production fianto API. Override it to point at your own self-hosted deployment or a backend running locally, e.g. `http://localhost:3000`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. There is no separate "devnet" API host to switch to — the Solana cluster a deployment settles against (devnet vs. mainnet-beta) is that backend's own configuration, not something `baseUrl` selects. |
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
@@ -64,6 +67,9 @@ new Fianto({
 
 A missing `appId` or `appSecret` throws a `FiantoError` at construction, naming the option and
 the env var to set. `baseUrl` needs neither: it falls back to the production API.
+
+Get `appId`/`appSecret` from **Dashboard → Developers → Applications**: your app, then "Reveal"
+the secret.
 
 ## Resources
 
@@ -100,14 +106,21 @@ an invalid id never reaches the network.
 A `list()` call returns a `PagePromise`. `await` it for one page in the wire shape:
 
 ```ts
+import { Fianto } from '@fianto/sdk';
+
+const fianto = new Fianto();
 const page = await fianto.orders.list({ status: 'PAID', limit: 50 });
 page.items; // Order[]
-page.next_cursor; // number | null (a string evt_… id for fianto.events.list)
+page.next_cursor; // string | null — always an opaque string (every list() normalises its wire
+// cursor to one), pass it straight back as `cursor` on the next call
 ```
 
 Or `for await` it to walk every item, fetching pages lazily as you consume them:
 
 ```ts
+import { Fianto } from '@fianto/sdk';
+
+const fianto = new Fianto();
 for await (const order of fianto.orders.list({ status: 'PAID' })) {
   console.log(order.id, order.total_amount);
 }
@@ -135,6 +148,13 @@ For crash recovery — say your process dies after the API created the session b
 persisted its `url` — reuse a **stable** key derived from data you already have, e.g.:
 
 ```ts
+import { Fianto, type CheckoutSessionCreateParams } from '@fianto/sdk';
+
+declare const params: CheckoutSessionCreateParams;
+declare const orderId: string;
+declare const attempt: number;
+const fianto = new Fianto();
+
 await fianto.checkoutSessions.create(params, {
   idempotencyKey: `checkout:${orderId}:${attempt}`,
 });
@@ -148,6 +168,12 @@ carries `requestId` and, for a `POST`, the `idempotencyKey` it used. The request
 have reached the API; to recover, retry the same call with that key:
 
 ```ts
+import { ConnectionError, Fianto, TimeoutError, type CheckoutSession, type CheckoutSessionCreateParams } from '@fianto/sdk';
+
+declare const params: CheckoutSessionCreateParams;
+const fianto = new Fianto();
+let session: CheckoutSession;
+
 try {
   session = await fianto.checkoutSessions.create(params);
 } catch (err) {
@@ -178,7 +204,10 @@ FiantoError
 non-JSON error body still yields an `APIError` with `code: 'unknown'`.
 
 ```ts
-import { APIError, ErrorCode, isFiantoError } from '@fianto/sdk';
+import { APIError, ErrorCode, Fianto, isFiantoError, type CheckoutSessionCreateParams } from '@fianto/sdk';
+
+declare const params: CheckoutSessionCreateParams;
+const fianto = new Fianto();
 
 try {
   await fianto.checkoutSessions.create(params);
@@ -238,13 +267,48 @@ plain record. Verification hashes the exact bytes you pass — reading the body 
 `subscription.created`, `subscription.renewed`, `subscription.past_due`,
 `subscription.payment_failed`, `subscription.ended`, `subscription.cancel_scheduled`,
 `subscription.cancel_withdrawn`, `test.event`, plus `endpoint.verification` (answered
-automatically by `createWebhookHandler`, see below) and `UnknownWebhookEvent` for any type a
-newer server sends that this SDK version doesn't know yet.
+automatically by `createWebhookHandler`, see below). `verifyWebhook`'s return type (`WebhookEvent`)
+is a closed union of exactly these, so `switch (event.type)` narrows `event.data` with no cast —
+but fianto may add event types after this SDK version ships, and a newer one still arrives at
+runtime with the shape of `UnknownWebhookEvent` (a separate, exported type for exactly this case,
+not a member of `WebhookEvent`). Give every `switch (event.type)` a `default:` branch that
+ignores what it doesn't recognise (answer 2xx, never throw), or check
+`isKnownEventType(event.type)` first:
+
+```ts
+import { createWebhookHandler } from '@fianto/sdk/handlers';
+import { isKnownEventType } from '@fianto/sdk/webhooks';
+
+export const POST = createWebhookHandler({
+  onEvent: async (event) => {
+    if (!isKnownEventType(event.type)) return; // a newer type this SDK version doesn't know
+    switch (event.type) {
+      case 'order.paid':
+        console.log('paid', event.data.order_id);
+        break;
+      case 'subscription.ended':
+        console.log('ended', event.data.id);
+        break;
+      default:
+        break; // every other known type — ignored here, or handled the same way
+    }
+  },
+});
+```
 
 **Delivery facts:** at-least-once, **no ordering guarantee** (a later event can arrive before an
 earlier one), 10 s timeout per attempt, up to 8 attempts spread over ~28 hours. `event.id` (the
 `webhook-id` header) is stable across every retry and redelivery of the same event — that's your
 dedupe key.
+
+**Auto-suspend:** if 5 deliveries in a row each exhaust every retry (your endpoint never answered
+2xx to any of the up-to-8 attempts, for 5 separate events), fianto stops sending to that URL and
+marks the endpoint back to "pending verification" — an outage on your side doesn't retry into
+fianto forever. Deliveries already queued when that happens are held, not dropped or cancelled,
+and go out once the endpoint is verified again. To reactivate: fix whatever was rejecting or
+timing out deliveries, then in the dashboard (**Developers → Applications → your app → Webhook**)
+click "Verify again" — that sends a fresh `endpoint.verification` probe, and a `200` answer to it
+puts the endpoint back to active and releases the held deliveries.
 
 ### The generic handler
 
@@ -254,7 +318,7 @@ import { createWebhookHandler } from '@fianto/sdk/handlers';
 export const POST = createWebhookHandler({
   secret: process.env.FIANTO_WEBHOOK_SECRET,
   onOrderPaid: async (event) => {
-    // event.data is typed to OrderEventPayload
+    // event.data is typed (WebhookEventMap['order.paid'], the same shape fianto.events.retrieve returns)
   },
   onEvent: async (event) => {
     // runs after the specific callback, for every verified business event
@@ -262,12 +326,16 @@ export const POST = createWebhookHandler({
 });
 ```
 
-It reads the body itself (`request.arrayBuffer()`), verifies it, answers
-`endpoint.verification` probes automatically (`200 {"challenge": …}` — no code needed for
-dashboard URL verification), dispatches to your typed `on*` callback, and turns a callback throw
-into `500 {"error":"handler_failed"}` so fianto retries delivery. A verification failure answers
-`400 {"error":"invalid_webhook"}` without leaking the reason; pass `onVerificationError` to log
-it server-side. Non-`POST` requests get `405`.
+It reads the body itself, bounded by `maxBodyBytes` (default `1_048_576`, 1 MiB — fianto's own
+webhook payloads are well under this; a request whose declared `content-length` or actual bytes
+read exceed it is answered `413 {"error":"payload_too_large"}` without reading the rest),
+verifies it, answers `endpoint.verification` probes automatically (`200 {"challenge": …}` — no
+code needed for dashboard URL verification), dispatches to your typed `on*` callback, and turns a
+callback throw into `500 {"error":"handler_failed"}` so fianto retries delivery. A verification
+failure answers `400 {"error":"invalid_webhook"}` without leaking the reason; pass
+`onVerificationError` to log it server-side. Non-`POST` requests get `405`. The header checks
+(method, signature headers, timestamp, secret) all run **before** the body is read at all — a
+request with no chance of verifying is refused unread.
 
 **Always wire `onVerificationError` and `onError`.** A missing or wrong secret fails exactly like
 a forged request (`400`, no detail in the response), so without `onVerificationError` a
@@ -276,6 +344,10 @@ whatever your callback or `onEvent` threw (the response is still `500`, so fiant
 Neither reporter can change the response: if one throws, the throw is swallowed.
 
 ```ts
+import { createWebhookHandler } from '@fianto/sdk/handlers';
+
+declare const logger: { warn: (fields: unknown, msg: string) => void; error: (fields: unknown, msg: string) => void };
+
 createWebhookHandler({
   secret: process.env.FIANTO_WEBHOOK_SECRET,
   onVerificationError: (err) => logger.warn({ reason: err.reason }, 'fianto webhook rejected'),
@@ -291,17 +363,26 @@ order paid — a unique-constraint violation on that insert means "already handl
 whole transaction (including your side effect) rolls back cleanly:
 
 ```ts
-onOrderPaid: async (event) => {
-  await db.transaction(async (tx) => {
-    try {
-      await tx.insertInto('processed_webhook_events').values({ id: event.id }).execute();
-    } catch (err) {
-      if (isUniqueViolation(err)) return; // already processed this event.id — nothing to do
-      throw err;
-    }
-    await tx.updateTable('orders').set({ status: 'paid' }).where('order_id', '=', event.data.order_id).execute();
-  });
-},
+import { createWebhookHandler } from '@fianto/sdk/handlers';
+
+// Your own query builder — a stand-in (e.g. Kysely) so the callback below type-checks; not
+// part of @fianto/sdk.
+declare const db: { transaction: (fn: (tx: any) => Promise<unknown>) => Promise<unknown> };
+declare function isUniqueViolation(err: unknown): boolean;
+
+export const POST = createWebhookHandler({
+  onOrderPaid: async (event) => {
+    await db.transaction(async (tx) => {
+      try {
+        await tx.insertInto('processed_webhook_events').values({ id: event.id }).execute();
+      } catch (err) {
+        if (isUniqueViolation(err)) return; // already processed this event.id — nothing to do
+        throw err;
+      }
+      await tx.updateTable('orders').set({ status: 'paid' }).where('order_id', '=', event.data.order_id).execute();
+    });
+  },
+});
 ```
 
 Because there's no ordering guarantee, re-fetch current state
@@ -315,7 +396,17 @@ of what fianto actually sent, if you ever need to reconcile.
 both the old and new secret (`webhook-signature` carries two `v1,…` values), so pass both:
 
 ```ts
-verifyWebhook(body, headers, { secret: [process.env.FIANTO_WEBHOOK_SECRET_NEW, process.env.FIANTO_WEBHOOK_SECRET_OLD] });
+import { verifyWebhook } from '@fianto/sdk/webhooks';
+
+declare const body: string;
+declare const headers: Headers;
+
+// process.env values are `string | undefined` — filter out whichever secret isn't set yet
+// (e.g. before the new one is configured, or after the old one is retired).
+const secrets = [process.env.FIANTO_WEBHOOK_SECRET_NEW, process.env.FIANTO_WEBHOOK_SECRET_OLD].filter(
+  (secret): secret is string => secret !== undefined,
+);
+await verifyWebhook(body, headers, { secret: secrets });
 ```
 
 ### Testing
@@ -336,20 +427,32 @@ const { body, headers } = await signWebhook({ event: sampleEvent('order.paid'), 
 ```ts
 import { createCheckoutHandler } from '@fianto/sdk/handlers';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/sdk.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 export const POST = createCheckoutHandler({
   createSession: async (request) => {
     // Decide the price and order_id HERE, on your server. Never trust them from the request body.
+    // `createSession` should also check the caller is a signed-in user and be rate-limited —
+    // see "Authenticate and rate-limit `createSession`" below.
     const cart = await loadCartForSession(request);
     return {
       mode: 'payment',
       order_id: cart.orderId,
       amount: cart.totalUsdc,
+      description: cart.description, // required alongside amount — omit both with price_id instead
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
     };
   },
 });
 ```
+
+The framework adapters (`@fianto/nextjs`, `@fianto/hono`, `@fianto/express`) pass `createSession`
+a second `context` argument — the framework's own request context (Express: `{ req, res }`,
+Hono: the `Context`, Next.js: the route context) — see each adapter's README.
 
 - `POST` only (`405` otherwise).
 - **CSRF guard:** rejects with `403` before calling the API unless one of two checks passes, in
@@ -360,21 +463,41 @@ export const POST = createCheckoutHandler({
   called — `Sec-Fetch-Site` is unaffected by that (browsers send it, not the proxy), but for any
   client that doesn't send `Sec-Fetch-Site` (e.g. an older browser, or a deliberate cross-origin
   caller), set `allowedOrigins` explicitly to your public origin(s) rather than relying on the
-  request-URL default.
+  request-URL default. **This guard is CSRF protection, not abuse protection** — see below.
 - Forces `ui_mode: 'popup'` regardless of what `createSession` returns.
-- If the order already has an OPEN, unexpired session, the create call answers `url: null`; the
-  handler transparently reissues the link and returns that `url` instead.
+- If the order already has an OPEN, unexpired session for exactly the same terms (`mode`,
+  `amount`/`price_id`), the create call answers `url: null` and the handler reissues that
+  session's link. If the terms differ, it answers `409 { error: { code:
+  'order_session_mismatch', ... } }` and leaves the open session untouched — it never cancels and
+  recreates one, because a transaction the payer already built for the old session can still
+  settle after a cancel. Use a new `order_id` for changed terms (e.g. include a cart version), or
+  cancel the open session yourself first.
 - The browser receives `200 { id, url }` on success. On an API error it receives
-  `{ error: { code, message } }` with the upstream status — a session already in flight for this
-  order answers `409 { error: { code: 'payment_in_progress', ... } }`. Any other failure answers
-  `500 { error: { code: 'internal_error', ... } }`. Neither ever echoes your credentials or the
-  full upstream error body.
+  `{ error: { code, message } }` with the upstream status for an allowlisted set of codes the
+  payer can act on — a session already in flight for this order answers `409 { error: { code:
+  'payment_in_progress', ... } }`; the API's own rate limit answers `429 { error: { code:
+  'rate_limited', ... } }` with a `retry-after` header passed through (the handler never waits
+  out a rate limit itself — it answers `429` at once so the payer isn't left staring at a spinner
+  for a long, unpredictable wait). **Every other failure — including a `401`/`403` from fianto
+  itself (a credentials problem) and every `5xx` — answers a generic `500 { error: { code:
+  'internal_error', ... } }`**, never the upstream status or body. Neither response ever echoes
+  your credentials or the full upstream error body.
 
-`onError(error)` is called for every error, including API errors passed through to the browser
-(the response is unchanged).
+`onError(error)` is called for every error, including the ones relayed to the browser and the
+ones collapsed into the generic `500` (the response is unchanged either way) — wire it up, or a
+misconfigured deployment (e.g. bad credentials) fails with no visible reason on your side.
 
 Return a `Response` from `createSession` instead of session params to refuse the request
 yourself (a login check, a closed cart, etc.) — it's returned as-is.
+
+### Authenticate and rate-limit `createSession`
+
+The CSRF guard above stops a cross-site page from calling your checkout route with the payer's
+cookies — it does **not** stop a signed-in payer's own browser, or a script with valid
+same-origin access, from calling it in a fast loop. `createSession` is an API endpoint like any
+other on your server: check the caller is who they claim to be (a session, a signed cart token —
+whatever your app already uses) and rate-limit it the same way you would any other POST route
+that starts a real side effect, on top of relying on fianto's own `429 rate_limited`.
 
 ## Security
 
@@ -384,8 +507,10 @@ yourself (a login check, a closed cart, etc.) — it's returned as-is.
 - Verify webhooks against the **raw** request body. A framework or proxy that parses, then
   re-serialises, the body before your handler sees it will break signature verification (see
   Troubleshooting).
-- `toleranceSeconds` cannot be `0` or disabled — replay protection on webhook delivery is not
-  optional.
+- `toleranceSeconds` (default 300) must be between 1 and 3600 — replay protection on webhook
+  delivery can be neither switched off nor made meaningless by setting it absurdly high.
+- A webhook `secret` must be `whsec_` + base64 of at least 16 raw bytes; anything shorter is
+  refused at handler construction (`WebhookVerificationError('invalid_secret')`).
 
 ## Money safety
 
@@ -408,8 +533,9 @@ you cannot see from there whether a transaction is still confirming on-chain.
   from what fianto signed. Read the raw body yourself, before any parser touches it (see the
   Express adapter's README for the concrete fix).
 - **Requests succeed against the wrong environment** — `baseUrl` defaults to the production API
-  (`https://api.fianto.xyz`), so devnet or a local backend needs an explicit `FIANTO_BASE_URL` (or
-  the `baseUrl` option). Double check it (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the
+  (`https://api.fianto.xyz`), so a self-hosted or local backend needs an explicit
+  `FIANTO_BASE_URL` (or the `baseUrl` option), e.g. `http://localhost:3000` while running the
+  backend yourself. Double check it (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the
   deployment you intend.
 
 - **`instanceof FiantoError` is false for an error you know came from the SDK** — the package

@@ -29,14 +29,21 @@ export const POST = Webhooks({
 ```ts
 import { Checkout } from '@fianto/nextjs';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/nextjs.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 export const POST = Checkout({
-  createSession: async (request) => {
+  createSession: async (request, context) => {
     // Decide price and order_id HERE, on your server — never trust them from the request body.
+    // `context` is the App Router's own route context (`context.params`, for a dynamic route).
     const cart = await loadCartForSession(request);
     return {
       mode: 'payment',
       order_id: cart.orderId,
       amount: cart.totalUsdc,
+      description: cart.description, // required alongside amount
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
     };
@@ -67,7 +74,7 @@ Crypto only, no Node-only APIs).
 ## Troubleshooting
 
 See `@fianto/sdk`'s README for the shared list (missing env vars, `401 invalid_api_credentials`,
-devnet vs. mainnet `baseUrl`). Next.js–specific:
+self-hosted/local vs. production `baseUrl`). Next.js–specific:
 
 - **Webhook signature never verifies** — check that nothing ahead of the route handler (a custom
   `middleware.ts`, an edge proxy) reads or rewrites the request body before it reaches `Webhooks()`.

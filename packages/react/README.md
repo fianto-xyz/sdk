@@ -40,6 +40,11 @@ paired with a route built from `@fianto/sdk` (`app/api/checkout/route.ts`, using
 ```ts
 import { Checkout } from '@fianto/nextjs';
 
+// Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/nextjs.
+declare function loadCartForSession(
+  request: Request,
+): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+
 export const POST = Checkout({
   createSession: async (request) => {
     // Decide price and order_id HERE, on your server — never trust them from the request body.
@@ -48,6 +53,7 @@ export const POST = Checkout({
       mode: 'payment',
       order_id: cart.orderId,
       amount: cart.totalUsdc,
+      description: cart.description, // required alongside amount
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
     };
