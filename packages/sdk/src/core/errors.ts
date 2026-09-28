@@ -60,6 +60,7 @@ export class APIError extends FiantoError {
   readonly requestId: string | undefined;
   readonly headers: Headers;
 
+  /** @internal Constructed only by the SDK's own transport; `ApiErrorBody` isn't exported. */
   constructor(status: number, body: ApiErrorBody | undefined, headers: Headers) {
     super(body?.message ?? `fianto API answered HTTP ${status}`);
     this.status = status;
@@ -82,6 +83,7 @@ export class InternalServerError extends APIError { override name = 'InternalSer
 export class RateLimitError extends APIError {
   override name = 'RateLimitError';
   readonly retryAfterSeconds: number | undefined;
+  /** @internal Constructed only by the SDK's own transport; `ApiErrorBody` isn't exported. */
   constructor(status: number, body: ApiErrorBody | undefined, headers: Headers) {
     super(status, body, headers);
     this.retryAfterSeconds = parseRetryAfter(headers.get('retry-after'));
@@ -98,6 +100,7 @@ export class ConnectionError extends FiantoError {
   override name = 'ConnectionError';
   readonly requestId: string | undefined;
   readonly idempotencyKey: string | undefined;
+  /** @internal Constructed only by the SDK's own transport; `NetworkErrorOptions` isn't exported. */
   constructor(message: string, options: NetworkErrorOptions = {}) {
     super(message, options);
     this.requestId = options.requestId;
@@ -111,6 +114,7 @@ export class TimeoutError extends FiantoError {
   readonly code = 'timeout';
   readonly requestId: string | undefined;
   readonly idempotencyKey: string | undefined;
+  /** @internal Constructed only by the SDK's own transport; `NetworkErrorOptions` isn't exported. */
   constructor(message: string, options: NetworkErrorOptions = {}) {
     super(message, options);
     this.requestId = options.requestId;
