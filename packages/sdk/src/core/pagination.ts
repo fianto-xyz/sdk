@@ -17,6 +17,9 @@ export class PagePromise<T, C extends string | number> implements PromiseLike<Pa
     return this.first;
   }
 
+  // Deliberately thenable: `await`ing a list() call is the documented way to get its first page,
+  // alongside `for await` for every item.
+  // oxlint-disable-next-line unicorn/no-thenable -- see comment above
   then<R1 = Page<T, C>, R2 = never>(
     onfulfilled?: ((value: Page<T, C>) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
