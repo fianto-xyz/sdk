@@ -45,7 +45,12 @@ export interface WebhookHandlerOptions extends WebhookCallbacks {
   onEvent?: (event: FiantoWebhookEvent) => unknown;
   /** The reason a request was rejected (the response itself never says). */
   onVerificationError?: (error: WebhookVerificationError) => void;
-  /** A callback or onEvent threw (the response is still 500, so fianto retries). */
+  /**
+   * A callback or onEvent threw (the response is still 500, so fianto retries). `event` is
+   * typed with the event types this SDK version knows, but at runtime it can also be an event
+   * of a type this version doesn't know yet (when `onEvent` throws for one) — the same caveat
+   * `onEvent` itself documents.
+   */
   onError?: (error: unknown, event: FiantoWebhookEvent) => void;
 }
 
