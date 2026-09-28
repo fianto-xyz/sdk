@@ -56,7 +56,7 @@ new Fianto({
 |---|---|---|---|
 | `appId` | `FIANTO_APP_ID` | — (required) | |
 | `appSecret` | `FIANTO_APP_SECRET` | — (required) | Never send to a browser. |
-| `baseUrl` | `FIANTO_BASE_URL` | — (required) | **No default.** Mainnet and devnet are separate deployments with no fixed production domain, so an implicit default could silently point devnet code at mainnet. Point this at whichever deployment you're integrating against. Must be `https://`; `http://` is only accepted for `localhost`. |
+| `baseUrl` | `FIANTO_BASE_URL` | — (required) | **No default.** Mainnet and devnet are separate deployments with no fixed production domain, so an implicit default could silently point devnet code at mainnet. Point this at whichever deployment you're integrating against. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
@@ -127,7 +127,7 @@ same key gets the stored response back (`Idempotent-Replayed: true` header) with
 rather than creating a second session or losing the link.
 
 Automatically retried (each with jittered backoff, honouring `Retry-After` when the server
-sends one): network errors, timeouts, `429`, every `5xx`, and `409` only when `code` is
+sends one): network errors, timeouts, `408`, `429`, every `5xx`, and `409` only when `code` is
 `idempotency_request_in_progress` or `checkout_unavailable` (the latter always carries
 `Retry-After`). Never retried: any other `4xx`, including `422 idempotency_key_reused`.
 
@@ -324,9 +324,15 @@ export const POST = createCheckoutHandler({
 ```
 
 - `POST` only (`405` otherwise).
-- **CSRF guard:** rejects with `403` before calling the API unless `Origin` is in
-  `allowedOrigins` (default: the request's own origin), or `Origin` is absent and
-  `Sec-Fetch-Site` is `same-origin`.
+- **CSRF guard:** rejects with `403` before calling the API unless one of two checks passes, in
+  order: (1) the browser sent `Sec-Fetch-Site: same-origin` — checked first, and sufficient on
+  its own regardless of `Origin`; (2) otherwise, `Origin` is present and is in `allowedOrigins`
+  (default: the request URL's own origin). Behind a reverse proxy, the request URL's origin as
+  Node/your framework sees it can be an internal host rather than the public one the browser
+  called — `Sec-Fetch-Site` is unaffected by that (browsers send it, not the proxy), but for any
+  client that doesn't send `Sec-Fetch-Site` (e.g. an older browser, or a deliberate cross-origin
+  caller), set `allowedOrigins` explicitly to your public origin(s) rather than relying on the
+  request-URL default.
 - Forces `ui_mode: 'popup'` regardless of what `createSession` returns.
 - If the order already has an OPEN, unexpired session, the create call answers `url: null`; the
   handler transparently reissues the link and returns that `url` instead.

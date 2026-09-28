@@ -71,9 +71,12 @@ devnet vs. mainnet `baseUrl`). Next.js–specific:
 
 - **Webhook signature never verifies** — check that nothing ahead of the route handler (a custom
   `middleware.ts`, an edge proxy) reads or rewrites the request body before it reaches `Webhooks()`.
-- **Checkout route always answers `403`** — a form or `fetch` call is posting cross-site. Pass
-  `allowedOrigins` if you intentionally call it from another origin you control; otherwise the
-  request must come from the same origin (`Origin` header) or send `Sec-Fetch-Site: same-origin`.
+- **Checkout route always answers `403`** — a form or `fetch` call is posting cross-site. The
+  guard passes on `Sec-Fetch-Site: same-origin` alone (checked first, sent by the browser); failing
+  that, it needs `Origin` present and in `allowedOrigins` (default: the request URL's own origin,
+  which behind a reverse proxy can be an internal host rather than your public one). Pass
+  `allowedOrigins` explicitly if you intentionally call it from another origin you control, or if
+  the caller doesn't send `Sec-Fetch-Site`.
 - **Popup opened by `@fianto/js` never closes / reports success** — the popup's origin (the
   hosted checkout page) posts back to whichever origin opened it; make sure the page that calls
   `openCheckout()` is served from the same origin as `success_url`, and see `@fianto/js`'s README
