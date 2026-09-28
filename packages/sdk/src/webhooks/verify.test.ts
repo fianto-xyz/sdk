@@ -12,6 +12,12 @@ const other = `whsec_${randomBytes(32).toString('base64')}`;
 const NOW = Math.floor(Date.now() / 1000);
 const now = () => NOW * 1000;
 
+// Runs even when the test above it throws, so a stub/spy never leaks into later tests.
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
 function sign(key: string, id: string, ts: number, body: string | Buffer): string {
   const k = Buffer.from(key.slice('whsec_'.length), 'base64');
   return createHmac('sha256', k).update(Buffer.concat([Buffer.from(`${id}.${ts}.`), Buffer.from(body)])).digest('base64');
@@ -124,6 +130,8 @@ it('reads FIANTO_WEBHOOK_SECRET when no secret is passed', async () => {
   vi.stubEnv('FIANTO_WEBHOOK_SECRET', secret);
   const { body, headers } = signed();
   await expect(verifyWebhook(body, headers, { now })).resolves.toBeDefined();
+  // This unstub is load-bearing for the next assertion (proving the fallback stops applying),
+  // not just cleanup — afterEach's unstubAllEnvs() is the safety net for the cleanup case.
   vi.unstubAllEnvs();
   expect(await reason(verifyWebhook(body, headers, { now }))).toBe('invalid_secret');
 });
@@ -210,7 +218,6 @@ it('computes the HMAC once per secret, however many candidates the header carrie
   const { body, headers } = signed({ keys: [secret], extra: junk });
   await expect(verifyWebhook(body, headers, { secret: [other, secret], now })).resolves.toBeDefined();
   expect(sign).toHaveBeenCalledTimes(2);
-  sign.mockRestore();
 });
 
 it('rejects more than 8 v1 candidates, even when one of them matches', async () => {

@@ -5,6 +5,9 @@ import { createWebhookHandler } from './webhook.js';
 
 const secret = `whsec_${randomBytes(32).toString('base64')}`;
 
+// Runs even when the test above it throws, so a stubbed env var never leaks into later tests.
+afterEach(() => { vi.unstubAllEnvs(); });
+
 async function post(event: object, init: { secret?: string; method?: string } = {}) {
   const { body, headers } = await signWebhook({ event, secret: init.secret ?? secret });
   return new Request('https://shop.test/api/webhooks/fianto', { method: init.method ?? 'POST', headers, body: init.method === 'GET' ? undefined : body });
@@ -189,5 +192,4 @@ it('reads FIANTO_WEBHOOK_SECRET per request when no secret is passed', async () 
   const handler = createWebhookHandler();
   vi.stubEnv('FIANTO_WEBHOOK_SECRET', secret);
   expect((await handler(await post(sampleEvent('order.paid')))).status).toBe(200);
-  vi.unstubAllEnvs();
 });
