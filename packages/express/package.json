@@ -48,7 +48,8 @@
   },
   "devDependencies": {
     "express": "5.2.1",
-    "@types/express": "5.0.6"
+    "@types/express": "5.0.6",
+    "express4": "npm:express@4.22.3"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -26,3 +26,12 @@ it('mounts the checkout handler', async () => {
   const response = await app.request('/checkout', { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } });
   expect(response.status).toBe(204);
 });
+
+// F11: the Hono Context (c.env, c.var, c.req) reaches createSession.
+it('passes the Hono Context to createSession', async () => {
+  const app = new Hono<{ Bindings: { SHOP: string } }>().post('/checkout', checkout({
+    createSession: async (_request, c) => new Response(`${c.env.SHOP}:${c.req.header('x-user')}`),
+  }));
+  const response = await app.request('/checkout', { method: 'POST', headers: { 'sec-fetch-site': 'same-origin', 'x-user': 'u_1' } }, { SHOP: 'acme' });
+  expect(await response.text()).toBe('acme:u_1');
+});

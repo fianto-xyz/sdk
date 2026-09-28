@@ -8,29 +8,37 @@ export class PayloadTooLargeError extends FiantoError {
 }
 
 /**
- * The body was already read and transformed by an upstream middleware (express.json(),
- * express.urlencoded(), a string body parser, ...). We can no longer see the exact bytes
- * the server received, which webhook signature verification and checkout's session read
- * both require. Thrown for both routes: checkout's createSession also reads the Request
- * body, so a silently-replaced body would be just as wrong there.
+ * The body stream was already read by an upstream middleware (express.json(), express.text(),
+ * a logger listening for 'data', ...), and what it left in `req.body` is not the raw bytes. We
+ * can no longer see the exact bytes the server received, which webhook signature verification
+ * and checkout's session read both require. Thrown for both routes: checkout's createSession
+ * also reads the Request body, so a silently-replaced body would be just as wrong there.
  */
 export class BodyAlreadyParsedError extends FiantoError {
   override name = 'BodyAlreadyParsedError';
   constructor() {
     super(
-      'The request body was already parsed by another middleware. Mount the fianto handler ' +
-        'before express.json() / express.urlencoded(), or give its route express.raw({ type: "*/*" }).',
+      'The request body was already read by another middleware (express.json(), express.text(), ...), so the ' +
+        'exact bytes fianto signed are gone. Register the fianto route before express.json() and other body ' +
+        'parsers (route order matters), or give that route its own raw parser: ' +
+        'app.post(path, express.raw({ type: "*/*" }), handler).',
     );
   }
 }
 
-async function readStream(req: ExpressRequest, limit: number): Promise<Uint8Array> {
+function tooLarge(limit: number): PayloadTooLargeError {
+  return new PayloadTooLargeError(`Request body is larger than ${limit} bytes.`);
+}
+
+async function readStream(req: ExpressRequest, limit: number): Promise<Uint8Array<ArrayBuffer>> {
+  const declared = req.headers['content-length'];
+  if (declared !== undefined && /^\d+$/.test(declared.trim()) && Number(declared.trim()) > limit) throw tooLarge(limit);
   const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of req as AsyncIterable<Uint8Array | string>) {
     const bytes = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk;
     size += bytes.length;
-    if (size > limit) throw new PayloadTooLargeError(`Request body is larger than ${limit} bytes.`);
+    if (size > limit) throw tooLarge(limit);
     chunks.push(bytes);
   }
   const out = new Uint8Array(size);
@@ -43,24 +51,30 @@ async function readStream(req: ExpressRequest, limit: number): Promise<Uint8Arra
 }
 
 /**
+ * True once anything has read the request stream. body-parser 1.x (Express 4) flags the
+ * request it reads with `_body`; any reader leaves `readableDidRead`/`readableEnded` set.
+ */
+function streamConsumed(req: ExpressRequest): boolean {
+  return (req as { _body?: unknown })._body === true || req.readableDidRead === true || req.readableEnded === true;
+}
+
+/**
  * The exact bytes of the request body.
  *
- * `req.body === undefined` (Express 5's default with no body-parsing middleware mounted) means
- * nothing has touched the stream yet, so we read it ourselves. `req.body instanceof Uint8Array`
- * (a Buffer, set by express.raw()) means a parser ran but handed us the untouched bytes, so we
- * use it. Any other value — a string, a parsed object, including Express 4's `{}` left by
- * express.json()/urlencoded() when no body was sent — means a parser already consumed and
- * transformed the stream: we can no longer recover the original bytes, so we refuse loudly
- * instead of verifying (or forwarding) something that is not what the server received.
+ * `req.body instanceof Uint8Array` (a Buffer, set by express.raw()) means a parser ran but handed
+ * us the untouched bytes, so we use it. Otherwise, if nothing has read the stream yet we read it
+ * ourselves — whatever `req.body` holds: Express 5 leaves it `undefined`, but Express 4's
+ * body-parser sets `{}` even when it skips a request (a global express.urlencoded() or
+ * express.text() in front of a JSON webhook). Once the stream has been read and transformed we can
+ * no longer recover the original bytes, so we refuse loudly instead of verifying (or forwarding)
+ * something that is not what the server received.
  */
 async function rawBody(req: ExpressRequest, limit: number): Promise<Uint8Array | undefined> {
   const body: unknown = req.body;
-  if (body === undefined) {
-    if (req.method === 'GET' || req.method === 'HEAD') return undefined;
-    return readStream(req, limit);
-  }
   if (body instanceof Uint8Array) return body;
-  throw new BodyAlreadyParsedError();
+  if (streamConsumed(req)) throw new BodyAlreadyParsedError();
+  if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+  return readStream(req, limit);
 }
 
 export async function toFetchRequest(req: ExpressRequest, limitBytes: number = DEFAULT_LIMIT_BYTES): Promise<Request> {
@@ -72,7 +86,8 @@ export async function toFetchRequest(req: ExpressRequest, limitBytes: number = D
   return new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, {
     method: req.method,
     headers,
-    body: body === undefined ? undefined : Buffer.from(body),
+    // No copy: a Buffer from express.raw() or our own read buffer, handed over as-is.
+    body: body as Uint8Array<ArrayBuffer> | undefined,
   });
 }
 
