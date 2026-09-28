@@ -69,6 +69,23 @@ it('refuses to hold a secret in a browser unless told to', () => {
   expect(resolveConfig({ ...base, dangerouslyAllowBrowser: true }).browser).toBe(true);
 });
 
+// C15: a Web Worker has no window or document, but its bundle ships to the visitor all the same.
+it('refuses to hold a secret in a browser Web Worker unless told to', () => {
+  vi.stubGlobal('self', globalThis);
+  vi.stubGlobal('WorkerGlobalScope', function WorkerGlobalScope() {});
+  vi.stubGlobal('importScripts', () => {});
+  expect(typeof (globalThis as { document?: unknown }).document).toBe('undefined');
+  expect(() => resolveConfig(base)).toThrow(/browser/);
+  expect(resolveConfig({ ...base, dangerouslyAllowBrowser: true }).browser).toBe(true);
+});
+
+it('still runs on server runtimes with worker-like globals but no importScripts (Cloudflare Workers)', () => {
+  vi.stubGlobal('self', globalThis);
+  vi.stubGlobal('WorkerGlobalScope', function WorkerGlobalScope() {});
+  vi.stubGlobal('navigator', { userAgent: 'Cloudflare-Workers' });
+  expect(resolveConfig(base).browser).toBe(false);
+});
+
 it('rejects an out-of-range or non-integer maxRetries', () => {
   for (const bad of [Number.NaN, -1, 11, 1.5, Infinity]) {
     expect(() => resolveConfig({ ...base, maxRetries: bad })).toThrow(/maxRetries/);

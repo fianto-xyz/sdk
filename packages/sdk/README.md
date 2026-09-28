@@ -60,7 +60,7 @@ new Fianto({
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
-| `dangerouslyAllowBrowser` | — | `false` | Constructing `Fianto` where `window`/`document` exist throws unless this is `true`. There is no publishable/browser-safe key: the merchant's server always creates checkout sessions (see [Checkout route](#checkout-route)). |
+| `dangerouslyAllowBrowser` | — | `false` | Constructing `Fianto` in a browser page (`window`/`document` exist) or a browser Web Worker (`importScripts` exists) throws unless this is `true`. There is no publishable/browser-safe key: the merchant's server always creates checkout sessions (see [Checkout route](#checkout-route)). |
 
 A missing `appId` or `appSecret` throws a `FiantoError` at construction, naming the option and
 the env var to set. `baseUrl` needs neither: it falls back to the production API.

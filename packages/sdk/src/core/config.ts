@@ -74,8 +74,11 @@ function normaliseBaseUrl(raw: string): string {
 }
 
 export function resolveConfig(options: ClientOptions): ResolvedConfig {
-  const browser = typeof (globalThis as { window?: unknown }).window !== 'undefined'
-    && typeof (globalThis as { document?: unknown }).document !== 'undefined';
+  const g = globalThis as { window?: unknown; document?: unknown; importScripts?: unknown };
+  // A page (window + document), or a browser Web Worker: it has neither, but its bundle still
+  // ships to the visitor. `importScripts` exists only in browsers' worker scopes (dedicated,
+  // shared, service) — not in Cloudflare Workers, Deno, Bun or Vercel Edge, which run on servers.
+  const browser = (typeof g.window !== 'undefined' && typeof g.document !== 'undefined') || typeof g.importScripts === 'function';
   if (browser && !options.dangerouslyAllowBrowser) {
     throw new FiantoError(
       'new Fianto() holds your app secret and must not run in a browser. Create checkout sessions on your server ' +
