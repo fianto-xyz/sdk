@@ -39,13 +39,22 @@ async function fetchSession(endpoint: string, dataset: DOMStringMap): Promise<Ch
   return (await response.json()) as CheckoutSession;
 }
 
+// `HTMLElement` doesn't exist outside a DOM (SSR, a plain Node `require`/`import`): referencing it
+// in an `extends` clause throws at module-evaluation time, before `defineFiantoButton`'s own
+// `typeof customElements === 'undefined'` guard ever runs. Extend a no-op stand-in there instead,
+// so importing this module never throws — only *instantiating* the class (which nothing does
+// outside a real DOM: `defineFiantoButton` never constructs it, `customElements.define` doesn't
+// either) would need a real `HTMLElement`.
+const HTMLElementBase: typeof HTMLElement =
+  typeof HTMLElement === 'undefined' ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
+
 /**
  * `<fianto-button>`: a branded "Pay with fianto" button as a custom element. Renders the
  * button-core markup/styles into an open shadow root, wires the click to `openCheckout`, and
  * emits `fianto:result` / `fianto:error` (bubbling, composed) instead of returning a promise, so
  * plain HTML pages with no build step can use it.
  */
-export class FiantoButtonElement extends HTMLElement {
+export class FiantoButtonElement extends HTMLElementBase {
   static get observedAttributes(): readonly string[] {
     return OBSERVED_ATTRIBUTES;
   }
