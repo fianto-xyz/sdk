@@ -48,7 +48,31 @@ describe('sign', () => {
     await sign({ payload: file, secret, id: 'evt_fixed', timestamp: 1_790_000_000 }, output);
     const curlLine = lines.find((l) => l.startsWith('curl '))!;
     expect(curlLine).toContain('"$URL"');
-    expect(curlLine).toContain(`--data-binary @${file}`);
+    expect(curlLine).toContain(`--data-binary '@${file}'`);
+  });
+
+  it('signs the exact bytes curl sends for a pretty-printed file with a trailing newline', async () => {
+    const pretty = `${JSON.stringify({ id: 'evt_pretty', type: 'order.paid', timestamp: 't', data: { a: 1 } }, null, 2)}\n`;
+    writeFileSync(file, pretty);
+    const lines: string[] = [];
+    const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+    await sign({ payload: file, secret, timestamp: 1_790_000_000 }, output);
+    const curlLine = lines.find((l) => l.startsWith('curl '))!;
+    const header = (name: string) => new RegExp(`-H '${name}: ([^']+)'`).exec(curlLine)![1]!;
+    const { verifyWebhook } = await import('@fianto/sdk/webhooks');
+    await expect(
+      verifyWebhook(pretty, { 'webhook-id': header('webhook-id'), 'webhook-timestamp': header('webhook-timestamp'), 'webhook-signature': header('webhook-signature') }, { secret, now: () => 1_790_000_000_000 }),
+    ).resolves.toMatchObject({ id: 'evt_pretty' });
+  });
+
+  it("single-quotes the payload path in the curl line, escaping embedded quotes", async () => {
+    const odd = join(dir, "it's a file.json");
+    writeFileSync(odd, JSON.stringify({ id: 'evt_q', type: 'order.paid', timestamp: 't', data: {} }));
+    const lines: string[] = [];
+    const output = { out: (l: string) => lines.push(l), err: (l: string) => lines.push(l) };
+    await sign({ payload: odd, secret }, output);
+    const curlLine = lines.find((l) => l.startsWith('curl '))!;
+    expect(curlLine).toContain(`--data-binary '@${odd.replace("'", "'\\''")}'`);
   });
 
   it('rejects a payload file with malformed JSON, naming the file', async () => {

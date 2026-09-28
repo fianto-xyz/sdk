@@ -24,3 +24,12 @@ it('invents an evt_ id for an envelope without one and signs with every secret',
   expect(headers['webhook-timestamp']).toBe('1790000000');
   expect(headers['webhook-signature'].split(' ')).toHaveLength(2);
 });
+
+it('signs rawBody verbatim when given, so pretty-printed bytes verify', async () => {
+  const event = { id: 'evt_raw', type: 'test.event', timestamp: 't', data: {} };
+  const rawBody = `${JSON.stringify(event, null, 2)}\n`;
+  const { body, headers } = await signWebhook({ event, rawBody, secret });
+  expect(body).toBe(rawBody);
+  expect(() => new Webhook(secret).verify(rawBody, headers)).not.toThrow();
+  await expect(verifyWebhook(rawBody, headers, { secret })).resolves.toEqual(event);
+});

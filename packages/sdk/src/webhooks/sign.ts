@@ -8,13 +8,18 @@ export interface SignOptions {
   id?: string;
   /** Unix seconds. Default: now. */
   timestamp?: number;
+  /**
+   * The exact body bytes to sign and send, verbatim (e.g. a pretty-printed file's text). Must be
+   * the JSON of `event`. Default: `JSON.stringify(event)`.
+   */
+  rawBody?: string;
 }
 
 const encoder = new TextEncoder();
 
 /** Signs an event exactly as fianto does — for tests and local tooling. */
 export async function signWebhook(options: SignOptions): Promise<{ body: string; headers: Record<string, string> }> {
-  const body = JSON.stringify(options.event);
+  const body = options.rawBody ?? JSON.stringify(options.event);
   const eventId = (options.event as { id?: unknown }).id;
   const id = options.id ?? (typeof eventId === 'string' ? eventId : `evt_${crypto.randomUUID().replaceAll('-', '')}`);
   const timestamp = options.timestamp ?? Math.floor(Date.now() / 1000);

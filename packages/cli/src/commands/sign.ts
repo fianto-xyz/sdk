@@ -16,7 +16,7 @@ export interface SignInput {
 /**
  * Reads a JSON event from `payload`, signs it exactly as fianto would, and prints the signed
  * body followed by a ready `curl` command a developer can paste (with `$URL` left for them to
- * set). Never prints the secret itself.
+ * set). The signature covers the file's exact bytes, which is what curl sends. Never prints the secret itself.
  */
 export async function sign(options: SignInput, output: Output): Promise<void> {
   const raw = await readFile(options.payload, 'utf8');
@@ -28,6 +28,7 @@ export async function sign(options: SignInput, output: Output): Promise<void> {
   }
   const { body, headers } = await signWebhook({
     event,
+    rawBody: raw,
     secret: options.secret,
     id: options.id,
     timestamp: options.timestamp,
@@ -41,7 +42,12 @@ export async function sign(options: SignInput, output: Output): Promise<void> {
       `-H 'webhook-id: ${headers['webhook-id']}'`,
       `-H 'webhook-timestamp: ${headers['webhook-timestamp']}'`,
       `-H 'webhook-signature: ${headers['webhook-signature']}'`,
-      `--data-binary @${options.payload}`,
+      `--data-binary ${shellQuote(`@${options.payload}`)}`,
     ].join(' '),
   );
+}
+
+/** Single-quotes a value for a POSIX shell, escaping embedded single quotes. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
