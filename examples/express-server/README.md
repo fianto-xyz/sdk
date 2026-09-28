@@ -20,10 +20,11 @@ cp .env.example .env
 
 | Env var | Meaning |
 |---|---|
-| `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials. Server-side only. |
-| `FIANTO_BASE_URL` | Optional. The fianto deployment these credentials belong to; defaults to the production API (`https://api.fianto.xyz`). |
+| `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials, from **Dashboard → Developers → Applications**. Server-side only. |
+| `FIANTO_BASE_URL` | Optional. The fianto deployment these credentials belong to; defaults to the production API (`https://api.fianto.xyz`). Point it at a local backend (e.g. `http://localhost:3000`) instead — there's no separate "devnet" API host. |
 | `FIANTO_WEBHOOK_SECRET` | The signing secret for the endpoint you register at `/webhooks/fianto`. |
 | `PORT` | Optional; defaults to `3100`. |
+| `SITE_URL` | Optional. This app's own public origin, used to build `success_url`/`cancel_url` (`src/app.ts`). Required (`https://`) once deployed — falls back to the incoming request's own origin otherwise, which only works for local development. |
 
 ## Run
 
@@ -37,8 +38,11 @@ To receive webhooks locally, forward events from your fianto dashboard's event l
 server with the CLI (from the repo root, in another terminal):
 
 ```bash
-npx fianto events tail --forward-to http://localhost:3100/webhooks/fianto
+npx @fianto/cli events tail --forward-to http://localhost:3100/webhooks/fianto --secret whsec_...
 ```
+
+(the same value as `FIANTO_WEBHOOK_SECRET` above — `events tail` doesn't read your `.env`, so
+pass it with `--secret` or export it: `export FIANTO_WEBHOOK_SECRET=whsec_...`).
 
 ## Money safety
 

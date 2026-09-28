@@ -9,6 +9,11 @@ import { useState } from 'react';
 //     NOT proof of payment or settlement — only a verified `order.paid` /
 //     `subscription.created` webhook (see app/api/webhooks/fianto/route.ts) or a server-side
 //     `fianto.orders.retrieve(id)` / `fianto.subscriptions.retrieve(id)` call proves that.
+//   - `canceled` does NOT mean nothing was charged either — a transaction the payer already
+//     built can still land on-chain after they clicked "cancel" on the checkout page. Never
+//     say "you have not been charged"; point them at their order status instead.
+//   - `expired` similarly never says just "try again": a payment that landed right as the
+//     session expired is still possible, so check the order first.
 //   - `closed` means UNKNOWN, not "nothing was charged" — the popup closed without ever
 //     posting a result back (the payer, a browser extension, anything). Never tell the payer
 //     nothing was charged on this status; reconcile from the order/subscription state instead.
@@ -18,8 +23,8 @@ import { useState } from 'react';
 // inferred from FiantoButtonProps['onResult'] instead.
 const STATUS_COPY: Record<string, string> = {
   succeeded: 'Almost done — we are confirming your payment. You will get an email once it is complete.',
-  canceled: 'Checkout canceled. You have not been charged.',
-  expired: 'That checkout link expired. Please try again.',
+  canceled: 'Checkout canceled. If a payment went through anyway, check your order status before trying again.',
+  expired: 'That checkout link expired. Check your order status before trying again.',
   closed:
     "We couldn't tell what happened. If you were charged, it will show up on your account shortly — please do not assume nothing happened.",
 };
