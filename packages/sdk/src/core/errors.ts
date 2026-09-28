@@ -90,7 +90,15 @@ export class RateLimitError extends APIError {
   }
 }
 
-export interface NetworkErrorOptions extends ErrorOptions {
+/**
+ * Deliberately not `extends ErrorOptions`: that's an ambient global type from TypeScript's
+ * ES2022 lib, only available to a consumer whose own `tsconfig` targets ES2022+ (or explicitly
+ * widens `lib`). Extending it would leak into this package's published `.d.ts`/`.d.cts` and
+ * break `skipLibCheck: false` consumers below that lib — see errors.test.ts. `cause` here has
+ * the same shape `ErrorOptions.cause` does; it's still passed straight through to `super(...)`.
+ */
+export interface NetworkErrorOptions {
+  cause?: unknown;
   requestId?: string;
   idempotencyKey?: string;
 }

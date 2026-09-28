@@ -1,7 +1,7 @@
 import {
   AbortError, APIError, AuthenticationError, ConflictError, ConnectionError, FiantoError, InternalServerError,
   InvalidRequestError, NotFoundError, PermissionDeniedError, RateLimitError,
-  ServiceUnavailableError, errorFromResponse, isAPIError, isFiantoError, parseRetryAfter,
+  ServiceUnavailableError, TimeoutError, errorFromResponse, isAPIError, isFiantoError, parseRetryAfter,
 } from './errors.js';
 
 const body = (code: string, extra: Record<string, unknown> = {}) => ({
@@ -81,6 +81,21 @@ it('AbortError carries the abort reason as cause and a stable code', () => {
   expect(error).toBeInstanceOf(FiantoError);
   expect(error.code).toBe('aborted');
   expect(error.cause).toBe(reason);
+});
+
+// NetworkErrorOptions stopped extending the ambient `ErrorOptions` lib type (it now declares its
+// own `cause?: unknown`) so the field never leaks into the published .d.ts. `cause` must still
+// reach the underlying `Error` exactly as before.
+it('ConnectionError and TimeoutError still pass cause through to the underlying Error', () => {
+  const cause = new Error('ECONNRESET');
+  const connection = new ConnectionError('down', { cause, requestId: 'req_1', idempotencyKey: 'idem_1' });
+  expect(connection.cause).toBe(cause);
+  expect(connection.requestId).toBe('req_1');
+  expect(connection.idempotencyKey).toBe('idem_1');
+
+  const timeout = new TimeoutError('too slow', { cause, requestId: 'req_2' });
+  expect(timeout.cause).toBe(cause);
+  expect(timeout.requestId).toBe('req_2');
 });
 
 // F4/B8: `instanceof FiantoError` must recognise an error minted by a *different* copy of this
