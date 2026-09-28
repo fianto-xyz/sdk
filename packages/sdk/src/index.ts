@@ -1,4 +1,9 @@
-export { VERSION } from './version.js';
+export { Fianto } from './client.js';
+export type { ClientOptions } from './core/config.js';
+export type { RequestOptions } from './core/transport.js';
+export { PagePromise } from './core/pagination.js';
 export * from './core/errors.js';
 export { ErrorCode } from './generated/error-codes.js';
 export { usdc } from './amounts.js';
+export type * from './types.js';
+export { VERSION } from './version.js';
