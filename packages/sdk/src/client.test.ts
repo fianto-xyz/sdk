@@ -64,6 +64,32 @@ it('cancels a subscription with its body', async () => {
   expect(calls[0]).toMatchObject({ method: 'POST', body: { at: 'period_end' } });
 });
 
+// A JS caller (no compiler) who means the LAST argument (`options`) but puts it in the params
+// slot instead must get a clear throw, never a request silently missing the option they set.
+describe('retrieve/cancel/list refuse a RequestOptions key passed as params', () => {
+  it.each([
+    // `list()` isn't `async`, so it throws synchronously; `retrieve`/`cancel` are `async`, so
+    // the same throw surfaces as a rejected promise — wrapping every case in an async function
+    // normalises both to a rejection this test can assert on the same way.
+    ['orders.retrieve', async (f: Fianto) => { await f.orders.retrieve('fian_ord_1', { idempotencyKey: 'x' } as any); }],
+    ['payments.retrieve', async (f: Fianto) => { await f.payments.retrieve('fian_pay_1', { timeoutMs: 5000 } as any); }],
+    ['products.list', async (f: Fianto) => { f.products.list({ signal: new AbortController().signal } as any); }],
+    ['orders.list', async (f: Fianto) => { f.orders.list({ maxRetries: 0 } as any); }],
+    ['subscriptions.cancel', async (f: Fianto) => { await f.subscriptions.cancel('fian_sub_1', { at: 'period_end', idempotencyKey: 'x' } as any); }],
+    ['checkoutSessions.cancel', async (f: Fianto) => { await f.checkoutSessions.cancel('fian_cs_1', { timeoutMs: 1000 } as any); }],
+  ] as const)('%s throws instead of sending the option as params', async (_name, call) => {
+    const { fianto, calls } = client();
+    await expect(call(fianto)).rejects.toThrow(FiantoError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('still works normally once the option moves to the actual options argument', async () => {
+    const { fianto, calls } = client();
+    await fianto.orders.retrieve('fian_ord_1', {}, { idempotencyKey: 'x' });
+    expect(calls[0]).toMatchObject({ method: 'GET' });
+  });
+});
+
 it('pages a list with its filters and the cursor', async () => {
   const { fianto, calls } = client((url) =>
     url.searchParams.get('cursor') === null
