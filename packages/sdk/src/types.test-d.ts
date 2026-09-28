@@ -90,8 +90,10 @@ async function typedEventRetrieve(): Promise<void> {
 void typedEventRetrieve;
 
 // The generated schema's own type was named `Event`, shadowing the DOM global for anyone who
-// imported it. `FiantoEvent` must not do the same: the bare `Event` identifier below must still
-// resolve to `lib.dom.d.ts`'s constructor, not to anything from this package.
-const domEvent: Event = new Event('click');
-void domEvent;
-expectTypeOf<FiantoEvent>().not.toEqualTypeOf<Event>();
+// imported it. Proving `FiantoEvent` merely differs in shape from `Event` (a structural
+// inequality check) is weak — nothing stops a FUTURE type also named `Event` from being added
+// and re-creating the exact shadowing bug. The real fix is that the package's public entry has
+// no `Event` export at all any more: prove that directly.
+// @ts-expect-error 'Event' is not an exported member of './index.js' — F12 renamed it to
+// FiantoEvent specifically so it stops shadowing the DOM global.
+type _EventIsNotExported = import('./index.js').Event;
