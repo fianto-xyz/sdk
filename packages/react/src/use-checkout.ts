@@ -11,7 +11,16 @@ export interface UseCheckoutOptions {
 export type CheckoutHookStatus = 'idle' | 'open' | 'done' | 'error';
 
 export interface UseCheckoutResult {
-  /** Call synchronously from an event handler: it calls `openCheckout` before any `await`. */
+  /**
+   * Call synchronously from an event handler: it calls `openCheckout` before any `await`.
+   *
+   * On `result.status === 'closed' && result.reason === 'unreachable'`, checkout may still be
+   * open in the popup — this page only lost the ability to see it (almost always its own
+   * `Cross-Origin-Opener-Policy: same-origin`). Don't call `open()` again right away: a custom
+   * UI should hold for a few seconds (`<fianto-button>` holds 6 s) and point the payer at their
+   * order status instead, the same way `@fianto/js`'s button does — see its README's "The four
+   * statuses" section.
+   */
   open: () => Promise<CheckoutResult | undefined>;
   /** Brings the open checkout popup to the front (call it on a click while `isOpen`). `false` if there is none. */
   focus: () => boolean;
