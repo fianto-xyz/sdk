@@ -22,7 +22,7 @@ import { useState } from 'react';
 // and @fianto/js is a transitive dependency of @fianto/react — `result`'s type below is
 // inferred from FiantoButtonProps['onResult'] instead.
 const STATUS_COPY: Record<string, string> = {
-  succeeded: 'Almost done — we are confirming your payment. You will get an email once it is complete.',
+  succeeded: 'Almost done — we are confirming your payment. Your order will update once it is complete.',
   canceled: 'Checkout canceled. If a payment went through anyway, check your order status before trying again.',
   expired: 'That checkout link expired. Check your order status before trying again.',
   closed:
