@@ -11,6 +11,7 @@ export const BUTTON_CSS = `
   box-sizing: border-box;
   height: clamp(40px, var(--fianto-button-height, 44px), 55px);
   width: var(--fianto-button-width, auto);
+  max-width: 100%;
   min-width: 160px;
   padding: 0 calc(clamp(40px, var(--fianto-button-height, 44px), 55px) / 10 * 2);
   border: none;
@@ -50,6 +51,8 @@ export const BUTTON_CSS = `
   color: #FFFFFF;
   --fianto-mark: #FFFFFF;
   --fianto-fg: #FFFFFF;
+  /* An edge that stays visible on a dark page (3.2:1 on #000). */
+  border: 1px solid #5C5C70;
 }
 .fianto-button.fianto-theme-light {
   background: #FFFFFF;
@@ -72,6 +75,7 @@ export const BUTTON_CSS = `
     color: #FFFFFF;
     --fianto-mark: #FFFFFF;
     --fianto-fg: #FFFFFF;
+    border: 1px solid #5C5C70;
   }
 }
 
@@ -79,6 +83,12 @@ export const BUTTON_CSS = `
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
+  /* Shrinks to the room the button has, so scrollWidth > clientWidth when the label doesn't fit. */
+  min-width: 0;
+}
+
+.fianto-prefix {
+  white-space: nowrap;
 }
 
 .fianto-logo {
@@ -98,6 +108,9 @@ export const BUTTON_CSS = `
 .fianto-button:focus-visible {
   outline: 2px solid var(--fianto-button-focus-ring, #0002F8);
   outline-offset: 2px;
+  /* Two-tone ring: white fills the offset gap, so on any page background either the white
+     (dark pages) or the outline (light pages) reaches 3:1. */
+  box-shadow: 0 0 0 2px #FFFFFF;
 }
 
 /* loading: show the spinner and hide the label, keeping the accessible name (the button's aria-label, set by the caller — unaffected by hiding its children). */
@@ -151,7 +164,15 @@ export const BUTTON_CSS = `
   font-size: 12px;
   line-height: 1.3;
 }
+/* Empty: visually hidden but still in the accessibility tree, so the live region is already
+   registered when a message arrives and screen readers announce it. */
 .fianto-status:empty {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 `;
