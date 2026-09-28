@@ -99,3 +99,35 @@ it('refuses other methods', async () => {
   const response = await createCheckoutHandler({ fianto, createSession: async () => params })(new Request('https://shop.test/x'));
   expect(response.status).toBe(405);
 });
+
+it('reports passed-through API errors to onError too, response unchanged', async () => {
+  const { fianto } = fakeFianto([
+    { status: 409, body: { code: 'checkout_unavailable', message: 'Busy.' }, headers: { 'retry-after': '2' } },
+  ]);
+  const onError = vi.fn();
+  const response = await createCheckoutHandler({ fianto, createSession: async () => params, onError })(sameOrigin());
+  expect(response.status).toBe(409);
+  expect(response.headers.get('retry-after')).toBe('2');
+  expect(await response.json()).toEqual({ error: { code: 'checkout_unavailable', message: 'Busy.' } });
+  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'checkout_unavailable' }));
+});
+
+it.each([
+  [{ 'sec-fetch-site': 'same-site', origin: 'https://sub.shop.test' }],
+  [{ 'sec-fetch-site': 'none' }],
+  [{ 'sec-fetch-site': 'same-site' }],
+])('refuses %j with 403 (only same-origin is trusted)', async (headers) => {
+  const { fianto, calls } = fakeFianto([]);
+  const response = await createCheckoutHandler({ fianto, createSession: async () => params })(
+    new Request('https://shop.test/api/checkout', { method: 'POST', headers, body: '{}' }),
+  );
+  expect(response.status).toBe(403);
+  expect(calls).toHaveLength(0);
+});
+
+it('forces ui_mode popup over a cast-injected redirect', async () => {
+  const { fianto, calls } = fakeFianto([{ status: 201, body: { id: 'fian_cs_1', url: 'https://pay.test/c/t1' } }]);
+  const injected = { ...params, ui_mode: 'redirect' } as unknown as typeof params;
+  await createCheckoutHandler({ fianto, createSession: async () => injected })(sameOrigin());
+  expect((calls[0]!.body as { ui_mode: string }).ui_mode).toBe('popup');
+});

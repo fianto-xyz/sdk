@@ -29,6 +29,16 @@ export interface WebhookHandlerOptions extends WebhookCallbacks {
   onEvent?: (event: WebhookEvent | UnknownWebhookEvent) => unknown;
   /** The reason a request was rejected (the response itself never says). */
   onVerificationError?: (error: WebhookVerificationError) => void;
+  /** A callback or onEvent threw (the response is still 500, so fianto retries). */
+  onError?: (error: unknown, event: WebhookEvent | UnknownWebhookEvent) => void;
+}
+
+function report(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    // A throwing reporter must not change the response.
+  }
 }
 
 const CALLBACKS: { [K in WebhookEventType]: keyof WebhookCallbacks } = {
@@ -62,18 +72,19 @@ export function createWebhookHandler(options: WebhookHandlerOptions = {}): (requ
       event = await verifyWebhook(body, request.headers, { secret: options.secret, toleranceSeconds: options.toleranceSeconds });
     } catch (error) {
       if (!(error instanceof WebhookVerificationError)) throw error;
-      options.onVerificationError?.(error);
+      report(() => options.onVerificationError?.(error));
       return json(400, { error: 'invalid_webhook' });
     }
     if (event.type === 'endpoint.verification') {
       return json(200, { challenge: (event as WebhookEvent & { type: 'endpoint.verification' }).data.challenge });
     }
     try {
-      const name = CALLBACKS[event.type as WebhookEventType] as keyof WebhookCallbacks | undefined;
+      const name = Object.hasOwn(CALLBACKS, event.type) ? CALLBACKS[event.type as WebhookEventType] : undefined;
       const callback = name ? (options[name] as ((e: unknown) => unknown) | undefined) : undefined;
       await callback?.(event);
       await options.onEvent?.(event);
-    } catch {
+    } catch (error) {
+      report(() => options.onError?.(error, event));
       return json(500, { error: 'handler_failed' });
     }
     return json(200, { received: true });

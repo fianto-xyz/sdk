@@ -79,3 +79,33 @@ it('maps every event type to exactly one callback', async () => {
   for (const type of WEBHOOK_EVENT_TYPES) await handler(await post(sampleEvent(type)));
   expect(new Set(seen).size).toBe(14);
 });
+
+it('reports a throwing callback or onEvent to onError with the event', async () => {
+  const boom = new Error('db down');
+  const onError = vi.fn();
+  const response = await createWebhookHandler({ secret, onOrderPaid: () => { throw boom; }, onError })(await post(sampleEvent('order.paid')));
+  expect(response.status).toBe(500);
+  expect(onError).toHaveBeenCalledWith(boom, expect.objectContaining({ type: 'order.paid' }));
+
+  const onError2 = vi.fn();
+  const r2 = await createWebhookHandler({ secret, onEvent: () => { throw boom; }, onError: onError2 })(await post(sampleEvent('order.paid')));
+  expect(r2.status).toBe(500);
+  expect(onError2).toHaveBeenCalledTimes(1);
+});
+
+it('never lets a throwing onError or onVerificationError escape', async () => {
+  const handler = createWebhookHandler({ secret, onOrderPaid: () => { throw new Error('x'); }, onError: () => { throw new Error('y'); } });
+  expect((await handler(await post(sampleEvent('order.paid')))).status).toBe(500);
+  const other = `whsec_${randomBytes(32).toString('base64')}`;
+  const bad = createWebhookHandler({ secret, onVerificationError: () => { throw new Error('z'); } });
+  expect((await bad(await post(sampleEvent('order.paid'), { secret: other }))).status).toBe(400);
+});
+
+it('does not treat inherited property names as event types', async () => {
+  const onEvent = vi.fn();
+  const response = await createWebhookHandler({ secret, onEvent })(
+    await post({ id: `evt_${'8'.repeat(32)}`, type: 'toString', timestamp: 't', data: {} }),
+  );
+  expect(response.status).toBe(200);
+  expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'toString' }));
+});

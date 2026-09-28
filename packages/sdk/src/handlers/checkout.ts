@@ -12,6 +12,7 @@ export interface CheckoutHandlerOptions {
   createSession: (request: Request) => Promise<CheckoutSessionParams | Response>;
   /** Origins allowed to call this route. Default: the request URL's own origin. */
   allowedOrigins?: readonly string[];
+  /** Called for every error, including API errors passed through to the browser. */
   onError?: (error: unknown) => void;
 }
 
@@ -42,11 +43,11 @@ export function createCheckoutHandler(options: CheckoutHandlerOptions): (request
       if (session.url === null) session = await client.checkoutSessions.reissueLink(session.id);
       return json(200, { id: session.id, url: session.url });
     } catch (error) {
+      options.onError?.(error);
       if (error instanceof APIError && error.status !== 401 && error.status !== 403) {
         const retryAfter = error.headers.get('retry-after');
         return json(error.status, { error: { code: error.code, message: error.message } }, retryAfter ? { 'retry-after': retryAfter } : {});
       }
-      options.onError?.(error);
       return json(500, FAILED);
     }
   };
