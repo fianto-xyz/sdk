@@ -7,3 +7,4 @@ export {
   type EndpointVerificationEvent, type UnknownWebhookEvent, type WebhookEvent,
   type WebhookEventMap, type WebhookEventOf, type WebhookEventType,
 } from './events.js';
+export { sampleEvent, sampleVerificationEvent } from './samples.js';
