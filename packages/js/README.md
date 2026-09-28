@@ -22,7 +22,7 @@ on your server.
 
 <script>
   document.querySelector('fianto-button').addEventListener('fianto:result', (event) => {
-    // event.detail = { status, session_id } — see "The four statuses" below before acting on this.
+    // event.detail = { status, session_id, reason? } — see "The four statuses" below before acting on this.
     console.log(event.detail.status);
   });
   document.querySelector('fianto-button').addEventListener('fianto:error', (event) => {
@@ -36,7 +36,8 @@ on your server.
 element's `data-*` attributes) and must answer `{ id, url }` — exactly what
 `createCheckoutHandler` from `@fianto/sdk/handlers` (or `Checkout()` from `@fianto/nextjs`)
 returns. The script also exposes
-`window.Fianto.openCheckout` and `window.Fianto.redirectToCheckout` for pages with no bundler
+`window.Fianto.openCheckout`, `window.Fianto.redirectToCheckout`,
+`window.Fianto.fetchCheckoutSession` and `window.Fianto.focusCheckout` for pages with no bundler
 that want the imperative API directly.
 
 ## Install (bundler)
@@ -46,15 +47,21 @@ import { openCheckout, redirectToCheckout } from '@fianto/js';
 import '@fianto/js/button'; // registers <fianto-button>, if you use it as markup instead
 ```
 
+`@fianto/js/button-core` is internal: it holds the button's markup, styles and copy shared with
+`@fianto/react`, and may change in any release. Don't import it.
+
 ## `openCheckout`
 
 ```ts
+import { fetchCheckoutSession, openCheckout } from '@fianto/js';
+
 const result = await openCheckout({
-  session: () => fetch('/api/checkout', { method: 'POST' }).then((r) => r.json()), // or { id, url }
+  session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }), // or { id, url }
   fallback: 'redirect', // 'redirect' (default) | 'none'
   popup: { width: 480, height: 720 }, // default
 });
-// result: { status: 'succeeded' | 'canceled' | 'expired' | 'closed', session_id: string }
+// result: { status: 'succeeded' | 'canceled' | 'expired', session_id }
+//       | { status: 'closed', reason, session_id } — reason: see "The four statuses" below
 ```
 
 **Call it synchronously inside a click handler** — it opens the popup with `window.open` before
@@ -64,7 +71,7 @@ user gesture:
 ```tsx
 <button
   onClick={() => {
-    openCheckout({ session: () => createCheckoutSession(orderId) }).then((result) => {
+    openCheckout({ session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }) }).then((result) => {
       /* ... */
     });
   }}
@@ -78,6 +85,33 @@ call your server's checkout route (built with `createCheckoutHandler` from `@fia
 `Checkout()` from `@fianto/nextjs`, or `checkout()` from `@fianto/hono` / `@fianto/express`) from
 inside that function; never construct the URL yourself.
 
+### `fetchCheckoutSession`
+
+```ts
+fetchCheckoutSession(endpoint, { body?, headers?, credentials?, signal? }) → Promise<{ id, url }>
+```
+
+`POST`s `body` as JSON (default `{}`, `credentials: 'same-origin'`) to your checkout route and
+returns its `{ id, url }`. When the route refuses, it rejects with a `CheckoutSessionError`:
+
+| Field | Value |
+|---|---|
+| `code` | the route's `error.code` — e.g. `payment_in_progress` (409), `order_already_paid` (409), `order_session_mismatch` (409), `checkout_unavailable` (409), `rate_limited` (429), a validation code for your own params, `internal_error` (500); or `network_error` (no response) / `session_request_failed` (an error status with no `{ error: { code } }` body) |
+| `status` | the HTTP status |
+| `retryAfter` | the `Retry-After` header in seconds, when sent |
+| `message` | the route's message — written for you, not for the payer |
+
+Use it rather than `fetch(...).then((r) => r.json())`: that turns every refusal into a body
+`openCheckout` has to guess at. (`openCheckout` still recognises a `{ error: { code } }` body
+handed to it that way and rejects with a `CheckoutSessionError` of that code, without `status`.)
+
+### `focusCheckout`
+
+`focusCheckout()` brings the popup of the checkout in progress to the front and returns `true`,
+or returns `false` when there is none. Call it when the payer clicks your busy pay button again
+— the popup has probably gone behind the page — instead of opening a second checkout.
+`<fianto-button>` and `@fianto/react`'s `<FiantoButton>` already do.
+
 If the popup is blocked (`window.open` returns `null`): `fallback: 'redirect'` (the default)
 awaits `session` and navigates the whole page to its `url` (the returned promise normally never
 resolves — the page is leaving; if the payer comes back through the browser's back/forward cache
@@ -86,7 +120,8 @@ session is created at most once either way, and a second `openCheckout()` call w
 still open reuses the same popup — the first call's promise then resolves `closed` rather than
 hanging.
 
-A checkout superseded by another `openCheckout()` call resolves `closed` (unknown — never "nothing was charged").
+A checkout superseded by another `openCheckout()` call resolves `closed` with `reason:
+'superseded'` (unknown — never "nothing was charged").
 
 ### `redirectToCheckout`
 
@@ -95,7 +130,9 @@ await redirectToCheckout({ id, url }); // or a () => Promise<{ id, url }>
 ```
 
 Skips the popup entirely and sends the whole page to hosted checkout. Use it for a full-page
-checkout flow instead of a popup.
+checkout flow instead of a popup. The promise normally never settles (the page is leaving); if
+the payer comes back through the browser's back/forward cache it resolves `{ status: 'closed',
+reason: 'returned_from_redirect' }`, so a spinner you showed can stop.
 
 ### The four statuses (money safety)
 
@@ -106,10 +143,20 @@ checkout flow instead of a popup.
   status alone.
 - **`canceled`** — the payer canceled on the checkout page.
 - **`expired`** — the session expired before payment.
-- **`closed`** — **unknown**. The popup was closed (by the payer, a browser extension, or
-  anything else) without ever posting a result back. Never tell the payer "nothing was charged"
-  on this status — you cannot see from the browser whether a transaction is still confirming
-  on-chain. Reconcile from the order/session state, not from this promise.
+- **`closed`** — **unknown**. No result was posted back. Never tell the payer "nothing was
+  charged" on this status — you cannot see from the browser whether a transaction is still
+  confirming on-chain. Reconcile from the order/session state, not from this promise. `reason`
+  says why:
+  - `closed_by_payer` — the popup was closed (by the payer, a browser extension, anything) after
+    checkout had loaded in it.
+  - `unreachable` — the popup became unreachable within ~1.5 s of navigating to checkout. That is
+    almost always this page's `Cross-Origin-Opener-Policy: same-origin` (see
+    [Constraints](#constraints)); **checkout may still be open and the payer may still pay**.
+    `openCheckout` logs a `console.warn` naming the fix once. Tell the payer to check their order
+    status rather than start another checkout straight away.
+  - `superseded` — a newer `openCheckout()` call took over the popup.
+  - `returned_from_redirect` — the page was sent to checkout (popup blocked, or
+    `redirectToCheckout`) and the payer came back through the back/forward cache.
 
 ### Constraints
 
@@ -117,9 +164,11 @@ checkout flow instead of a popup.
   session's `success_url`.** The checkout page posts its result to that origin specifically; on
   any other origin nothing is delivered and the call resolves `closed` once the payer closes the
   popup.
-- **`Cross-Origin-Opener-Policy: same-origin` on your page severs `window.opener`** and the
-  checkout page never posts to it — set `Cross-Origin-Opener-Policy: same-origin-allow-popups`
-  instead (never plain `same-origin`) on any page that calls `openCheckout`.
+- **`Cross-Origin-Opener-Policy: same-origin` on your page severs the popup** as soon as it
+  navigates to checkout: this page sees it as closed at once (`closed`, `reason: 'unreachable'`)
+  while the payer is still paying in it, and no result ever arrives — set
+  `Cross-Origin-Opener-Policy: same-origin-allow-popups` instead (never plain `same-origin`) on
+  any page that calls `openCheckout`.
 - Call `openCheckout` (or click the button) **inside the event handler**, synchronously — not
   after an `await`, a `setTimeout`, or from a `useEffect` — or the browser's popup blocker treats
   it as unsolicited and blocks it.
@@ -138,10 +187,20 @@ document.querySelector('fianto-button').session = () => createCheckoutSession(or
 ```
 
 Events (bubbling, composed — listen at any ancestor): `fianto:result` (`detail: { status,
-session_id }`, the same four statuses as `openCheckout` — read [Money safety](#the-four-statuses-money-safety)
-above before acting on `succeeded`), `fianto:error` (`detail: { code, message }`; a `409
-payment_in_progress` from your checkout route shows "A payment for this order is already in
-progress").
+session_id }`, plus `reason` when `closed` — the same result as `openCheckout`; read
+[Money safety](#the-four-statuses-money-safety) above before acting on `succeeded`),
+`fianto:error` (`detail: { code, message }`, `message` being your route's text for you).
+
+`session-endpoint` is called with `fetchCheckoutSession`, and the payer sees a short, localised
+line chosen by the error's `code` — never your route's `message`, which can name your own
+params: `payment_in_progress` → "A payment for this order is already in progress.",
+`order_already_paid` → "This order has already been paid.", `rate_limited` /
+`checkout_unavailable` / `session_not_reissuable` / `subscription_preparing` → "Checkout is busy
+right now. Please try again shortly.", anything else → "Checkout could not be started. Please try
+again." On a `closed` result with `reason: 'unreachable'` it shows "Lost track of the checkout
+window. Check your order status before trying again." and ignores clicks for 6 s, rather than
+re-enabling straight into a second checkout. Clicking the button while a checkout is open brings
+its popup to the front.
 
 ### Options
 
@@ -157,7 +216,8 @@ progress").
 | `disabled` | boolean attribute | — |
 
 The `session` property (a `{ id, url }` or a `() => Promise<{ id, url }>`) overrides
-`session-endpoint` when both are set.
+`session-endpoint` when both are set. It may be set before the element is defined (e.g. before
+the CDN script loads): the element picks it up when it upgrades.
 
 ### CSS custom properties
 
@@ -184,8 +244,12 @@ than clipping or wrapping.
 - Renders a native `<button>`, so it gets built-in keyboard and screen-reader button semantics
   for free.
 - Accessible name (`aria-label`) is the localized label, e.g. "Pay with fianto".
-- A 2px focus ring at ≥ 3:1 contrast on keyboard focus (`--fianto-button-focus-ring` to
-  restyle it).
+- A two-tone focus ring on keyboard focus — a 2px white inner ring and a 2px
+  `--fianto-button-focus-ring` (default fianto blue) outer one — so one of the two reaches ≥ 3:1
+  on light and dark page backgrounds alike. The `dark` theme (and `auto` in dark mode) carries a
+  1px edge that stays visible on a dark page.
+- The status line under the button is a polite live region that stays in the accessibility tree
+  while empty (visually hidden, never `display: none`), so its messages are announced.
 - `aria-busy="true"` plus a spinner from click until the popup resolves; the accessible name is
   unaffected by the loading state.
 - Leave clear space of at least `height / 10` around the button (e.g. ~4.4px at the default
@@ -197,10 +261,10 @@ than clipping or wrapping.
 - **`fianto:result` never fires; the popup just closes** — you're listening on a different
   origin than the session's `success_url`. Results only post to that origin (see
   [Constraints](#constraints)).
-- **The popup opens blank, then nothing happens** — check `Cross-Origin-Opener-Policy` on the
-  page that called `openCheckout`/clicked the button: `same-origin` (rather than
-  `same-origin-allow-popups`) severs `window.opener` before the checkout page can post its
-  result.
+- **`closed` arrives within a second, while the popup is still showing checkout** (`reason:
+  'unreachable'`, plus a `console.warn`) — the page that called `openCheckout`/clicked the button
+  sends `Cross-Origin-Opener-Policy: same-origin`, which severs the popup. Send
+  `same-origin-allow-popups` instead.
 - **The popup is blocked every time** — `openCheckout` (or the button's click handler) is not
   running synchronously inside the click. An `await` or `setTimeout` before `window.open` loses
   the "direct response to a user gesture" the browser requires.

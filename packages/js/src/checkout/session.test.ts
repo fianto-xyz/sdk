@@ -31,3 +31,15 @@ it('rejects InvalidSessionError for a bad url without assigning', async () => {
   await expect(redirectToCheckout({ id: 'fian_cs_1', url: 'javascript:alert(1)' })).rejects.toBeInstanceOf(InvalidSessionError);
   expect(assign).not.toHaveBeenCalled();
 });
+
+// D10: a page sent to checkout and restored from the bfcache must not leave its caller hanging.
+it('resolves closed/returned_from_redirect when the page comes back from the bfcache', async () => {
+  const promise = redirectToCheckout(SESSION);
+  await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(SESSION.url));
+  for (const persisted of [false, true]) {
+    const event = new Event('pageshow');
+    Object.defineProperty(event, 'persisted', { value: persisted });
+    window.dispatchEvent(event);
+  }
+  await expect(promise).resolves.toEqual({ status: 'closed', reason: 'returned_from_redirect', session_id: SESSION.id });
+});

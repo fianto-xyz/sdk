@@ -56,12 +56,12 @@ export const POST = Checkout({
 ```tsx
 'use client';
 
-import { FiantoButton } from '@fianto/react';
+import { FiantoButton, fetchCheckoutSession } from '@fianto/react';
 
 export function CheckoutButton({ orderId }: { orderId: string }) {
   return (
     <FiantoButton
-      session={() => fetch('/api/checkout', { method: 'POST', body: JSON.stringify({ orderId }) }).then((r) => r.json())}
+      session={() => fetchCheckoutSession('/api/checkout', { body: { orderId } })}
       theme="brand"
       label="pay"
       onResult={(result) => {

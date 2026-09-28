@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import axe from 'axe-core';
 import { defineFiantoButton, FiantoButtonElement } from './index.js';
-import { MESSAGE_TYPE } from '../index.js';
+import { MESSAGE_TYPE } from '../checkout/message.js';
+
+function fakePopup() {
+  return { closed: false, location: { replace: vi.fn() }, document: document.implementation.createHTMLDocument(''), close() {}, focus: vi.fn() };
+}
 
 defineFiantoButton();
 
@@ -13,7 +17,7 @@ function mount(attrs: Record<string, string> = {}) {
   return { el, button };
 }
 
-afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { document.body.replaceChildren(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 it('renders an accessible native button from attributes', async () => {
   const { button } = mount({ label: 'subscribe', locale: 'vi', theme: 'dark', shape: 'pill' });
@@ -81,8 +85,9 @@ it('uses the session property over session-endpoint', async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it('keeps focus while loading and ignores a second click', async () => {
-  const popup = { closed: false, location: { replace: vi.fn() }, document: document.implementation.createHTMLDocument(''), close() {} };
+// D4: a busy click brings the popup back instead of doing nothing or opening a second one.
+it('keeps focus while loading, and a second click focuses the popup instead of opening another', async () => {
+  const popup = fakePopup();
   const open = vi.fn(() => popup);
   vi.stubGlobal('open', open);
   const { el, button } = mount();
@@ -92,6 +97,91 @@ it('keeps focus while loading and ignores a second click', async () => {
   expect(el.shadowRoot!.activeElement).toBe(button);
   button.click();
   expect(open).toHaveBeenCalledTimes(1);
+  expect(popup.focus).toHaveBeenCalledOnce();
+});
+
+// F13
+it('picks up a session property set before the element was defined', async () => {
+  const popup = fakePopup();
+  vi.stubGlobal('open', vi.fn(() => popup));
+  const el = document.createElement('fianto-button-late') as FiantoButtonElement;
+  const session = { id: 'fian_cs_late', url: 'https://pay.test/c/late' };
+  el.session = session;
+  document.body.append(el);
+  customElements.define('fianto-button-late', class extends FiantoButtonElement {});
+  expect(el).toBeInstanceOf(FiantoButtonElement);
+  expect(el.session).toBe(session);
+  expect(Object.hasOwn(el, 'session')).toBe(false);
+  el.shadowRoot!.querySelector('button')!.click();
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(session.url));
+});
+
+// D1: a checkout window cut off by COOP reads as closed while the payer may still be paying.
+it('on an unreachable popup shows the lost-window message and holds the button before re-enabling', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const popup = fakePopup();
+  const open = vi.fn(() => popup);
+  vi.stubGlobal('open', open);
+  const { el, button } = mount({ locale: 'en' });
+  el.session = { id: 'fian_cs_1', url: 'https://pay.test/c/x' };
+  const result = new Promise<CustomEvent>((resolve) => el.addEventListener('fianto:result', (e) => resolve(e as CustomEvent)));
+  button.click();
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  popup.closed = true;
+  await vi.advanceTimersByTimeAsync(500);
+  expect((await result).detail).toEqual({ status: 'closed', reason: 'unreachable', session_id: 'fian_cs_1' });
+  const status = el.shadowRoot!.querySelector('.fianto-status')!;
+  expect(status.textContent).toBe('Lost track of the checkout window. Check your order status before trying again.');
+  expect(status.textContent).not.toMatch(/not (been )?charged|nothing was charged/i);
+  expect(button.getAttribute('aria-busy')).toBe('false');
+  expect(button.getAttribute('aria-disabled')).toBe('true');
+  button.click();
+  expect(open).toHaveBeenCalledTimes(1);
+
+  await vi.advanceTimersByTimeAsync(6000);
+  expect(button.hasAttribute('aria-disabled')).toBe(false);
+  expect(status.textContent).toContain('Check your order status'); // stays until the next attempt
+  popup.closed = false;
+  button.click();
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(status.textContent).toBe('');
+});
+
+it('shows no message when the payer closed the popup', async () => {
+  vi.useFakeTimers();
+  const popup = fakePopup();
+  vi.stubGlobal('open', vi.fn(() => popup));
+  const { el, button } = mount();
+  el.session = { id: 'fian_cs_1', url: 'https://pay.test/c/x' };
+  const result = new Promise<CustomEvent>((resolve) => el.addEventListener('fianto:result', (e) => resolve(e as CustomEvent)));
+  button.click();
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  await vi.advanceTimersByTimeAsync(3000);
+  popup.closed = true;
+  await vi.advanceTimersByTimeAsync(500);
+  expect((await result).detail).toMatchObject({ status: 'closed', reason: 'closed_by_payer' });
+  expect(el.shadowRoot!.querySelector('.fianto-status')!.textContent).toBe('');
+  expect(button.hasAttribute('aria-disabled')).toBe(false);
+});
+
+// D3: the route's code picks payer copy; the route's message (written for the merchant) is
+// never shown to the payer, only passed on in fianto:error.
+it.each([
+  [409, 'order_already_paid', 'This order has already been paid.'],
+  [429, 'rate_limited', 'Checkout is busy right now. Please try again shortly.'],
+  [409, 'checkout_unavailable', 'Checkout is busy right now. Please try again shortly.'],
+  [409, 'order_session_mismatch', 'Checkout could not be started. Please try again.'],
+  [400, 'validation_failed', 'Checkout could not be started. Please try again.'],
+  [500, 'internal_error', 'Checkout could not be started. Please try again.'],
+])('on a %i %s shows payer copy and passes the route message in fianto:error', async (httpStatus, code, copy) => {
+  vi.stubGlobal('open', vi.fn(() => fakePopup()));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { code, message: 'route message for the merchant' } }), { status: httpStatus })));
+  const { el, button } = mount({ 'session-endpoint': '/api/checkout', locale: 'en' });
+  const error = new Promise<CustomEvent>((resolve) => el.addEventListener('fianto:error', (e) => resolve(e as CustomEvent)));
+  button.click();
+  expect((await error).detail).toEqual({ code, message: 'route message for the merchant' });
+  expect(el.shadowRoot!.querySelector('.fianto-status')!.textContent).toBe(copy);
 });
 
 it('keeps native disabled for the disabled attribute', () => {
@@ -124,6 +214,6 @@ it('leaves loading when a redirected page returns from the bfcache', async () =>
   const event = new Event('pageshow');
   Object.defineProperty(event, 'persisted', { value: true });
   window.dispatchEvent(event);
-  expect((await result).detail).toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  expect((await result).detail).toEqual({ status: 'closed', reason: 'returned_from_redirect', session_id: 'fian_cs_1' });
   expect(button.getAttribute('aria-busy')).toBe('false');
 });

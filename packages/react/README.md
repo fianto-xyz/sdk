@@ -17,14 +17,12 @@ A Next.js App Router client component (`app/checkout-button.tsx`):
 ```tsx
 'use client';
 
-import { FiantoButton } from '@fianto/react';
+import { FiantoButton, fetchCheckoutSession } from '@fianto/react';
 
 export function CheckoutButton({ orderId }: { orderId: string }) {
   return (
     <FiantoButton
-      session={() =>
-        fetch('/api/checkout', { method: 'POST', body: JSON.stringify({ orderId }) }).then((r) => r.json())
-      }
+      session={() => fetchCheckoutSession('/api/checkout', { body: { orderId } })}
       theme="brand"
       label="pay"
       onResult={(result) => {
@@ -60,6 +58,16 @@ export const POST = Checkout({
 `FiantoButton` renders native React markup from the same shared module `<fianto-button>` uses —
 not the custom element — so there is no hydration flash in Next.js: the server and the client
 render the same DOM.
+
+`fetchCheckoutSession` (re-exported from `@fianto/js`, with `CheckoutSessionError`) `POST`s its
+`body` as JSON to your route and rejects with a `CheckoutSessionError` carrying the route's
+`code` (`payment_in_progress`, `order_session_mismatch`, `rate_limited`, …), `status` and
+`retryAfter` — see [`@fianto/js`](https://github.com/fianto-xyz/sdk/tree/master/packages/js#fetchcheckoutsession).
+The button shows the payer a short localised line chosen by that `code`, never the route's own
+`message` (written for you; it reaches `onError`). On a `closed` result with `reason:
+'unreachable'` (the popup was cut off, usually by `Cross-Origin-Opener-Policy: same-origin`) it
+shows "Lost track of the checkout window. Check your order status before trying again." and
+ignores clicks for 6 s. Clicking it while a checkout is open brings the popup to the front.
 
 ### Props
 
@@ -98,16 +106,17 @@ For a custom button or flow that isn't `<FiantoButton>`'s markup:
 ```tsx
 'use client';
 
-import { useCheckout } from '@fianto/react';
+import { fetchCheckoutSession, useCheckout } from '@fianto/react';
 
 export function CheckoutButton({ orderId }: { orderId: string }) {
-  const { open, status, result, error } = useCheckout({
-    session: () => fetch('/api/checkout', { method: 'POST', body: JSON.stringify({ orderId }) }).then((r) => r.json()),
+  const { open, focus, isOpen } = useCheckout({
+    session: () => fetchCheckoutSession('/api/checkout', { body: { orderId } }),
   });
 
   return (
-    <button onClick={() => void open()} disabled={status === 'open'}>
-      {status === 'open' ? 'Opening…' : 'Pay'}
+    // While a checkout is open, a click brings its popup back instead of starting another.
+    <button onClick={() => (isOpen ? focus() : void open())} aria-busy={isOpen}>
+      {isOpen ? 'Checkout open…' : 'Pay'}
     </button>
   );
 }
@@ -118,14 +127,19 @@ export function CheckoutButton({ orderId }: { orderId: string }) {
 throws: on failure it sets `error`/`status: 'error'` and resolves `undefined`, so you can always
 `await open()` without a `try`/`catch`.
 
-`useCheckout({ session, fallback? }) → { open, status, result, error, isOpen }`:
+Only the latest `open()` drives the state: calling it again supersedes the checkout in progress
+(whose promise resolves `closed` with `reason: 'superseded'`), and the hook stays `open` until the
+newer one settles.
+
+`useCheckout({ session, fallback? }) → { open, focus, status, result, error, isOpen }`:
 
 | Field | Type |
 |---|---|
 | `open` | `() => Promise<CheckoutResult \| undefined>` |
+| `focus` | `() => boolean` — brings the open checkout popup to the front; `false` if there is none |
 | `status` | `'idle' \| 'open' \| 'done' \| 'error'` |
-| `result` | `CheckoutResult \| null` — `{ status, session_id }` |
-| `error` | `Error \| null` |
+| `result` | `CheckoutResult \| null` — `{ status, session_id }`, plus `reason` when `closed` |
+| `error` | `Error \| null` — a `CheckoutSessionError` (with `code`) when your route refused |
 | `isOpen` | `boolean` — `status === 'open'` |
 
 ## `'use client'`
@@ -143,8 +157,10 @@ client itself, even though importing the package does not.
 `succeeded` means the payer's transaction was confirmed **on the checkout page** — not that the
 order settled. Fulfil an order only from a verified `order.paid` webhook or a server-side
 `fianto.orders.retrieve(id)` call, both documented in `@fianto/sdk`'s README, never from this
-value alone. `closed` means **unknown** — the payer closed the popup without a result reaching
-you — never tell them "nothing was charged" on that status.
+value alone. `closed` means **unknown** — no result reached you; its `reason`
+(`closed_by_payer`, `unreachable`, `superseded`, `returned_from_redirect`) says why — never tell
+them "nothing was charged" on that status. On `unreachable` the checkout may still be open: tell
+the payer to check their order status rather than start another checkout.
 
 ## License
 

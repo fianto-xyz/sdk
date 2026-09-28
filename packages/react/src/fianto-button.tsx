@@ -2,8 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, us
 import type { CSSProperties } from 'react';
 import { FiantoCheckoutError } from '@fianto/js';
 import type { CheckoutResult, CheckoutSessionSource } from '@fianto/js';
-import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '@fianto/js/button-core';
-import type { ButtonOptions } from '@fianto/js/button-core';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, resolveButtonOptions, STATUS_TEXT } from '@fianto/js/button-core';
+import type { ButtonOptions, StatusTextKey } from '@fianto/js/button-core';
 import { useCheckout } from './use-checkout.js';
 
 export interface FiantoButtonProps extends ButtonOptions {
@@ -41,8 +41,11 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
   }, [locale]);
 
   const resolved = resolveButtonOptions({ theme, label, shape, size, locale, loading, disabled }, autoLocale);
-  const { open, status, result, error } = useCheckout({ session, fallback });
-  const [statusText, setStatusText] = useState('');
+  const { open, focus, status, result, error } = useCheckout({ session, fallback });
+  // A key into button-core's payer copy, never an error's own message (written for the merchant).
+  const [statusKey, setStatusKey] = useState<StatusTextKey | null>(null);
+  // The checkout window was lost (result unknown): hold the button while the payer reads why.
+  const [held, setHeld] = useState(false);
   const statusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastResult = useRef<CheckoutResult | null>(null);
   const lastError = useRef<FiantoCheckoutError | Error | null>(null);
@@ -54,15 +57,24 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
     [],
   );
 
-  // A fresh open() clears any error text left over from a previous attempt.
-  useEffect(() => {
-    if (status === 'open') {
-      setStatusText('');
-      if (statusTimer.current !== undefined) {
-        clearTimeout(statusTimer.current);
+  const showStatus = (key: StatusTextKey | null, hold = false): void => {
+    setStatusKey(key);
+    setHeld(hold);
+    if (statusTimer.current !== undefined) clearTimeout(statusTimer.current);
+    statusTimer.current = undefined;
+    if (key) {
+      statusTimer.current = setTimeout(() => {
         statusTimer.current = undefined;
-      }
+        // A lost-window message stays until the next attempt; only the hold ends.
+        if (hold) setHeld(false);
+        else setStatusKey(null);
+      }, ERROR_DISPLAY_MS);
     }
+  };
+
+  // A fresh open() clears any text left over from a previous attempt.
+  useEffect(() => {
+    if (status === 'open') showStatus(null);
   }, [status]);
 
   // Fire the callbacks as a side effect of the hook's state settling (not inline in the click
@@ -71,6 +83,7 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
   useEffect(() => {
     if (result && result !== lastResult.current) {
       lastResult.current = result;
+      if (result.status === 'closed' && result.reason === 'unreachable') showStatus('lost', true);
       onResult?.(result);
     }
   }, [result, onResult]);
@@ -79,12 +92,9 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
     if (error && error !== lastError.current) {
       lastError.current = error;
       onError?.(error);
-      const code = error instanceof FiantoCheckoutError ? error.code : 'unknown';
-      setStatusText(ERROR_TEXT[resolved.locale][code === 'payment_in_progress' ? 'payment_in_progress' : 'generic']);
-      if (statusTimer.current !== undefined) clearTimeout(statusTimer.current);
-      statusTimer.current = setTimeout(() => setStatusText(''), ERROR_DISPLAY_MS);
+      showStatus(errorTextKey(error instanceof FiantoCheckoutError ? error.code : undefined));
     }
-  }, [error, onError, resolved.locale]);
+  }, [error, onError]);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement, []);
@@ -107,8 +117,13 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
 
   const handleClick = (): void => {
     // Loading keeps the button focusable (aria-disabled, not native disabled), so guard here.
-    if (busy || resolved.disabled) return;
-    void open();
+    if (resolved.disabled) return;
+    // Busy: the popup may have gone behind the page. Bring it back rather than open another.
+    if (busy) {
+      focus();
+      return;
+    }
+    if (!held) void open();
   };
 
   return (
@@ -123,13 +138,13 @@ export const FiantoButton = forwardRef<HTMLButtonElement, FiantoButtonProps>(fun
         style={style}
         aria-label={ariaLabel}
         aria-busy={busy}
-        aria-disabled={busy ? true : undefined}
+        aria-disabled={busy || held ? true : undefined}
         disabled={resolved.disabled}
         onClick={handleClick}
         dangerouslySetInnerHTML={{ __html: buttonMarkup(resolved) }}
       />
       <p className="fianto-status" role="status" aria-live="polite">
-        {statusText}
+        {statusKey ? STATUS_TEXT[resolved.locale][statusKey] : ''}
       </p>
     </>
   );

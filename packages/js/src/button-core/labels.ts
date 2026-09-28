@@ -26,13 +26,37 @@ export function buttonText(label: ButtonLabel, locale: ButtonLocale): { prefix: 
   return { prefix, ariaLabel: `${prefix} fianto` };
 }
 
-export const ERROR_TEXT: Record<ButtonLocale, Record<'payment_in_progress' | 'generic', string>> = {
+/** Payer-facing status lines. Never a route's own message: that is written for the merchant. */
+export type StatusTextKey = 'payment_in_progress' | 'already_paid' | 'busy' | 'lost' | 'generic';
+
+export const STATUS_TEXT: Record<ButtonLocale, Record<StatusTextKey, string>> = {
   en: {
     payment_in_progress: 'A payment for this order is already in progress.',
+    already_paid: 'This order has already been paid.',
+    busy: 'Checkout is busy right now. Please try again shortly.',
+    // `closed` is unknown: never say whether anything was charged.
+    lost: 'Lost track of the checkout window. Check your order status before trying again.',
     generic: 'Checkout could not be started. Please try again.',
   },
   vi: {
     payment_in_progress: 'Đơn hàng này đang được thanh toán.',
+    already_paid: 'Đơn hàng này đã được thanh toán.',
+    busy: 'Hệ thống thanh toán đang bận. Vui lòng thử lại sau ít phút.',
+    lost: 'Mất kết nối với cửa sổ thanh toán. Vui lòng kiểm tra trạng thái đơn hàng trước khi thử lại.',
     generic: 'Không thể bắt đầu thanh toán. Vui lòng thử lại.',
   },
 };
+
+const ERROR_KEYS: Readonly<Record<string, StatusTextKey>> = {
+  payment_in_progress: 'payment_in_progress',
+  order_already_paid: 'already_paid',
+  checkout_unavailable: 'busy',
+  rate_limited: 'busy',
+  session_not_reissuable: 'busy',
+  subscription_preparing: 'busy',
+};
+
+/** The status line for a failed checkout start, from the error's `code` (anything else: generic). */
+export function errorTextKey(code: string | undefined): StatusTextKey {
+  return (code !== undefined && Object.hasOwn(ERROR_KEYS, code) && ERROR_KEYS[code]) || 'generic';
+}

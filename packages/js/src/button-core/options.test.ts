@@ -1,4 +1,4 @@
-import { buttonText, resolveButtonOptions } from './index.js';
+import { buttonText, errorTextKey, resolveButtonOptions, STATUS_TEXT } from './index.js';
 
 it('applies defaults and rejects unknown values', () => {
   expect(resolveButtonOptions({})).toEqual({ theme: 'brand', label: 'pay', shape: 'rounded', size: 'static', locale: 'en', loading: false, disabled: false });
@@ -17,4 +17,21 @@ it.each([
   ['plain', 'en', '', 'fianto'],
 ] as const)('labels %s in %s', (label, locale, prefix, aria) => {
   expect(buttonText(label, locale)).toEqual({ prefix, ariaLabel: aria });
+});
+
+it.each([
+  ['payment_in_progress', 'payment_in_progress'],
+  ['order_already_paid', 'already_paid'],
+  ['rate_limited', 'busy'],
+  ['checkout_unavailable', 'busy'],
+  ['session_not_reissuable', 'busy'],
+  ['subscription_preparing', 'busy'],
+  ['order_session_mismatch', 'generic'],
+  ['validation_failed', 'generic'],
+  ['toString', 'generic'],
+  [undefined, 'generic'],
+] as const)('maps the error code %s to the %s status line', (code, key) => {
+  expect(errorTextKey(code)).toBe(key);
+  expect(STATUS_TEXT.en[key]).toBeTruthy();
+  expect(STATUS_TEXT.vi[key]).toBeTruthy();
 });

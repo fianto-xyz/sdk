@@ -1,6 +1,6 @@
 'use client';
 
-import { FiantoButton } from '@fianto/react';
+import { FiantoButton, fetchCheckoutSession } from '@fianto/react';
 import { useState } from 'react';
 
 // Money safety — see @fianto/js's README ("The four statuses") and @fianto/sdk's README
@@ -30,13 +30,7 @@ export function PayButton({ plan }: { plan: string }) {
   return (
     <div>
       <FiantoButton
-        session={() =>
-          fetch('/api/checkout', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ plan }),
-          }).then((r) => r.json())
-        }
+        session={() => fetchCheckoutSession('/api/checkout', { body: { plan } })}
         label="subscribe"
         onResult={(result) => setMessage(STATUS_COPY[result.status] ?? `Unexpected status: ${result.status}`)}
         onError={(error) => setMessage(`Something went wrong: ${error.message}`)}

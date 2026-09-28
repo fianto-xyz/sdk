@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
-import { InvalidSessionError, MESSAGE_TYPE, POPUP_NAME, PopupBlockedError, openCheckout } from '../index.js';
+import { CheckoutSessionError, focusCheckout, InvalidSessionError, PopupBlockedError, openCheckout } from '../index.js';
+import { MESSAGE_TYPE } from './message.js';
+import { POPUP_NAME } from './popup.js';
 
-type FakePopup = { closed: boolean; location: { replace: ReturnType<typeof vi.fn> }; document: Document; close: () => void };
+type FakePopup = {
+  closed: boolean;
+  location: { replace: ReturnType<typeof vi.fn> };
+  document: Document;
+  close: () => void;
+  focus: ReturnType<typeof vi.fn>;
+};
 
 function fakePopup(): FakePopup {
   const doc = document.implementation.createHTMLDocument('');
@@ -10,6 +18,7 @@ function fakePopup(): FakePopup {
     location: { replace: vi.fn() },
     document: doc,
     close: () => { popup.closed = true; },
+    focus: vi.fn(),
   };
   return popup;
 }
@@ -56,17 +65,52 @@ it.each([
   const promise = openCheckout({ session: SESSION });
   await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
   post(source(), data, origin);
+  await vi.advanceTimersByTimeAsync(2000);
   popup.closed = true;
   await vi.advanceTimersByTimeAsync(600);
-  await expect(promise).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  await expect(promise).resolves.toEqual({ status: 'closed', reason: 'closed_by_payer', session_id: 'fian_cs_1' });
 });
 
-it('resolves closed when the payer closes the popup', async () => {
+it('resolves closed_by_payer when the payer closes the popup after checkout loaded', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const promise = openCheckout({ session: SESSION });
   await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  await vi.advanceTimersByTimeAsync(2000);
   popup.closed = true;
   await vi.advanceTimersByTimeAsync(600);
-  await expect(promise).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  await expect(promise).resolves.toEqual({ status: 'closed', reason: 'closed_by_payer', session_id: 'fian_cs_1' });
+  expect(warn).not.toHaveBeenCalled();
+});
+
+it('resolves closed_by_payer without navigating when the loading popup was closed first', async () => {
+  let release!: (session: typeof SESSION) => void;
+  const promise = openCheckout({ session: () => new Promise((resolve) => { release = resolve; }) });
+  popup.closed = true;
+  release(SESSION);
+  await expect(promise).resolves.toEqual({ status: 'closed', reason: 'closed_by_payer', session_id: 'fian_cs_1' });
+  expect(popup.location.replace).not.toHaveBeenCalled();
+});
+
+// D1: COOP `same-origin` on the opener severs the popup the moment it navigates to checkout —
+// `popup.closed` reads true while the payer is still paying in it.
+it('resolves unreachable, and warns once naming the COOP fix, when the popup is cut off right after navigating', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const first = openCheckout({ session: SESSION });
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  popup.closed = true;
+  await vi.advanceTimersByTimeAsync(500);
+  await expect(first).resolves.toEqual({ status: 'closed', reason: 'unreachable', session_id: 'fian_cs_1' });
+  expect(warn).toHaveBeenCalledOnce();
+  expect(warn.mock.calls[0]![0]).toContain('Cross-Origin-Opener-Policy: same-origin-allow-popups');
+
+  popup = fakePopup();
+  open.mockReturnValue(popup);
+  const second = openCheckout({ session: SESSION });
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  popup.closed = true;
+  await vi.advanceTimersByTimeAsync(1500);
+  await expect(second).resolves.toMatchObject({ status: 'closed', reason: 'unreachable' });
+  expect(warn).toHaveBeenCalledOnce();
 });
 
 // Review Focus 2
@@ -78,6 +122,7 @@ it('falls back to a redirect when the popup is blocked', async () => {
   void openCheckout({ session });
   await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(SESSION.url));
   expect(session).toHaveBeenCalledOnce();
+  expect(focusCheckout()).toBe(false);
 });
 
 it('rejects PopupBlockedError without creating a session when fallback is none', async () => {
@@ -88,6 +133,14 @@ it('rejects PopupBlockedError without creating a session when fallback is none',
 });
 
 // Review Focus 3
+it('keeps a checkout route error code handed over as a session (fetch().then((r) => r.json()))', async () => {
+  const error = await openCheckout({ session: async () => ({ error: { code: 'payment_in_progress', message: 'm' } }) as never }).catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(CheckoutSessionError);
+  expect(error).not.toBeInstanceOf(InvalidSessionError);
+  expect(error).toMatchObject({ code: 'payment_in_progress', message: 'm', status: undefined });
+  expect(popup.closed).toBe(true);
+});
+
 it('closes the popup and rejects when the session call fails', async () => {
   await expect(openCheckout({ session: async () => { throw new Error('409 payment_in_progress'); } })).rejects.toThrow('payment_in_progress');
   expect(popup.closed).toBe(true);
@@ -117,7 +170,7 @@ it('resolves the previous checkout as closed when a new one starts', async () =>
   const first = openCheckout({ session: SESSION });
   await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
   void openCheckout({ session: { id: 'fian_cs_2', url: SESSION.url } });
-  await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  await expect(first).resolves.toEqual({ status: 'closed', reason: 'superseded', session_id: 'fian_cs_1' });
   expect(open).toHaveBeenCalledTimes(2);
   expect(open.mock.calls[1]![1]).toBe(POPUP_NAME);
 });
@@ -131,7 +184,7 @@ it('supersedes a call whose session is still pending when a newer call starts', 
   void openCheckout({ session: SECOND });
   await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(SECOND.url));
   resolveFirst(FIRST);
-  await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  await expect(first).resolves.toEqual({ status: 'closed', reason: 'superseded', session_id: 'fian_cs_1' });
   expect(popup.location.replace).toHaveBeenCalledTimes(1);
   expect(popup.location.replace).not.toHaveBeenCalledWith(FIRST.url);
 });
@@ -173,7 +226,7 @@ it('settles closed when the redirected page comes back from the bfcache', async 
   await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(SESSION.url));
   pageshow(false);
   pageshow(true);
-  await expect(promise).resolves.toEqual({ status: 'closed', session_id: SESSION.id });
+  await expect(promise).resolves.toEqual({ status: 'closed', reason: 'returned_from_redirect', session_id: SESSION.id });
   expect(remove).toHaveBeenCalledWith('pageshow', expect.any(Function));
 });
 
@@ -184,7 +237,7 @@ it('a popup-blocked call supersedes an older pending call', async () => {
   open.mockReturnValue(null);
   await expect(openCheckout({ session: SESSION, fallback: 'none' })).rejects.toBeInstanceOf(PopupBlockedError);
   resolveFirst(SESSION);
-  await expect(first).resolves.toEqual({ status: 'closed', session_id: SESSION.id });
+  await expect(first).resolves.toEqual({ status: 'closed', reason: 'superseded', session_id: SESSION.id });
   expect(popup.location.replace).not.toHaveBeenCalled();
 });
 
@@ -198,8 +251,44 @@ it('a blocked call whose session loads after a newer call does not navigate the 
   const second = openCheckout({ session: SESSION }); // second call: real popup
   await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(SESSION.url));
   releaseFirst({ id: 'fian_cs_old', url: 'https://pay.fianto.test/c/old' });
-  await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_old' });
+  await expect(first).resolves.toEqual({ status: 'closed', reason: 'superseded', session_id: 'fian_cs_old' });
   expect(assign).not.toHaveBeenCalled();
   post(popup, { type: MESSAGE_TYPE, session_id: 'fian_cs_1', status: 'succeeded' });
   await expect(second).resolves.toEqual({ status: 'succeeded', session_id: 'fian_cs_1' });
+});
+
+// D4
+it('focusCheckout brings the open popup to the front, from the loading page until it settles', async () => {
+  expect(focusCheckout()).toBe(false);
+  let release!: (session: typeof SESSION) => void;
+  const promise = openCheckout({ session: () => new Promise((resolve) => { release = resolve; }) });
+  expect(focusCheckout()).toBe(true);
+  expect(popup.focus).toHaveBeenCalledOnce();
+  release(SESSION);
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalled());
+  expect(focusCheckout()).toBe(true);
+  post(popup, { type: MESSAGE_TYPE, session_id: SESSION.id, status: 'succeeded' });
+  await promise;
+  expect(focusCheckout()).toBe(false);
+  expect(popup.focus).toHaveBeenCalledTimes(2);
+});
+
+it('focusCheckout is false once the popup is closed, and after a failed session', async () => {
+  const promise = openCheckout({ session: async () => { throw new Error('boom'); } });
+  await expect(promise).rejects.toThrow('boom');
+  expect(focusCheckout()).toBe(false);
+});
+
+// F5: only the public API leaves the `.` entry.
+it('exports only the public API', async () => {
+  expect(Object.keys(await import('../index.js')).sort()).toEqual([
+    'CheckoutSessionError',
+    'FiantoCheckoutError',
+    'InvalidSessionError',
+    'PopupBlockedError',
+    'fetchCheckoutSession',
+    'focusCheckout',
+    'openCheckout',
+    'redirectToCheckout',
+  ]);
 });

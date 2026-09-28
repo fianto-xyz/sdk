@@ -1,8 +1,9 @@
-import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, ERROR_TEXT, resolveButtonOptions } from '../button-core/index.js';
-import type { ButtonOptions, ResolvedButton } from '../button-core/index.js';
-import { openCheckout } from '../checkout/open.js';
+import { applyOverflowFallback, BUTTON_CSS, buttonClassName, buttonMarkup, buttonText, errorTextKey, resolveButtonOptions, STATUS_TEXT } from '../button-core/index.js';
+import type { ButtonOptions, ResolvedButton, StatusTextKey } from '../button-core/index.js';
 import { FiantoCheckoutError } from '../checkout/errors.js';
-import type { CheckoutSession, CheckoutSessionSource } from '../checkout/session.js';
+import { fetchCheckoutSession } from '../checkout/fetch-session.js';
+import { focusCheckout, openCheckout } from '../checkout/open.js';
+import type { CheckoutSessionSource } from '../checkout/session.js';
 
 const OBSERVED_ATTRIBUTES = [
   'theme',
@@ -16,28 +17,6 @@ const OBSERVED_ATTRIBUTES = [
 ] as const;
 
 const ERROR_DISPLAY_MS = 6000;
-
-async function fetchSession(endpoint: string, dataset: DOMStringMap): Promise<CheckoutSession> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...dataset }),
-  });
-  if (!response.ok) {
-    let code = 'unknown';
-    let message = `Checkout session request failed with status ${response.status}.`;
-    try {
-      const body = (await response.json()) as { error?: { code?: unknown; message?: unknown } };
-      if (typeof body?.error?.code === 'string') code = body.error.code;
-      if (typeof body?.error?.message === 'string') message = body.error.message;
-    } catch {
-      // No JSON body: fall back to the generic message above.
-    }
-    throw new FiantoCheckoutError(code, message);
-  }
-  return (await response.json()) as CheckoutSession;
-}
 
 // `HTMLElement` doesn't exist outside a DOM (SSR, a plain Node `require`/`import`): referencing it
 // in an `extends` clause throws at module-evaluation time, before `defineFiantoButton`'s own
@@ -64,10 +43,18 @@ export class FiantoButtonElement extends HTMLElementBase {
   #resizeObserver: ResizeObserver | undefined;
   #statusTimer: ReturnType<typeof setTimeout> | undefined;
   #resolved: ResolvedButton = resolveButtonOptions({});
+  #held = false;
 
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    // A `session` set on the element before `<fianto-button>` was defined is an own data property
+    // shadowing the accessor: move it onto the private field (the standard upgrade pattern).
+    if (Object.hasOwn(this, 'session')) {
+      const value = (this as { session?: CheckoutSessionSource }).session;
+      delete (this as { session?: CheckoutSessionSource }).session;
+      this.session = value;
+    }
   }
 
   get session(): CheckoutSessionSource | undefined {
@@ -90,6 +77,8 @@ export class FiantoButtonElement extends HTMLElementBase {
     this.#resizeObserver?.disconnect();
     this.#resizeObserver = undefined;
     if (this.#statusTimer !== undefined) clearTimeout(this.#statusTimer);
+    this.#statusTimer = undefined;
+    this.#held = false;
   }
 
   attributeChangedCallback(): void {
@@ -152,21 +141,33 @@ export class FiantoButtonElement extends HTMLElementBase {
   // keyboard focus; native `disabled` is only for the explicit `disabled` attribute.
   #applyBusy(button: HTMLButtonElement, loading: boolean): void {
     button.setAttribute('aria-busy', String(loading));
-    if (loading) button.setAttribute('aria-disabled', 'true');
+    if (loading || this.#held) button.setAttribute('aria-disabled', 'true');
     else button.removeAttribute('aria-disabled');
     button.disabled = this.#resolved.disabled;
   }
 
-  #setStatusText(text: string): void {
+  // `hold`: the checkout window was lost (result unknown). Keep the text until the next click and
+  // hold the button for ERROR_DISPLAY_MS, so the payer reads it rather than starting a second
+  // checkout straight away.
+  #setStatus(key: StatusTextKey | null, hold = false): void {
     const status = this.shadowRoot?.querySelector('.fianto-status');
-    if (status) status.textContent = text;
+    if (status) status.textContent = key ? STATUS_TEXT[this.#resolved.locale][key] : '';
     if (this.#statusTimer !== undefined) clearTimeout(this.#statusTimer);
-    if (text) {
+    this.#statusTimer = undefined;
+    this.#held = hold;
+    if (key) {
       this.#statusTimer = setTimeout(() => {
-        const el = this.shadowRoot?.querySelector('.fianto-status');
-        if (el) el.textContent = '';
+        this.#statusTimer = undefined;
+        if (this.#held) {
+          this.#held = false;
+          this.#setLoading(this.#loading);
+        } else {
+          const el = this.shadowRoot?.querySelector('.fianto-status');
+          if (el) el.textContent = '';
+        }
       }, ERROR_DISPLAY_MS);
     }
+    this.#setLoading(this.#loading);
   }
 
   #setLoading(loading: boolean): void {
@@ -177,11 +178,17 @@ export class FiantoButtonElement extends HTMLElementBase {
   }
 
   #onClick(): void {
-    if (this.#resolved.disabled || this.#loading) return;
+    if (this.#resolved.disabled) return;
+    // Busy: the popup may have gone behind the page. Bring it back rather than open another.
+    if (this.#loading) {
+      focusCheckout();
+      return;
+    }
+    if (this.#held) return;
 
     const endpoint = this.getAttribute('session-endpoint');
     const source: CheckoutSessionSource | undefined =
-      this.#session ?? (endpoint ? () => fetchSession(endpoint, this.dataset) : undefined);
+      this.#session ?? (endpoint ? () => fetchCheckoutSession(endpoint, { body: { ...this.dataset } }) : undefined);
 
     if (!source) {
       const message = 'No session source: set the session property or the session-endpoint attribute.';
@@ -195,6 +202,7 @@ export class FiantoButtonElement extends HTMLElementBase {
       return;
     }
 
+    this.#setStatus(null);
     this.#setLoading(true);
     const fallbackAttr = this.getAttribute('fallback');
     const fallback = fallbackAttr === 'none' ? 'none' : fallbackAttr === 'redirect' ? 'redirect' : undefined;
@@ -202,9 +210,10 @@ export class FiantoButtonElement extends HTMLElementBase {
     openCheckout({ session: source, fallback }).then(
       (result) => {
         this.#setLoading(false);
+        if (result.status === 'closed' && result.reason === 'unreachable') this.#setStatus('lost', true);
         this.dispatchEvent(
           new CustomEvent('fianto:result', {
-            detail: { status: result.status, session_id: result.session_id },
+            detail: { ...result },
             bubbles: true,
             composed: true,
           }),
@@ -214,7 +223,9 @@ export class FiantoButtonElement extends HTMLElementBase {
         this.#setLoading(false);
         const code = error instanceof FiantoCheckoutError ? error.code : 'unknown';
         const message = error instanceof Error ? error.message : 'Checkout could not be started.';
-        this.#setStatusText(ERROR_TEXT[this.#resolved.locale][code === 'payment_in_progress' ? 'payment_in_progress' : 'generic']);
+        // Payer-facing copy comes from button-core by code, never `message`: that is your route's
+        // text for you (it can name params), and it stays in the event for you to log.
+        this.#setStatus(errorTextKey(code));
         this.dispatchEvent(
           new CustomEvent('fianto:error', {
             detail: { code, message },
