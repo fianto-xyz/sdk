@@ -11,12 +11,20 @@
   "engines": {
     "node": ">=20.3"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fianto-xyz/sdk.git",
     "directory": "packages/express"
   },
   "homepage": "https://github.com/fianto-xyz/sdk/tree/master/packages/express#readme",
+  "bugs": {
+    "url": "https://github.com/fianto-xyz/sdk/issues"
+  },
+  "author": "fianto",
   "keywords": [
     "fianto",
     "solana",
@@ -27,6 +35,7 @@
     "webhooks"
   ],
   "scripts": {
+    "prepack": "test -d dist || (echo 'dist/ is missing — run pnpm build first' >&2; exit 1)",
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
     "check": "publint && attw --pack . --profile strict"

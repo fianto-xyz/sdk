@@ -13,12 +13,20 @@
   "engines": {
     "node": ">=20.3"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fianto-xyz/sdk.git",
     "directory": "packages/cli"
   },
   "homepage": "https://github.com/fianto-xyz/sdk/tree/master/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/fianto-xyz/sdk/issues"
+  },
+  "author": "fianto",
   "keywords": [
     "fianto",
     "solana",
@@ -28,6 +36,7 @@
     "cli"
   ],
   "scripts": {
+    "prepack": "test -d dist || (echo 'dist/ is missing — run pnpm build first' >&2; exit 1)",
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
     "check": "publint"
