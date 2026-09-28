@@ -31,16 +31,19 @@ Every push to `master` and every pull request runs `.github/workflows/ci.yml` on
 
 ## Releases
 
-Releases are automatic and happen only when a "Version packages" pull request merges to
-`master` — nobody runs `pnpm release` by hand outside of local testing:
+Releases are automatic and run from the `release` job in `.github/workflows/ci.yml`, which
+`needs: check`: it runs only on a push to `master`, and only after every CI leg passed — a red CI
+never publishes. Nobody runs `pnpm release` by hand outside of local testing.
+
+The first push to master publishes 0.1.0 once CI passes — create the @fianto npm org and the NPM_TOKEN secret first; later releases go through the Changesets 'Version packages' PR:
 
 1. Every change that affects a published package needs a changeset (see above), committed with
    the change's PR.
-2. Once that PR merges to `master`, `.github/workflows/release.yml` runs `changeset version`,
+2. Once that PR merges to `master` and CI passes, the `release` job runs `changeset version`,
    which opens or updates a "Version packages" PR bumping every `@fianto/*` package together
    (the `fixed` group in `.changeset/config.json`) and rolling the pending changesets into
    `CHANGELOG.md` entries.
-3. Merging **that** PR runs the same workflow again, this time publishing every package to npm
+3. Merging **that** PR runs the same job again (again only after CI passes), this time publishing every package to npm
    with provenance (`pnpm release`, i.e. `check:packages` then `changeset publish`) and creating
    the matching GitHub releases/tags.
 
