@@ -115,9 +115,9 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   seen rather than retried, and a crash or restart of the CLI itself forwards nothing that
   already went out and may miss whatever landed during the gap. For fianto's own at-least-once,
   retried delivery to a real endpoint, register one in the dashboard.
-- **Ctrl-C** stops the tail after the current poll's batch finishes forwarding (never mid-request)
-  and exits `130` — it won't start a new poll. A second Ctrl-C stops immediately instead of
-  waiting.
+- **Ctrl-C** finishes whichever forward is already in flight (never mid-request) and exits `130`
+  — nothing else already gathered for that poll's batch goes out afterward, and no new poll
+  starts. A second Ctrl-C stops immediately instead of waiting even for that.
 
 ### `fianto trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote]`
 
