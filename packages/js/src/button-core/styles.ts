@@ -12,9 +12,10 @@ export const BUTTON_CSS = `
   height: clamp(40px, var(--fianto-button-height, 44px), 55px);
   width: var(--fianto-button-width, auto);
   min-width: 160px;
-  padding: 0 calc(var(--fianto-button-height, 44px) / 10 * 2);
+  padding: 0 calc(clamp(40px, var(--fianto-button-height, 44px), 55px) / 10 * 2);
   border: none;
-  border-radius: min(var(--fianto-button-radius, 8px), calc(clamp(40px, var(--fianto-button-height, 44px), 55px) / 2));
+  --_fianto-shape-radius: 8px;
+  border-radius: min(var(--fianto-button-radius, var(--_fianto-shape-radius)), calc(clamp(40px, var(--fianto-button-height, 44px), 55px) / 2));
   font: 600 15px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   cursor: pointer;
   user-select: none;
@@ -25,15 +26,16 @@ export const BUTTON_CSS = `
   width: 100%;
 }
 
-/* Shapes set the radius; --fianto-button-radius (set on the host, e.g. inline style) overrides all three. */
+/* Shapes set a private radius; the public --fianto-button-radius (set on the host or any ancestor)
+   is never declared here, so it inherits down and overrides all three. */
 .fianto-button.fianto-shape-rect {
-  --fianto-button-radius: 4px;
+  --_fianto-shape-radius: 4px;
 }
 .fianto-button.fianto-shape-rounded {
-  --fianto-button-radius: 8px;
+  --_fianto-shape-radius: 8px;
 }
 .fianto-button.fianto-shape-pill {
-  --fianto-button-radius: 999px;
+  --_fianto-shape-radius: 999px;
 }
 
 .fianto-button.fianto-theme-brand,
@@ -127,6 +129,10 @@ export const BUTTON_CSS = `
   to {
     transform: rotate(360deg);
   }
+}
+
+.fianto-button[aria-disabled='true'] {
+  cursor: progress;
 }
 
 .fianto-button:disabled {
