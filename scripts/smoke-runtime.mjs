@@ -56,6 +56,36 @@ await check('new Fianto() (CJS build)', () => {
   if (!client) throw new Error('new Fianto(...) returned a falsy value');
 });
 
+// Exercises the built transport's actual request/abort path (not just construction) on Node
+// 20.3: one request through an injected stub `fetch`, and one aborted request, checked against
+// the built `isFiantoError`.
+await check('request + abort path through an injected fetch (ESM build)', async () => {
+  const { Fianto, isFiantoError } = esm.index;
+  // A spec-compliant fetch rejects immediately when handed an already-aborted signal; this stub
+  // does the same so the abort branch below actually exercises the transport's abort handling.
+  const stubFetch = async (_url, init) => {
+    if (init?.signal?.aborted) throw init.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+    return new Response(JSON.stringify({ id: 'fian_ord_smoke1' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  const client = new Fianto({ appId: 'fian_app_x', appSecret: 'fian_sk_test_x', fetch: stubFetch });
+
+  const order = await client.orders.retrieve('fian_ord_smoke1');
+  if (order.id !== 'fian_ord_smoke1') throw new Error('request through the injected fetch did not return the stubbed body');
+
+  const controller = new AbortController();
+  controller.abort(new Error('smoke abort'));
+  const abortResult = await client.orders.retrieve('fian_ord_smoke1', { signal: controller.signal }).then(
+    () => 'resolved',
+    (error) => error,
+  );
+  if (!isFiantoError(abortResult, 'aborted')) {
+    throw new Error(`expected the aborted request to reject with a FiantoError (code 'aborted'), got ${abortResult?.name ?? abortResult}`);
+  }
+});
+
 await check('handlers export the expected functions (ESM + CJS)', () => {
   for (const [name, mod] of [['ESM', esm.handlers], ['CJS', cjs.handlers]]) {
     if (typeof mod?.createWebhookHandler !== 'function') throw new Error(`${name} handlers build has no createWebhookHandler`);
