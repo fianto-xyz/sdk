@@ -1,6 +1,6 @@
 'use client';
 
-import { FiantoButton, fetchCheckoutSession } from '@fianto/react';
+import { FiantoButton, FiantoCheckoutError, fetchCheckoutSession } from '@fianto/react';
 import { useState } from 'react';
 
 // Money safety — see @fianto/js's README ("The four statuses") and @fianto/sdk's README
@@ -29,6 +29,21 @@ const STATUS_COPY: Record<string, string> = {
     "We couldn't tell what happened. If you were charged, it will show up on your account shortly — please do not assume nothing happened.",
 };
 
+// The checkout route's error.message is written for the merchant (it can name a misconfigured
+// param, an internal detail, etc.) — never render it to the payer. Show a short line keyed on
+// the error's `code` instead (every error @fianto/js/@fianto/react throw is a
+// FiantoCheckoutError, which always carries one), and log the real message for the merchant.
+const ERROR_COPY: Record<string, string> = {
+  payment_in_progress: 'A payment for this order is already in progress.',
+  order_already_paid: 'This order has already been paid.',
+  order_session_mismatch: 'This checkout is out of date. Please refresh and try again.',
+  rate_limited: 'Checkout is busy right now. Please try again shortly.',
+  checkout_unavailable: 'Checkout is busy right now. Please try again shortly.',
+  session_not_reissuable: 'Checkout is busy right now. Please try again shortly.',
+  subscription_preparing: 'The subscription is still being prepared. Please try again in a few seconds.',
+};
+const GENERIC_ERROR_COPY = 'Checkout could not be started. Please try again.';
+
 export function PayButton({ plan }: { plan: string }) {
   const [message, setMessage] = useState<string | null>(null);
 
@@ -38,7 +53,11 @@ export function PayButton({ plan }: { plan: string }) {
         session={() => fetchCheckoutSession('/api/checkout', { body: { plan } })}
         label="subscribe"
         onResult={(result) => setMessage(STATUS_COPY[result.status] ?? `Unexpected status: ${result.status}`)}
-        onError={(error) => setMessage(`Something went wrong: ${error.message}`)}
+        onError={(error) => {
+          console.error(error); // the merchant-facing message and code — never shown to the payer
+          const code = error instanceof FiantoCheckoutError ? error.code : undefined;
+          setMessage((code && ERROR_COPY[code]) ?? GENERIC_ERROR_COPY);
+        }}
       />
       {message ? <p role="status">{message}</p> : null}
     </div>

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { checkout, webhooks } from '@fianto/express';
 import type { Fianto } from '@fianto/sdk';
 import express, { type Express } from 'express';
+import { siteOrigin } from './site-origin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
@@ -25,25 +26,6 @@ function defaultScriptPath(): string {
   const require = createRequire(import.meta.url);
   const packageJsonPath = require.resolve('@fianto/js/package.json');
   return join(dirname(packageJsonPath), 'dist', 'fianto-button.global.iife.js');
-}
-
-/**
- * The public origin `success_url`/`cancel_url` are built from. Trusting `request.url`/the `Host`
- * header instead would let whatever a reverse proxy (or a forged header) put there choose where
- * the payer lands, and fianto's own API refuses an http `success_url`/`cancel_url` in production
- * anyway. Set `SITE_URL` once you deploy; falling back to the request's own origin is a
- * local-development convenience only.
- */
-function siteOrigin(request: Request): string {
-  const configured = process.env.SITE_URL;
-  if (configured) {
-    const url = new URL(configured);
-    if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
-      throw new Error('SITE_URL must be https:// in production.');
-    }
-    return url.origin;
-  }
-  return new URL(request.url).origin;
 }
 
 function cookieValue(request: Request, name: string): string | undefined {
