@@ -54,5 +54,8 @@ checkout page** — it is not proof of payment or settlement. This example only 
 inside the webhook handler (`onOrderPaid`, `onSubscriptionRenewed`); a real app would write to its
 database there, deduped on `event.id` in the same transaction as the write (delivery is
 at-least-once and unordered). The `closed` status means **unknown**, not "nothing was charged" —
-never tell a payer nothing was charged based on the browser's view alone. See `@fianto/sdk`'s and
-`@fianto/js`'s READMEs for the full detail behind both statuses.
+never tell a payer nothing was charged based on the browser's view alone. `canceled` isn't proof
+of that either — a transaction the payer already built can still land after they clicked
+"cancel" — and `expired` never says just "try again" without pointing the payer at their order
+status first (see `app/pay-button.tsx`'s `STATUS_COPY`). See `@fianto/sdk`'s and `@fianto/js`'s
+READMEs for the full detail behind every status.
