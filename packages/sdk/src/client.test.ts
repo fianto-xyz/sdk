@@ -3,7 +3,7 @@ import { Fianto } from './client.js';
 import { FiantoError } from './core/errors.js';
 
 function client(responder: (url: URL, init: RequestInit) => unknown = () => ({})) {
-  const calls: Array<{ method: string; url: URL; body: unknown; key: string | null }> = [];
+  const calls: Array<{ method: string; url: URL; body: unknown; key: string | null; contentType: string | null }> = [];
   const fianto = new Fianto({
     appId: 'fian_app_1', appSecret: 'fian_sk_live_2', baseUrl: 'https://api.test',
     fetch: (async (input: string, init: RequestInit) => {
@@ -12,6 +12,7 @@ function client(responder: (url: URL, init: RequestInit) => unknown = () => ({})
         method: init.method!, url,
         body: init.body ? JSON.parse(init.body as string) : undefined,
         key: new Headers(init.headers).get('idempotency-key'),
+        contentType: new Headers(init.headers).get('content-type'),
       });
       return new Response(JSON.stringify(responder(url, init)), { status: 200 });
     }) as unknown as typeof fetch,
@@ -72,6 +73,49 @@ it('pages a list with its filters and the cursor', async () => {
   for await (const order of fianto.orders.list({ status: 'PAID', limit: 1 })) ids.push(order.id);
   expect(ids).toEqual(['a', 'b']);
   expect(calls.map((c) => c.url.search)).toEqual(['?status=PAID&limit=1', '?status=PAID&limit=1&cursor=7']);
+});
+
+// Review Focus (F7/A7): nothing before this proved a resource's list() actually CALLS
+// `stringifyCursor` at runtime — every check so far was type-level (`types.test-d.ts`), and a
+// resource that dropped `.then(stringifyCursor)` while still declaring `PagePromise<Order>` as
+// its return type would fail to compile ONLY if the raw wire shape leaked into a place its
+// declared type disagreed with, which a same-shaped `any`/unchecked cast could still slip past.
+// These assert what actually lands in the caller's hands: the wire number 7 must actually BE
+// the string '7' on the resolved page, not merely typed as one.
+describe('list() normalises a numeric wire cursor to a string, not just at the type level (F7/A7)', () => {
+  it.each([
+    ['orders', (f: Fianto) => f.orders.list()],
+    ['subscriptions', (f: Fianto) => f.subscriptions.list()],
+  ] as const)('%s.list()\'s next_cursor is the string "7" for a wire next_cursor of 7', async (_name, list) => {
+    const { fianto } = client(() => ({ items: [{ id: 'a' }], next_cursor: 7 }));
+    const page = await list(fianto);
+    expect(page.next_cursor).toBe('7');
+    expect(typeof page.next_cursor).toBe('string');
+  });
+
+  it('list({ cursor: page.next_cursor }) sends the normalised string back as ?cursor=7', async () => {
+    const { fianto, calls } = client(() => ({ items: [{ id: 'a' }], next_cursor: 7 }));
+    const page = await fianto.orders.list();
+    await fianto.orders.list({ cursor: page.next_cursor! });
+    expect(calls[1]!.url.search).toBe('?cursor=7');
+  });
+});
+
+// Review Focus (F6): a reserved, currently-empty `params` slot on cancel/reissueLink/
+// sendTestEvent must reach the wire as no body at all (not an empty `{}`), or an idempotency
+// key replayed across an SDK upgrade would hash a different body and see a spurious
+// idempotency_key_reused instead of its stored response.
+describe('a reserved params slot with nothing in it sends no body (F6)', () => {
+  it.each([
+    ['checkoutSessions.cancel', (f: Fianto) => f.checkoutSessions.cancel('fian_cs_1')],
+    ['checkoutSessions.reissueLink', (f: Fianto) => f.checkoutSessions.reissueLink('fian_cs_1')],
+    ['webhookEndpoint.sendTestEvent', (f: Fianto) => f.webhookEndpoint.sendTestEvent()],
+  ] as const)('%s sends no body and sets no content-type when params is left empty', async (_name, call) => {
+    const { fianto, calls } = client();
+    await call(fianto);
+    expect(calls[0]!.body).toBeUndefined();
+    expect(calls[0]!.contentType).toBeNull();
+  });
 });
 
 // Review Focus (F9): a malformed id rejects the returned promise instead of throwing
