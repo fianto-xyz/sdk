@@ -126,3 +126,33 @@ it('refuses an invalid idempotency key before sending anything', async () => {
   await expect(transport.request({ method: 'POST', path: '/v1/x', body: {} }, { idempotencyKey: 'has space' })).rejects.toThrow(/Idempotency-Key/);
   expect(calls).toHaveLength(0);
 });
+
+it('refuses an invalid per-request maxRetries or timeoutMs before sending anything', async () => {
+  const { transport, calls } = setup([]);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' }, { maxRetries: Number.NaN })).rejects.toThrow(/maxRetries/);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' }, { maxRetries: 11 })).rejects.toThrow(/maxRetries/);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' }, { timeoutMs: 0 })).rejects.toThrow(/timeoutMs/);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' }, { timeoutMs: 600_001 })).rejects.toThrow(/timeoutMs/);
+  expect(calls).toHaveLength(0);
+});
+
+// Review Focus 1 corollary: a body-read failure is a network failure too, or a lost create response can never recover.
+it('retries when the response body fails to read, then throws ConnectionError once retries are exhausted', async () => {
+  const brokenBody = () => new Response(new ReadableStream({
+    start(controller) { controller.error(new TypeError('terminated')); },
+  }), { status: 200 });
+  const { transport, calls } = setup([brokenBody(), brokenBody(), brokenBody()]);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' })).rejects.toBeInstanceOf(ConnectionError);
+  expect(calls).toHaveLength(3);
+});
+
+it('recovers a POST from a body-read failure using the same Idempotency-Key', async () => {
+  const brokenBody = () => new Response(new ReadableStream({
+    start(controller) { controller.error(new TypeError('terminated')); },
+  }), { status: 200 });
+  const { transport, calls, header } = setup([brokenBody(), json(201, { id: 'fian_cs_1' })]);
+  const result = await transport.request({ method: 'POST', path: '/v1/x', body: { a: 1 } });
+  expect(result).toEqual({ id: 'fian_cs_1' });
+  expect(calls).toHaveLength(2);
+  expect(header(0, 'idempotency-key')).toBe(header(1, 'idempotency-key'));
+});

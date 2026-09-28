@@ -38,6 +38,22 @@ function required(value: string | undefined, option: string, variable: string): 
   return value;
 }
 
+/** Shared by `resolveConfig` and `Transport`'s per-request `RequestOptions` override. */
+export function assertMaxRetries(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value > 10) {
+    throw new FiantoError(`Invalid maxRetries (${value}): expected an integer from 0 to 10.`);
+  }
+  return value;
+}
+
+/** Shared by `resolveConfig` and `Transport`'s per-request `RequestOptions` override. */
+export function assertTimeoutMs(value: number): number {
+  if (!Number.isInteger(value) || value < 1 || value > 600_000) {
+    throw new FiantoError(`Invalid timeoutMs (${value}): expected an integer from 1 to 600000.`);
+  }
+  return value;
+}
+
 function normaliseBaseUrl(raw: string): string {
   let url: URL;
   try {
@@ -68,8 +84,8 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
     appId: required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID'),
     appSecret: required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET'),
     baseUrl: normaliseBaseUrl(required(options.baseUrl ?? env('FIANTO_BASE_URL'), 'baseUrl', 'FIANTO_BASE_URL')),
-    timeoutMs: options.timeoutMs ?? 30_000,
-    maxRetries: options.maxRetries ?? 2,
+    timeoutMs: options.timeoutMs === undefined ? 30_000 : assertTimeoutMs(options.timeoutMs),
+    maxRetries: options.maxRetries === undefined ? 2 : assertMaxRetries(options.maxRetries),
     fetch: fetchImpl.bind(globalThis),
     browser,
   };

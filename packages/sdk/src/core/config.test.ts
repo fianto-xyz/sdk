@@ -38,3 +38,19 @@ it('refuses to hold a secret in a browser unless told to', () => {
   expect(() => resolveConfig(base)).toThrow(/browser/);
   expect(resolveConfig({ ...base, dangerouslyAllowBrowser: true }).browser).toBe(true);
 });
+
+it('rejects an out-of-range or non-integer maxRetries', () => {
+  for (const bad of [Number.NaN, -1, 11, 1.5, Infinity]) {
+    expect(() => resolveConfig({ ...base, maxRetries: bad })).toThrow(/maxRetries/);
+  }
+  expect(resolveConfig({ ...base, maxRetries: 0 }).maxRetries).toBe(0);
+  expect(resolveConfig({ ...base, maxRetries: 10 }).maxRetries).toBe(10);
+});
+
+it('rejects an out-of-range or non-integer timeoutMs', () => {
+  for (const bad of [Number.NaN, 0, -1, 600_001, 1.5, Infinity]) {
+    expect(() => resolveConfig({ ...base, timeoutMs: bad })).toThrow(/timeoutMs/);
+  }
+  expect(resolveConfig({ ...base, timeoutMs: 1 }).timeoutMs).toBe(1);
+  expect(resolveConfig({ ...base, timeoutMs: 600_000 }).timeoutMs).toBe(600_000);
+});

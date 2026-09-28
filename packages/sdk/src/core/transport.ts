@@ -1,5 +1,5 @@
 import { VERSION } from '../version.js';
-import type { ResolvedConfig } from './config.js';
+import { assertMaxRetries, assertTimeoutMs, type ResolvedConfig } from './config.js';
 import { ConnectionError, TimeoutError, errorFromResponse, parseRetryAfter, type APIError } from './errors.js';
 import { assertIdempotencyKey } from './ids.js';
 
@@ -58,6 +58,8 @@ export class Transport {
   }
 
   async request<T>(request: ApiRequest, options: RequestOptions = {}): Promise<T> {
+    const maxRetries = options.maxRetries === undefined ? this.config.maxRetries : assertMaxRetries(options.maxRetries);
+    const timeoutMs = options.timeoutMs === undefined ? this.config.timeoutMs : assertTimeoutMs(options.timeoutMs);
     const idempotencyKey = request.method === 'POST' ? (options.idempotencyKey ?? crypto.randomUUID()) : undefined;
     if (idempotencyKey !== undefined) assertIdempotencyKey(idempotencyKey);
     const requestId = `req_${crypto.randomUUID().replaceAll('-', '')}`;
@@ -72,14 +74,14 @@ export class Transport {
     const body = request.body === undefined ? undefined : JSON.stringify(request.body);
     if (body !== undefined) headers.set('content-type', 'application/json');
 
-    const maxRetries = options.maxRetries ?? this.config.maxRetries;
-    const timeoutMs = options.timeoutMs ?? this.config.timeoutMs;
     for (let attempt = 0; ; attempt++) {
       const last = attempt >= maxRetries;
       let response: Response;
+      let parsed: unknown;
       try {
         const signals = [AbortSignal.timeout(timeoutMs), ...(options.signal ? [options.signal] : [])];
         response = await this.config.fetch(url, { method: request.method, headers, body, signal: AbortSignal.any(signals) });
+        parsed = await this.parse(response);
       } catch (error) {
         if (options.signal?.aborted) throw options.signal.reason ?? error;
         const failure = (error as { name?: string })?.name === 'TimeoutError'
@@ -89,7 +91,6 @@ export class Transport {
         await this.deps.sleep(this.backoff(attempt), options.signal);
         continue;
       }
-      const parsed = await this.parse(response);
       if (response.ok) return parsed as T;
       const error = errorFromResponse(response.status, parsed, response.headers);
       if (last || !isRetryable(error)) throw error;
