@@ -62,6 +62,22 @@ it('rejects a body over 1 MiB with 413', async () => {
   expect(response.status).toBe(413);
 });
 
+it('preserves multiple Set-Cookie headers from the merchant response', async () => {
+  const app = express();
+  app.post('/checkout', checkout({
+    createSession: async () => {
+      const headers = new Headers();
+      headers.append('set-cookie', 'a=1');
+      headers.append('set-cookie', 'b=2');
+      return new Response(null, { status: 204, headers });
+    },
+  }));
+  const { base, close } = await serve(app);
+  const response = await fetch(`${base}/checkout`, { method: 'POST', headers: { origin: base } });
+  await close();
+  expect(response.headers.getSetCookie()).toHaveLength(2);
+});
+
 it('runs the checkout handler with the request origin', async () => {
   const app = express();
   app.post('/checkout', checkout({ createSession: async () => new Response('created by test', { status: 201 }) }));

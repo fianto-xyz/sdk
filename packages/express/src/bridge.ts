@@ -78,6 +78,10 @@ export async function toFetchRequest(req: ExpressRequest, limitBytes: number = D
 
 export async function sendFetchResponse(res: ExpressResponse, response: Response): Promise<void> {
   res.status(response.status);
-  response.headers.forEach((value, name) => res.setHeader(name, value));
+  response.headers.forEach((value, name) => {
+    if (name.toLowerCase() !== 'set-cookie') res.setHeader(name, value);
+  });
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length > 0) res.setHeader('set-cookie', cookies);
   res.end(Buffer.from(await response.arrayBuffer()));
 }
