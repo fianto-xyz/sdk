@@ -29,7 +29,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
-    "check": "publint && attw --pack . --profile node16"
+    "check": "publint && attw --pack . --profile strict"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -48,5 +48,11 @@
       "require": "./dist/webhooks.cjs"
     },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "handlers": ["./dist/handlers.d.ts"],
+      "webhooks": ["./dist/webhooks.d.ts"]
+    }
   }
 }

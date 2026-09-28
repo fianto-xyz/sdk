@@ -29,7 +29,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
-    "check": "publint && attw --pack . --profile node16"
+    "check": "publint && attw --pack . --profile strict"
   },
   "dependencies": {
     "@fianto/js": "workspace:*"
