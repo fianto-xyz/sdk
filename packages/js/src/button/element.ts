@@ -239,6 +239,17 @@ export class FiantoButtonElement extends HTMLElementBase {
   }
 }
 
+// The standard pattern for a custom element's .d.ts: lets `document.querySelector('fianto-button')`
+// (and `createElement`, `getElementsByTagName`, …) resolve to `FiantoButtonElement` — with its
+// `session` property, etc. — instead of the generic `Element`/`HTMLElement`. Only covers the
+// default tag name `defineFiantoButton` registers below; a caller that renames it via
+// `defineFiantoButton('my-tag')` gets no type benefit from this augmentation.
+declare global {
+  interface HTMLElementTagNameMap {
+    'fianto-button': FiantoButtonElement;
+  }
+}
+
 export function defineFiantoButton(tagName = 'fianto-button'): void {
   if (typeof customElements === 'undefined') return;
   if (!customElements.get(tagName)) {
