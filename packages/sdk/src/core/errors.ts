@@ -28,9 +28,14 @@ export class FiantoError extends Error {
    * `x instanceof RateLimitError` still falls through to the ordinary prototype-chain check —
    * only `x instanceof FiantoError` itself gets the brand-based, cross-copy behaviour. Prefer
    * `isFiantoError`/`isAPIError` over `instanceof` for anything that decides behaviour.
+   *
+   * Generic over `this` (rather than fixed to `FiantoError`) so TypeScript still narrows
+   * `x instanceof RateLimitError` to `RateLimitError` (not just `FiantoError`) — a non-generic
+   * `instance is FiantoError` predicate here would narrow every subclass check down to the base
+   * class, breaking e.g. `if (e instanceof RateLimitError) e.retryAfterSeconds`.
    */
-  static [Symbol.hasInstance](instance: unknown): instance is FiantoError {
-    if (this === FiantoError) return hasBrand(instance);
+  static [Symbol.hasInstance]<T>(this: abstract new (...args: any[]) => T, instance: unknown): instance is T {
+    if ((this as unknown) === FiantoError) return hasBrand(instance);
     return Function.prototype[Symbol.hasInstance].call(this, instance) as boolean;
   }
 }
@@ -154,11 +159,21 @@ export function parseRetryAfter(value: string | null, nowMs = Date.now()): numbe
 /**
  * Brand-based, cross-copy-safe check: true for any `FiantoError` (from this copy of the SDK or
  * another), unlike `instanceof <specific subclass>`. With `code`, also narrows on the error's own
- * `.code` (an API error's stable `code`, or another `FiantoError` subclass's stable code, e.g.
- * `AbortError`'s `'aborted'`) — duck-typed, so it works for any branded error that has one.
+ * `.code` — duck-typed, so it works for any branded error that has one, not only `APIError`.
+ *
+ * There are three stable non-API codes, each narrowing to its own class: `'aborted'`
+ * (`AbortError`), `'timeout'` (`TimeoutError`.code) and, from `amounts.ts`, `'invalid_usdc_amount'`
+ * (`UsdcError` — not re-exported here to avoid a cycle with `amounts.ts`, so that one code falls
+ * through to the generic `FiantoError & { code: C }` overload below instead of its own class).
+ * Every other code is assumed to be one of the backend's `ErrorCode`s and narrows to `APIError`;
+ * an arbitrary string narrows only to `FiantoError & { code: C }`, never `APIError`, so a caller
+ * can't be led into reading `.status` off something that was never an HTTP response.
  */
 export function isFiantoError(error: unknown): error is FiantoError;
-export function isFiantoError<C extends ErrorCode | (string & {})>(error: unknown, code: C): error is APIError & { code: C };
+export function isFiantoError(error: unknown, code: 'aborted'): error is AbortError;
+export function isFiantoError(error: unknown, code: 'timeout'): error is TimeoutError;
+export function isFiantoError<C extends ErrorCode>(error: unknown, code: C): error is APIError & { code: C };
+export function isFiantoError<C extends string>(error: unknown, code: C): error is FiantoError & { code: C };
 export function isFiantoError(error: unknown, code?: string): boolean {
   if (!hasBrand(error)) return false;
   if (code === undefined) return true;
