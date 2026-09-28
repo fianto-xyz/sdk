@@ -3,7 +3,13 @@ import { isAPIError } from '../core/errors.js';
 import type { CheckoutSessionCreateParams } from '../types.js';
 import { json } from './respond.js';
 
-export type CheckoutSessionParams = Omit<CheckoutSessionCreateParams, 'ui_mode'>;
+// The ordinary (non-distributive) `Omit` collapses `CheckoutSessionCreateParams`'s
+// price_id/amount+description union into one object type where both are optional, losing the
+// mutual exclusivity A1 added. Distributing over the union first (`T extends unknown ? … :
+// never`, applied member-by-member) keeps each branch's own `?: never` intact.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+export type CheckoutSessionParams = DistributiveOmit<CheckoutSessionCreateParams, 'ui_mode'>;
 
 export interface CheckoutHandlerOptions {
   /** Default: new Fianto() from FIANTO_* env vars, created on the first request. */

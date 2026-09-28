@@ -11,12 +11,13 @@ const PUBLIC_DIR = join(__dirname, '..', 'public');
 
 interface Plan {
   amount: string;
+  description: string;
 }
 
 // Decide price server-side, never from the request body — see @fianto/sdk's README
 // ("Checkout route").
 const PLANS: Record<string, Plan> = {
-  pro: { amount: '10.00' },
+  pro: { amount: '10.00', description: 'Pro plan' },
 };
 
 /** The real installed @fianto/js package's dist, not this workspace's source alias. */
@@ -92,6 +93,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
           mode: 'payment',
           order_id: `order_${userId}_${plan}`,
           amount: chosen.amount,
+          description: chosen.description,
           success_url: `${origin}/thank-you.html`,
           cancel_url: `${origin}/`,
         };

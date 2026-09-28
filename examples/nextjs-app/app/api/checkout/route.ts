@@ -18,6 +18,9 @@ export const POST = Checkout({
     const plan = body?.plan;
     const chosen = plan ? PLANS[plan] : undefined;
     if (!chosen) return new Response('Unknown plan', { status: 400 });
+    // `price_id` must be a string, not `string | undefined` — a real deployment sets
+    // FIANTO_PRICE_PRO; this refuses to start a checkout that can't succeed either way.
+    if (!chosen.priceId) return new Response('Plan not configured', { status: 500 });
 
     // DEMO ONLY: a real app reads the authenticated user's id from its own session, not a
     // plain unsigned cookie. This stands in for that so the order_id below is stable and

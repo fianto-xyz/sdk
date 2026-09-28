@@ -1,4 +1,4 @@
-import type { Event, Fianto } from '@fianto/sdk';
+import type { Fianto, FiantoEvent } from '@fianto/sdk';
 import { signWebhook } from '@fianto/sdk/webhooks';
 import { UsageError } from '../config.js';
 import { formatDuration } from '../duration.js';
@@ -24,7 +24,7 @@ function remember(seen: Set<string>, id: string): void {
 }
 
 async function forwardEvent(
-  event: Event,
+  event: FiantoEvent,
   secret: string,
   forwardTo: string,
   deps: Pick<Deps, 'fetch' | 'now' | 'output'>,

@@ -67,6 +67,7 @@ sdkHandlers.createCheckoutHandler({
     order_id: 'order_1',
     mode: 'payment',
     amount: '1000000',
+    description: 'Widget',
     success_url: 'https://example.com/success',
     cancel_url: 'https://example.com/cancel',
   }),
