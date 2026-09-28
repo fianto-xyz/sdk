@@ -94,7 +94,14 @@ it('closes the popup and rejects when the session call fails', async () => {
   expect(popup.location.replace).not.toHaveBeenCalled();
 });
 
-it.each(['javascript:alert(1)', 'http://pay.fianto.test/c/x', 'not a url', ''])('refuses the session url %j', async (url) => {
+it.each([
+  'javascript:alert(1)',
+  'http://pay.fianto.test/c/x',
+  'not a url',
+  '',
+  'data:text/html,x',
+  'http://localhost.evil.com/c/x',
+])('refuses the session url %j', async (url) => {
   await expect(openCheckout({ session: { id: 'fian_cs_1', url } })).rejects.toBeInstanceOf(InvalidSessionError);
   expect(popup.closed).toBe(true);
   expect(popup.location.replace).not.toHaveBeenCalled();
@@ -113,6 +120,33 @@ it('resolves the previous checkout as closed when a new one starts', async () =>
   await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
   expect(open).toHaveBeenCalledTimes(2);
   expect(open.mock.calls[1]![1]).toBe(POPUP_NAME);
+});
+
+it('supersedes a call whose session is still pending when a newer call starts', async () => {
+  const FIRST = { id: 'fian_cs_1', url: 'https://pay.fianto.test/c/fian_cst_first' };
+  const SECOND = { id: 'fian_cs_2', url: 'https://pay.fianto.test/c/fian_cst_second' };
+  let resolveFirst!: (session: typeof FIRST) => void;
+  const pending = new Promise<typeof FIRST>((resolve) => { resolveFirst = resolve; });
+  const first = openCheckout({ session: () => pending });
+  void openCheckout({ session: SECOND });
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(SECOND.url));
+  resolveFirst(FIRST);
+  await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_1' });
+  expect(popup.location.replace).toHaveBeenCalledTimes(1);
+  expect(popup.location.replace).not.toHaveBeenCalledWith(FIRST.url);
+});
+
+it('does not close the shared popup when a superseded pending session rejects', async () => {
+  let rejectFirst!: (error: Error) => void;
+  const pending = new Promise<typeof SESSION>((_resolve, reject) => { rejectFirst = reject; });
+  const first = openCheckout({ session: () => pending });
+  const second = openCheckout({ session: SESSION });
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(SESSION.url));
+  rejectFirst(new Error('boom'));
+  await expect(first).rejects.toThrow('boom');
+  expect(popup.closed).toBe(false);
+  post(popup, { type: MESSAGE_TYPE, session_id: SESSION.id, status: 'succeeded' });
+  await expect(second).resolves.toEqual({ status: 'succeeded', session_id: SESSION.id });
 });
 
 it('removes its listener after settling', async () => {
