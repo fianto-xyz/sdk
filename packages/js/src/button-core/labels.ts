@@ -27,7 +27,7 @@ export function buttonText(label: ButtonLabel, locale: ButtonLocale): { prefix: 
 }
 
 /** Payer-facing status lines. Never a route's own message: that is written for the merchant. */
-export type StatusTextKey = 'payment_in_progress' | 'already_paid' | 'busy' | 'lost' | 'generic';
+export type StatusTextKey = 'payment_in_progress' | 'already_paid' | 'busy' | 'lost' | 'mismatch' | 'unavailable' | 'generic';
 
 export const STATUS_TEXT: Record<ButtonLocale, Record<StatusTextKey, string>> = {
   en: {
@@ -36,6 +36,12 @@ export const STATUS_TEXT: Record<ButtonLocale, Record<StatusTextKey, string>> = 
     busy: 'Checkout is busy right now. Please try again shortly.',
     // `closed` is unknown: never say whether anything was charged.
     lost: 'Lost track of the checkout window. Check your order status before trying again.',
+    // Retrying with the same terms cannot succeed here (order_session_mismatch): the page
+    // itself needs to rebuild the checkout terms, so "try again" alone would be false comfort.
+    mismatch: 'This checkout changed — reload the page and try again.',
+    // plan_limit_reached: a shop-side condition the payer cannot fix by retrying — stay neutral,
+    // never promise a retry will work.
+    unavailable: "Checkout isn't available right now.",
     generic: 'Checkout could not be started. Please try again.',
   },
   vi: {
@@ -43,6 +49,8 @@ export const STATUS_TEXT: Record<ButtonLocale, Record<StatusTextKey, string>> = 
     already_paid: 'Đơn hàng này đã được thanh toán.',
     busy: 'Hệ thống thanh toán đang bận. Vui lòng thử lại sau ít phút.',
     lost: 'Mất kết nối với cửa sổ thanh toán. Vui lòng kiểm tra trạng thái đơn hàng trước khi thử lại.',
+    mismatch: 'Đơn thanh toán đã thay đổi — vui lòng tải lại trang và thử lại.',
+    unavailable: 'Thanh toán hiện không khả dụng.',
     generic: 'Không thể bắt đầu thanh toán. Vui lòng thử lại.',
   },
 };
@@ -54,6 +62,8 @@ const ERROR_KEYS: Readonly<Record<string, StatusTextKey>> = {
   rate_limited: 'busy',
   session_not_reissuable: 'busy',
   subscription_preparing: 'busy',
+  order_session_mismatch: 'mismatch',
+  plan_limit_reached: 'unavailable',
 };
 
 /** The status line for a failed checkout start, from the error's `code` (anything else: generic). */

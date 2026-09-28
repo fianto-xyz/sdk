@@ -171,7 +171,8 @@ it.each([
   [409, 'order_already_paid', 'This order has already been paid.'],
   [429, 'rate_limited', 'Checkout is busy right now. Please try again shortly.'],
   [409, 'checkout_unavailable', 'Checkout is busy right now. Please try again shortly.'],
-  [409, 'order_session_mismatch', 'Checkout could not be started. Please try again.'],
+  [409, 'order_session_mismatch', 'This checkout changed — reload the page and try again.'],
+  [409, 'plan_limit_reached', "Checkout isn't available right now."],
   [400, 'validation_failed', 'Checkout could not be started. Please try again.'],
   [500, 'internal_error', 'Checkout could not be started. Please try again.'],
 ])('on a %i %s shows payer copy and passes the route message in fianto:error', async (httpStatus, code, copy) => {
