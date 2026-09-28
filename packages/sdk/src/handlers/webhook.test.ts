@@ -109,3 +109,85 @@ it('does not treat inherited property names as event types', async () => {
   expect(response.status).toBe(200);
   expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'toString' }));
 });
+
+/** A body stream that records whether anything pulled from it. */
+function trackedBody(chunks: Uint8Array[]) {
+  const state = { pulled: 0, canceled: false };
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const next = chunks[state.pulled++];
+      if (next) controller.enqueue(next); else controller.close();
+    },
+    cancel() { state.canceled = true; },
+  }, { highWaterMark: 0 }); // pull only when read, so `pulled` counts real reads
+  return { stream, state };
+}
+
+function streamed(headers: Record<string, string>, stream: ReadableStream<Uint8Array>) {
+  return new Request('https://shop.test/api/webhooks/fianto', { method: 'POST', headers, body: stream, duplex: 'half' } as RequestInit);
+}
+
+// C1: an unauthenticated request cannot make the handler read (and hold) a large body.
+it.each([
+  ['no signature headers', {}],
+  ['a stale timestamp', { 'webhook-id': 'evt_x', 'webhook-timestamp': '1000', 'webhook-signature': 'v1,AAAA' }],
+])('refuses %s with 400 before reading the body', async (_, headers) => {
+  const { stream, state } = trackedBody([new Uint8Array(10)]);
+  const onVerificationError = vi.fn();
+  const response = await createWebhookHandler({ secret, onVerificationError })(streamed(headers, stream));
+  expect(response.status).toBe(400);
+  expect(state.pulled).toBe(0);
+  expect(onVerificationError).toHaveBeenCalledOnce();
+});
+
+it('refuses a content-length over maxBodyBytes with 413 without reading', async () => {
+  const { headers } = await signWebhook({ event: sampleEvent('order.paid'), secret });
+  const { stream, state } = trackedBody([new Uint8Array(10)]);
+  const onVerificationError = vi.fn();
+  const handler = createWebhookHandler({ secret, maxBodyBytes: 100, onVerificationError });
+  const response = await handler(streamed({ ...headers, 'content-length': '101' }, stream));
+  expect(response.status).toBe(413);
+  expect(await response.json()).toEqual({ error: 'payload_too_large' });
+  expect(state.pulled).toBe(0);
+  expect(onVerificationError).toHaveBeenCalledWith(expect.objectContaining({ reason: 'payload_too_large' }));
+});
+
+it('stops reading a chunked body as soon as it passes maxBodyBytes and answers 413', async () => {
+  const { headers } = await signWebhook({ event: sampleEvent('order.paid'), secret });
+  const chunks = Array.from({ length: 50 }, () => new Uint8Array(64));
+  const { stream, state } = trackedBody(chunks);
+  const response = await createWebhookHandler({ secret, maxBodyBytes: 100 })(streamed(headers, stream));
+  expect(response.status).toBe(413);
+  expect(state.pulled).toBeLessThanOrEqual(3);
+  expect(state.canceled).toBe(true);
+});
+
+it('defaults maxBodyBytes to 1 MiB and accepts a body exactly at the limit', async () => {
+  const pad = (size: number) => {
+    const event = sampleEvent('test.event', { data: { message: '' } });
+    return { ...event, data: { message: 'x'.repeat(size - JSON.stringify(event).length) } };
+  };
+  const handler = createWebhookHandler({ secret });
+  const atLimit = await signWebhook({ event: pad(1_048_576), secret });
+  expect(atLimit.body.length).toBe(1_048_576);
+  const ok = await handler(new Request('https://shop.test/x', { method: 'POST', headers: atLimit.headers, body: atLimit.body }));
+  expect(ok.status).toBe(200);
+  const over = await signWebhook({ event: pad(1_048_577), secret });
+  const refused = await handler(new Request('https://shop.test/x', { method: 'POST', headers: over.headers, body: over.body }));
+  expect(refused.status).toBe(413);
+});
+
+it('refuses a bad maxBodyBytes, a short secret or an unbounded tolerance at creation', () => {
+  for (const maxBodyBytes of [0, -1, 1.5, Number.NaN, Infinity]) {
+    expect(() => createWebhookHandler({ secret, maxBodyBytes })).toThrow(/maxBodyBytes/);
+  }
+  expect(() => createWebhookHandler({ secret: `whsec_${randomBytes(8).toString('base64')}` })).toThrow(/at least 16 bytes/);
+  expect(() => createWebhookHandler({ secret, toleranceSeconds: 7200 })).toThrow(/toleranceSeconds/);
+});
+
+it('reads FIANTO_WEBHOOK_SECRET per request when no secret is passed', async () => {
+  const handler = createWebhookHandler();
+  vi.stubEnv('FIANTO_WEBHOOK_SECRET', secret);
+  expect((await handler(await post(sampleEvent('order.paid')))).status).toBe(200);
+  vi.unstubAllEnvs();
+});
