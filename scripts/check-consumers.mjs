@@ -1,9 +1,11 @@
 // Packs every published @fianto/* package (the tarball npm would actually publish, not the
-// checkout) and typechecks a tiny consumer against it under all three TypeScript module
-// resolution modes — node10 (moduleResolution: node, module: commonjs; e.g. NestJS),
-// node16 and bundler — with skipLibCheck: false, so a d.ts a real consumer can't resolve, or
-// can't parse (e.g. a JS directive banner like 'use client' leaking into a .d.ts — TS1036 under
-// skipLibCheck: false), fails CI instead of only showing up downstream.
+// checkout) and typechecks a tiny consumer against it under four TypeScript configurations —
+// node10 (moduleResolution: node, module: commonjs; e.g. NestJS), node16, bundler, and es2020
+// (bundler resolution, but target/lib pinned to es2020+dom instead of the other three legs'
+// es2022) — with skipLibCheck: false, so a d.ts a real consumer can't resolve, can't parse
+// (e.g. a JS directive banner like 'use client' leaking into a .d.ts — TS1036 under
+// skipLibCheck: false), or that references a TS lib type only ambiently available from ES2022
+// onward (e.g. `ErrorOptions`) fails CI instead of only showing up downstream.
 //
 // Run after `pnpm build`. Node >=22 only (uses recursive fs helpers and the workspace's own
 // tsc); this is a CI-only diagnostic, not something published.
@@ -90,6 +92,17 @@ const RESOLUTIONS = {
   node10: { module: 'commonjs', moduleResolution: 'node' },
   node16: { module: 'node16', moduleResolution: 'node16' },
   bundler: { module: 'esnext', moduleResolution: 'bundler' },
+  // Catches an ambient lib type (e.g. TS's ES2022 `ErrorOptions`) leaking into a published
+  // .d.ts/.d.cts: the other three legs all set `target: 'es2022'`, so a type that's only
+  // ambiently available from ES2022's lib onward compiles fine there and hides the leak. A
+  // consumer below ES2022 with `skipLibCheck: false` (uncommon but real — anything wanting full
+  // type-safety on its dependencies) then hits `TS2304: Cannot find name '...'` on a plain
+  // import, with no way to fix it from their own tsconfig short of widening `lib` past what
+  // their `target` needs. Every published package (including the ones with third-party peer
+  // types — react, hono, express) has been checked to compile clean under es2020/dom with no
+  // exclusions needed; if a future peer type genuinely requires a newer lib, scope this leg's
+  // IMPORTS down rather than raising target/lib back toward es2022 and silently losing the check.
+  es2020: { module: 'esnext', moduleResolution: 'bundler', target: 'es2020', lib: ['es2020', 'dom'] },
 };
 
 /**
@@ -162,7 +175,8 @@ function typecheck(scratch) {
       JSON.stringify(
         {
           compilerOptions: {
-            target: 'es2022',
+            target: options.target ?? 'es2022',
+            ...(options.lib ? { lib: options.lib } : {}),
             module: options.module,
             moduleResolution: options.moduleResolution,
             esModuleInterop: true,
@@ -207,4 +221,4 @@ if (!ok) {
   console.error('\ncheck-consumers: FAILED');
   process.exit(1);
 }
-console.log('check-consumers: every published package resolves under node10, node16 and bundler');
+console.log('check-consumers: every published package resolves under node10, node16, bundler and es2020');
