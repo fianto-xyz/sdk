@@ -2,8 +2,12 @@ import { parseArgs } from 'node:util';
 import { APIError, FiantoError, type Fianto } from '@fianto/sdk';
 import { eventsGet } from './commands/events-get.js';
 import { eventsList } from './commands/events-list.js';
+import { eventsTail } from './commands/events-tail.js';
+import { sign } from './commands/sign.js';
+import { trigger } from './commands/trigger.js';
 import { whoami } from './commands/whoami.js';
-import { credentialsFrom, UsageError, type CliCredentials } from './config.js';
+import { credentialsFrom, UsageError, webhookSecretFrom, type CliCredentials } from './config.js';
+import { parseDuration } from './duration.js';
 import type { Output } from './output.js';
 
 export interface Deps {
@@ -18,10 +22,10 @@ export interface Deps {
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const DEFAULT_SINCE_MS = 5 * 60_000;
+const DEFAULT_INTERVAL_MS = 2000;
+const MIN_INTERVAL_MS = 500;
 
-// Commands not yet implemented (events tail, trigger, sign — Task 3) are listed here so
-// `--help`/`help` describes the full surface, but are not dispatched: calling one today falls
-// through to the "Unknown command" usage error below, same as any other unrecognised command.
 const USAGE = `Usage: fianto <command> [options]
 
 Commands:
@@ -29,11 +33,13 @@ Commands:
   events list [--type <type>] [--limit <n>]   list recent events (limit default 20, max 100)
   events get <evt_id>                         print one event as JSON
   events tail --forward-to <url> [--secret <whsec_>] [--since <duration>] [--type <type>] [--interval <ms>]
-                                               forward live events to a local URL (not yet implemented)
+                                               forward live events to a local URL (since default 5m,
+                                               interval default 2000ms, Ctrl-C to stop)
   trigger <type> [--forward-to <url>] [--secret <whsec_>]
-                                               send a signed sample event to a local URL (not yet implemented)
+                                               send test.event via fianto, or POST a signed local
+                                               sample of <type> to --forward-to
   sign --payload <file> [--secret <whsec_>] [--id <id>] [--timestamp <unix>]
-                                               print signed webhook headers for a payload (not yet implemented)
+                                               print signed webhook headers and a curl command for a payload
   help                                        show this help
 
 Global flags:
@@ -58,8 +64,10 @@ const OPTIONS = {
   timestamp: { type: 'string' },
 } as const;
 
+type Flags = { [K in keyof typeof OPTIONS]?: (typeof OPTIONS)[K]['type'] extends 'boolean' ? boolean : string };
+
 export async function main(argv: string[], deps: Deps): Promise<number> {
-  let parsed: { values: { [K in keyof typeof OPTIONS]?: (typeof OPTIONS)[K]['type'] extends 'boolean' ? boolean : string }; positionals: string[] };
+  let parsed: { values: Flags; positionals: string[] };
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
   } catch (error) {
@@ -83,6 +91,23 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
       }
       case 'events':
         return await dispatchEvents(rest, values, deps);
+      case 'trigger': {
+        const type = rest[0];
+        if (!type) throw new UsageError('trigger requires an event type, e.g. fianto trigger test.event');
+        const forwardTo = values['forward-to'];
+        const secret = forwardTo ? webhookSecretFrom(values, deps.env) : undefined;
+        const client = deps.makeClient(credentialsFrom(values, deps.env));
+        await trigger(type, { forwardTo, secret }, client, deps);
+        return 0;
+      }
+      case 'sign': {
+        const payload = values.payload;
+        if (!payload) throw new UsageError('sign requires --payload <file>');
+        const secret = webhookSecretFrom(values, deps.env);
+        const timestamp = parseTimestamp(values.timestamp);
+        await sign({ payload, secret, id: values.id, timestamp }, deps.output);
+        return 0;
+      }
       default:
         throw new UsageError(`Unknown command: ${command}`);
     }
@@ -91,11 +116,7 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
   }
 }
 
-async function dispatchEvents(
-  rest: string[],
-  values: { type?: string; limit?: string; 'app-id'?: string; 'app-secret'?: string; 'base-url'?: string },
-  deps: Deps,
-): Promise<number> {
+async function dispatchEvents(rest: string[], values: Flags, deps: Deps): Promise<number> {
   const [sub, ...subRest] = rest;
   if (sub === 'list') {
     const limit = parseLimit(values.limit);
@@ -110,6 +131,16 @@ async function dispatchEvents(
     await eventsGet(client, id, deps.output);
     return 0;
   }
+  if (sub === 'tail') {
+    const forwardTo = values['forward-to'];
+    if (!forwardTo) throw new UsageError('events tail requires --forward-to <url>');
+    const secret = webhookSecretFrom(values, deps.env);
+    const sinceMs = values.since === undefined ? DEFAULT_SINCE_MS : parseDuration(values.since);
+    const intervalMs = parseInterval(values.interval);
+    const client = deps.makeClient(credentialsFrom(values, deps.env));
+    await eventsTail(client, { forwardTo, secret, sinceMs, type: values.type, intervalMs }, deps);
+    return 0;
+  }
   throw new UsageError(`Unknown command: events ${sub ?? ''}`.trimEnd());
 }
 
@@ -118,6 +149,24 @@ function parseLimit(raw: string | undefined): number {
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > MAX_LIMIT) {
     throw new UsageError(`Invalid --limit (${raw}): expected an integer from 1 to ${MAX_LIMIT}.`);
+  }
+  return value;
+}
+
+function parseInterval(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_INTERVAL_MS;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < MIN_INTERVAL_MS) {
+    throw new UsageError(`Invalid --interval (${raw}): expected an integer of at least ${MIN_INTERVAL_MS}.`);
+  }
+  return value;
+}
+
+function parseTimestamp(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new UsageError(`Invalid --timestamp (${raw}): expected a non-negative integer of Unix seconds.`);
   }
   return value;
 }
