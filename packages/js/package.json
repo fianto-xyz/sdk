@@ -6,7 +6,8 @@
   "type": "module",
   "sideEffects": [
     "./dist/button.*",
-    "./dist/fianto-button.global.js"
+    "./dist/fianto-button.global.iife.js",
+    "./src/button/index.ts"
   ],
   "files": [
     "dist"
@@ -41,6 +42,10 @@
     ".": {
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./button": {
+      "import": "./dist/button.js",
+      "require": "./dist/button.cjs"
     },
     "./button-core": {
       "import": "./dist/button-core.js",
