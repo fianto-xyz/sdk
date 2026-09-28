@@ -40,6 +40,11 @@ export function openCheckout(options: OpenCheckoutOptions): Promise<CheckoutResu
   if (!popup) {
     if ((options.fallback ?? 'redirect') === 'none') return Promise.reject(new PopupBlockedError());
     return resolveSession(options.session).then((session) => {
+      if (own !== generation) {
+        // Superseded while the session was still in flight: a newer call already owns the
+        // page/popup. Resolve closed without navigating the page away from it.
+        return { status: 'closed' as const, session_id: session.id };
+      }
       window.location.assign(session.url);
       // Normally the page unloads and this never settles. If the payer comes back via the
       // back/forward cache, this page resumes as it was: settle `closed` (UNKNOWN) so the

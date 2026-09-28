@@ -187,3 +187,19 @@ it('a popup-blocked call supersedes an older pending call', async () => {
   await expect(first).resolves.toEqual({ status: 'closed', session_id: SESSION.id });
   expect(popup.location.replace).not.toHaveBeenCalled();
 });
+
+// Review Focus 5
+it('a blocked call whose session loads after a newer call does not navigate the page', async () => {
+  const assign = vi.fn();
+  vi.stubGlobal('location', { ...window.location, assign });
+  let releaseFirst!: (s: { id: string; url: string }) => void;
+  open.mockReturnValueOnce(null); // first call: popup blocked → redirect fallback
+  const first = openCheckout({ session: () => new Promise((resolve) => { releaseFirst = resolve; }) });
+  const second = openCheckout({ session: SESSION }); // second call: real popup
+  await vi.waitFor(() => expect(popup.location.replace).toHaveBeenCalledWith(SESSION.url));
+  releaseFirst({ id: 'fian_cs_old', url: 'https://pay.fianto.test/c/old' });
+  await expect(first).resolves.toEqual({ status: 'closed', session_id: 'fian_cs_old' });
+  expect(assign).not.toHaveBeenCalled();
+  post(popup, { type: MESSAGE_TYPE, session_id: 'fian_cs_1', status: 'succeeded' });
+  await expect(second).resolves.toEqual({ status: 'succeeded', session_id: 'fian_cs_1' });
+});
