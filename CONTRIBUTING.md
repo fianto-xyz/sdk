@@ -1,5 +1,24 @@
 # Contributing
 
+## Node version
+
+The **published packages** run on Node ≥20.3 (`engines.node` in every `packages/*/package.json`).
+That's the floor `runtime-node20`'s `smoke-runtime.mjs` verifies against the actual built `dist/`.
+
+**Building or contributing to this repo needs newer Node than that.** The build tool, `tsdown`,
+declares `engines.node: "^22.18.0 || ^24.11.0 || >=26.0.0"` (`node_modules/tsdown/package.json`) —
+so does `jsdom` (vitest's browser-test environment) and `@changesets/cli`. Below that floor,
+`pnpm build`/`pnpm typecheck`/`pnpm test`/`pnpm check:packages` all fail the same way, tsdown's
+optional config-loader failing to import `unrun`:
+
+```
+ERROR  Error: Failed to import module "unrun". Please ensure it is installed.
+```
+
+Use Node 22.18.0+ or 24.11.0+ (or 26+) to work on this repo. `pnpm dev`/CI's `check` job run on
+the 22.x/24.x matrix for the same reason — the 20.3.0 leg (`runtime-node20`) only ever runs the
+already-built `dist/` output, never the build tooling itself.
+
 ## Changesets
 
 Every change that affects a published package needs a changeset:
@@ -25,9 +44,12 @@ package by hand): `npm publish` ships `workspace:*` unresolved and the package c
 
 ## CI
 
-Every push to `master` and every pull request runs `.github/workflows/ci.yml` on Node 20.x,
-22.x and 24.x: `pnpm install --frozen-lockfile`, then `check:generated`, `lint`, `typecheck`,
-`test`, `check:packages` in that order. A PR can't merge with any of those red.
+Every push to `master` and every pull request runs `.github/workflows/ci.yml`'s `check` job on
+Node 22.x and 24.x (see Node version above for why 20.x can't be in that matrix):
+`pnpm install --frozen-lockfile`, then `check:generated`, `lint`, `typecheck`, `test`,
+`check:packages` in that order. A separate `runtime-node20` job builds on Node 22.x and then
+switches to Node 20.3.0 — `engines.node`'s floor — to run the built `dist/` output directly. A PR
+can't merge with either job red.
 
 ## Releases
 
