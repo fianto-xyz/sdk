@@ -12,6 +12,7 @@
     "spec:sync": "node scripts/sync-spec.mjs",
     "generate": "node scripts/generate.mjs",
     "check:generated": "node scripts/generate.mjs && git diff --exit-code -- packages/sdk/src/generated",
+    "build:brand": "node scripts/build-brand.mjs",
     "check:packages": "pnpm build && pnpm -r --filter \"./packages/**\" run check",
     "release": "pnpm check:packages && changeset publish"
   },
@@ -20,6 +21,9 @@
     "@changesets/cli": "3.0.3",
     "@types/node": "^24",
     "ajv": "8.20.0",
+    "axe-core": "4.13.0",
+    "fontkit": "2.0.4",
+    "jsdom": "30.1.1",
     "openapi-typescript": "7.13.0",
     "oxlint": "1.85.0",
     "publint": "0.3.24",

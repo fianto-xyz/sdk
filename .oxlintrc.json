@@ -11,6 +11,13 @@
       "rules": {
         "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*"], "message": "@fianto/sdk must stay runtime-neutral: use fetch/WebCrypto." }] }]
       }
+    },
+    {
+      "files": ["packages/js/src/**/*.ts"],
+      "excludeFiles": ["**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": [{ "group": ["node:*", "@fianto/sdk"], "message": "@fianto/js is browser-only: never import node:* or @fianto/sdk." }] }]
+      }
     }
   ]
 }
