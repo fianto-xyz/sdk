@@ -1,6 +1,18 @@
 import type { Page } from '../types.js';
 
 /**
+ * Normalises a raw page's `next_cursor` to the opaque string every list `cursor` param accepts,
+ * so `list({ cursor: page.next_cursor })` type-checks for every resource without the caller
+ * converting — orders/payments/prices/products/subscriptions' numeric keyset cursor included
+ * (F7/A7). The backend accepts a string cursor on every list operation's query (see
+ * `spec/openapi.json`; an unparseable value just starts from the first page), so this loses
+ * nothing on the wire.
+ */
+export function stringifyCursor<T>(raw: { items: T[]; next_cursor: number | null }): Page<T, string> {
+  return { items: raw.items, next_cursor: raw.next_cursor === null ? null : String(raw.next_cursor) };
+}
+
+/**
  * `await` it for one page, or `for await` it for every item. Pages are fetched lazily. Iteration
  * ends on `next_cursor: null` or on an empty page (the API returns a cursor after a full last page).
  */

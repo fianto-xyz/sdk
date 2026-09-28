@@ -77,7 +77,9 @@ await check('request + abort path through an injected fetch (ESM build)', async 
 
   const controller = new AbortController();
   controller.abort(new Error('smoke abort'));
-  const abortResult = await client.orders.retrieve('fian_ord_smoke1', { signal: controller.signal }).then(
+  // `retrieve(id, params?, options?)` (F6): the reserved, currently-empty `params` slot sits
+  // between `id` and `options`, so the abort signal is the third argument, not the second.
+  const abortResult = await client.orders.retrieve('fian_ord_smoke1', {}, { signal: controller.signal }).then(
     () => 'resolved',
     (error) => error,
   );

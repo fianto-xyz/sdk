@@ -1,22 +1,23 @@
 import { pathId } from '../core/ids.js';
-import { PagePromise } from '../core/pagination.js';
+import { PagePromise, stringifyCursor } from '../core/pagination.js';
 import type { RequestOptions, Transport } from '../core/transport.js';
-import type { Page, Price, PriceListParams } from '../types.js';
+import type { Price, PriceListParams } from '../types.js';
 
 export class Prices {
   constructor(private readonly transport: Transport) {}
 
-  async retrieve(id: string, options?: RequestOptions): Promise<Price> {
-    return this.transport.request({ method: 'GET', path: `/v1/prices/${pathId(id)}` }, options);
+  /** `params` is reserved for a future filter/field (F6): none exists yet. */
+  async retrieve(id: string, params: Record<string, never> = {}, options?: RequestOptions): Promise<Price> {
+    return this.transport.request({ method: 'GET', path: `/v1/prices/${pathId(id)}`, query: { ...params } }, options);
   }
 
-  list(params: PriceListParams = {}, options?: RequestOptions): PagePromise<Price, number> {
+  list(params: PriceListParams = {}, options?: RequestOptions): PagePromise<Price, string> {
     const { cursor, ...filters } = params;
     return new PagePromise(
-      (next) => this.transport.request<Page<Price, number>>(
+      (next) => this.transport.request<{ items: Price[]; next_cursor: number | null }>(
         { method: 'GET', path: '/v1/prices', query: { ...filters, cursor: next } },
         options,
-      ),
+      ).then(stringifyCursor),
       cursor,
     );
   }
