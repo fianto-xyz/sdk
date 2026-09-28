@@ -6,7 +6,7 @@ import type { Order, OrderListParams, Page } from '../types.js';
 export class Orders {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Order> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Order> {
     return this.transport.request({ method: 'GET', path: `/v1/orders/${pathId(id)}` }, options);
   }
 

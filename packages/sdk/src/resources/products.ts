@@ -6,7 +6,7 @@ import type { Page, Product, ProductListParams } from '../types.js';
 export class Products {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Product> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Product> {
     return this.transport.request({ method: 'GET', path: `/v1/products/${pathId(id)}` }, options);
   }
 

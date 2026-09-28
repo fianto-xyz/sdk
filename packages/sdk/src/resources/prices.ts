@@ -6,7 +6,7 @@ import type { Page, Price, PriceListParams } from '../types.js';
 export class Prices {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Price> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Price> {
     return this.transport.request({ method: 'GET', path: `/v1/prices/${pathId(id)}` }, options);
   }
 

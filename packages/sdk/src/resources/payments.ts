@@ -6,7 +6,7 @@ import type { Page, Payment, PaymentListParams } from '../types.js';
 export class Payments {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Payment> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Payment> {
     return this.transport.request({ method: 'GET', path: `/v1/payments/${pathId(id)}` }, options);
   }
 

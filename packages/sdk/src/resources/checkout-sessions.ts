@@ -10,16 +10,16 @@ export class CheckoutSessions {
     return this.transport.request({ method: 'POST', path: '/v1/checkout-sessions', body: params }, options);
   }
 
-  retrieve(id: string, options?: RequestOptions): Promise<CheckoutSession> {
+  async retrieve(id: string, options?: RequestOptions): Promise<CheckoutSession> {
     return this.transport.request({ method: 'GET', path: `/v1/checkout-sessions/${pathId(id)}` }, options);
   }
 
-  cancel(id: string, options?: RequestOptions): Promise<CheckoutSession> {
+  async cancel(id: string, options?: RequestOptions): Promise<CheckoutSession> {
     return this.transport.request({ method: 'POST', path: `/v1/checkout-sessions/${pathId(id)}/cancel` }, options);
   }
 
   /** A new `url` for an OPEN session; the old link stops working. 409 `payment_in_progress` / `session_not_reissuable` when it cannot. */
-  reissueLink(id: string, options?: RequestOptions): Promise<CheckoutSession> {
+  async reissueLink(id: string, options?: RequestOptions): Promise<CheckoutSession> {
     return this.transport.request({ method: 'POST', path: `/v1/checkout-sessions/${pathId(id)}/link` }, options);
   }
 }

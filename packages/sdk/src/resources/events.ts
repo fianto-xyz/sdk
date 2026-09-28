@@ -6,7 +6,7 @@ import type { Event, EventListParams, Page } from '../types.js';
 export class Events {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Event> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Event> {
     return this.transport.request({ method: 'GET', path: `/v1/events/${pathId(id)}` }, options);
   }
 

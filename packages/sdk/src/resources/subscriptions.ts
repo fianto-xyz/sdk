@@ -6,7 +6,7 @@ import type { Page, Subscription, SubscriptionCancelParams, SubscriptionListPara
 export class Subscriptions {
   constructor(private readonly transport: Transport) {}
 
-  retrieve(id: string, options?: RequestOptions): Promise<Subscription> {
+  async retrieve(id: string, options?: RequestOptions): Promise<Subscription> {
     return this.transport.request({ method: 'GET', path: `/v1/subscriptions/${pathId(id)}` }, options);
   }
 
@@ -21,7 +21,7 @@ export class Subscriptions {
     );
   }
 
-  cancel(id: string, params: SubscriptionCancelParams, options?: RequestOptions): Promise<Subscription> {
+  async cancel(id: string, params: SubscriptionCancelParams, options?: RequestOptions): Promise<Subscription> {
     return this.transport.request({ method: 'POST', path: `/v1/subscriptions/${pathId(id)}/cancel`, body: params }, options);
   }
 }
