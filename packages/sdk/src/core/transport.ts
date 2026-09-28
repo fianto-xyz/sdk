@@ -43,6 +43,18 @@ function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * True for a response `fetch` returned instead of following, because every request is sent with
+ * `redirect: 'manual'` (see the request loop below — `redirect: 'error'` throws a TypeError while
+ * *constructing* the request on Cloudflare Workers/workerd, which isn't in the try/catch's retry
+ * path and would fail every request there). Most runtimes hand back an opaque, unreadable
+ * response (`type: 'opaqueredirect'`, status 0) for a manually-handled redirect; some (workerd
+ * observed) instead pass the real 3xx response through, so both are checked.
+ */
+function isRedirectResponse(response: Response): boolean {
+  return response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400);
+}
+
 function isRetryable(error: APIError): boolean {
   return error.status === 408 || error.status === 429 || error.status >= 500
     || (error.status === 409 && RETRYABLE_409.has(error.code));
@@ -127,13 +139,18 @@ export class Transport {
       const combined = anySignal(options.signal ? [timeout.signal, options.signal] : [timeout.signal]);
       try {
         try {
+          // Never 'error': it throws while constructing the request on workerd (Cloudflare
+          // Workers), before there's even a response to inspect. 'manual' lets us classify a
+          // redirect ourselves below and still never follow one.
           response = await this.#config.fetch(url, {
-            method: request.method, headers, body, signal: combined.signal, redirect: 'error',
+            method: request.method, headers, body, signal: combined.signal, redirect: 'manual',
           });
-          parsed = await this.parse(response);
+          if (!isRedirectResponse(response)) parsed = await this.parse(response);
         } catch (error) {
           if (options.signal?.aborted) throw new AbortError(options.signal.reason);
-          const failure = (error as { name?: string })?.name === 'TimeoutError'
+          // Whether OUR timeout fired, not the failure's `.name` — a runtime's own abort/network
+          // error could coincidentally be named 'TimeoutError' for an unrelated reason.
+          const failure = timeout.signal.aborted
             ? new TimeoutError(`fianto API request timed out after ${timeoutMs} ms`, { cause: error, requestId, idempotencyKey })
             : new ConnectionError('Could not reach the fianto API', { cause: error, requestId, idempotencyKey });
           if (last) throw failure;
@@ -143,6 +160,14 @@ export class Transport {
       } finally {
         timeout.cancel();
         combined.cleanup();
+      }
+      // A redirect is never followed and never retried — one bad response is treated as final,
+      // the same way a non-retryable API error is below.
+      if (isRedirectResponse(response)) {
+        throw new ConnectionError(
+          `fianto API tried to redirect this request (request ${requestId}); redirects are never followed`,
+          { requestId, idempotencyKey },
+        );
       }
       if (response.ok) {
         if (parsed instanceof NotJson) throw new FiantoError(`fianto API answered HTTP ${response.status} with a body that is not JSON (request ${requestId})`);

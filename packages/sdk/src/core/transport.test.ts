@@ -30,6 +30,28 @@ function setup(responses: Array<Response | Error>, options: { maxRetries?: numbe
   return { transport, calls, sleeps, header };
 }
 
+/**
+ * A `fetch` that never settles on its own — it only rejects when its `signal` aborts, with the
+ * signal's abort reason (as any spec-compliant fetch would). Used to exercise a *real* elapsed
+ * timeout (our own `timeoutSignal()` actually firing after `timeoutMs`), rather than a canned
+ * `DOMException` a mock throws regardless of whether any signal ever aborted.
+ */
+function setupHanging(options: { maxRetries?: number } = {}) {
+  const calls: Call[] = [];
+  const fetch = (async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    return new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
+    });
+  }) as unknown as typeof globalThis.fetch;
+  const config = resolveConfig({
+    appId: 'fian_app_1', appSecret: 'fian_sk_live_2', baseUrl: 'https://api.test', fetch, ...options,
+  });
+  const transport = new Transport(config);
+  const header = (i: number, name: string) => new Headers(calls[i]!.init.headers).get(name);
+  return { transport, calls, header };
+}
+
 const err = (code: string) => ({ statusCode: 0, error: 'X', code, message: code, request_id: 'req_12345678' });
 
 it('sends auth, user agent, request id and JSON', async () => {
@@ -131,10 +153,16 @@ it('respects maxRetries: 0', async () => {
   expect(calls).toHaveLength(1);
 });
 
-it('turns a timeout into TimeoutError and a caller abort into an immediate rejection', async () => {
-  const timeout = setup([new DOMException('timed out', 'TimeoutError'), new DOMException('timed out', 'TimeoutError'), new DOMException('timed out', 'TimeoutError')]);
-  await expect(timeout.transport.request({ method: 'GET', path: '/v1/x' })).rejects.toBeInstanceOf(TimeoutError);
+// Detected via OUR OWN timeout signal actually firing (a real elapsed setTimeout), not via the
+// failure's `.name` — a runtime's own abort/network error could coincidentally be named
+// 'TimeoutError' for an unrelated reason, so a canned mock throwing that name proves nothing.
+it('turns a real elapsed timeout into TimeoutError', async () => {
+  const { transport } = setupHanging({ maxRetries: 0 });
+  const error = await transport.request({ method: 'GET', path: '/v1/x' }, { timeoutMs: 5 }).catch((e) => e);
+  expect(error).toBeInstanceOf(TimeoutError);
+});
 
+it('turns a caller abort into an immediate rejection', async () => {
   const controller = new AbortController();
   controller.abort();
   const aborted = setup([new DOMException('aborted', 'AbortError')]);
@@ -207,12 +235,31 @@ it('rejects immediately when the caller signal is already aborted, without Abort
   }
 });
 
-// C10/F10: every fetch refuses to follow a redirect; a redirect surfaces as a network failure,
-// never as a silently-followed request (which could turn a POST into a GET on another host).
-it('never follows a redirect: passes redirect: error and surfaces it as ConnectionError', async () => {
-  const { transport, calls } = setup([new TypeError('unexpected redirect'), new TypeError('unexpected redirect'), new TypeError('unexpected redirect')]);
-  await expect(transport.request({ method: 'GET', path: '/v1/x' })).rejects.toBeInstanceOf(ConnectionError);
-  expect(calls[0]!.init.redirect).toBe('error');
+// C10/F10/CRITICAL: every fetch refuses to follow a redirect; a redirect surfaces as a network
+// failure, never as a silently-followed request (which could turn a POST into a GET on another
+// host) — with redirect: 'manual', not 'error' ('error' throws a TypeError while *constructing*
+// the request on Cloudflare Workers/workerd, before there's even a response to classify, which
+// would fail every request there).
+it('refuses a 302: redirect: manual, throws at once, never retries', async () => {
+  const { transport, calls } = setup([json(302, {}, { location: 'https://elsewhere.test/' })]);
+  const error = await transport.request({ method: 'GET', path: '/v1/x' }).catch((e) => e);
+  expect(error).toBeInstanceOf(ConnectionError);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.init.redirect).toBe('manual');
+});
+
+// Regression guard: 'error' throws while constructing the request on workerd — this proves the
+// transport never sends it again, whatever the response ends up being.
+it('never passes redirect: error to fetch', async () => {
+  const fetch = (async (_url: string, init: RequestInit) => {
+    if (init.redirect === 'error') {
+      throw new TypeError('Invalid redirect value, must be one of "follow" or "manual"');
+    }
+    return json(200, { ok: 1 });
+  }) as unknown as typeof globalThis.fetch;
+  const config = resolveConfig({ appId: 'fian_app_1', appSecret: 'fian_sk_live_2', baseUrl: 'https://api.test', fetch });
+  const transport = new Transport(config);
+  await expect(transport.request({ method: 'GET', path: '/v1/x' })).resolves.toEqual({ ok: 1 });
 });
 
 it('refuses an invalid idempotency key before sending anything', async () => {
@@ -257,8 +304,8 @@ it('attaches requestId and idempotencyKey to a network failure after giving up',
   expect(error).toBeInstanceOf(ConnectionError);
   expect(error.idempotencyKey).toBe('k-1');
   expect(error.requestId).toBe(header(0, 'x-request-id'));
-  const t = setup([new DOMException('timed out', 'TimeoutError')], { maxRetries: 0 });
-  const timeout = await t.transport.request({ method: 'GET', path: '/v1/x' }).catch((e) => e);
+  const t = setupHanging({ maxRetries: 0 });
+  const timeout = await t.transport.request({ method: 'GET', path: '/v1/x' }, { timeoutMs: 5 }).catch((e) => e);
   expect(timeout).toBeInstanceOf(TimeoutError);
   expect(timeout.requestId).toBe(t.header(0, 'x-request-id'));
   expect(timeout.idempotencyKey).toBeUndefined();
