@@ -24,6 +24,14 @@ export class PagePromise<T, C extends string | number> implements PromiseLike<Pa
     return this.firstPage().then(onfulfilled, onrejected);
   }
 
+  catch<R = never>(onrejected?: ((reason: unknown) => R | PromiseLike<R>) | null): Promise<Page<T, C> | R> {
+    return this.firstPage().catch(onrejected);
+  }
+
+  finally(onfinally?: (() => void) | null): Promise<Page<T, C>> {
+    return this.firstPage().finally(onfinally);
+  }
+
   async *[Symbol.asyncIterator](): AsyncIterator<T> {
     let page = await this.firstPage();
     for (;;) {

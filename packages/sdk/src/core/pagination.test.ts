@@ -43,6 +43,24 @@ it('stops on an empty page even if the server sends a cursor', async () => {
   expect(all).toEqual([]);
 });
 
+it('behaves like a Promise: catch handles a rejected first page', async () => {
+  const promise = new PagePromise<number, number>(async () => { throw new Error('boom'); });
+  const caught = await promise.catch((error) => (error as Error).message);
+  expect(caught).toBe('boom');
+});
+
+it('behaves like a Promise: finally runs on both settle paths', async () => {
+  const ok = new PagePromise<number, number>(async () => ({ items: [1], next_cursor: null }));
+  let ranOk = false;
+  await ok.finally(() => { ranOk = true; });
+  expect(ranOk).toBe(true);
+
+  const failing = new PagePromise<number, number>(async () => { throw new Error('boom'); });
+  let ranFail = false;
+  await expect(failing.finally(() => { ranFail = true; })).rejects.toThrow('boom');
+  expect(ranFail).toBe(true);
+});
+
 it('starts from a given cursor', async () => {
   const seen: Array<string | undefined> = [];
   const promise = new PagePromise<number, number>(async (cursor) => { seen.push(cursor); return { items: [], next_cursor: null }; }, '42');
