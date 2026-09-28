@@ -5,6 +5,6 @@ export type { RequestOptions } from './core/transport.js';
 export { PagePromise } from './core/pagination.js';
 export * from './core/errors.js';
 export { ErrorCode } from './generated/error-codes.js';
-export { usdc } from './amounts.js';
+export { usdc, UsdcError } from './amounts.js';
 export type * from './types.js';
 export { VERSION } from './version.js';

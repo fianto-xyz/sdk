@@ -1,14 +1,22 @@
+import { FiantoError } from './core/errors.js';
+
 const DECIMALS = 6;
 const SCALE = 10n ** BigInt(DECIMALS);
 const DECIMAL = /^\d+(\.\d{1,6})?$/;
 const BASE = /^\d+$/;
 
+/** `usdc.toBaseUnits`/`fromBaseUnits`/`format` reject anything that is not a valid USDC amount. */
+export class UsdcError extends FiantoError {
+  override name = 'UsdcError';
+  readonly code = 'invalid_usdc_amount';
+}
+
 function toBigInt(base: string | bigint): bigint {
   if (typeof base === 'bigint') {
-    if (base < 0n) throw new RangeError(`Not USDC base units: ${base}`);
+    if (base < 0n) throw new UsdcError(`Not USDC base units: ${base}`);
     return base;
   }
-  if (!BASE.test(base)) throw new RangeError(`Not USDC base units: ${JSON.stringify(base)}`);
+  if (!BASE.test(base)) throw new UsdcError(`Not USDC base units: ${JSON.stringify(base)}`);
   return BigInt(base);
 }
 
@@ -19,7 +27,7 @@ function toBigInt(base: string | bigint): bigint {
 export const usdc = {
   toBaseUnits(decimal: string): string {
     if (!DECIMAL.test(decimal)) {
-      throw new RangeError(`Not a USDC amount (up to 6 decimals, no sign): ${JSON.stringify(decimal)}`);
+      throw new UsdcError(`Not a USDC amount (up to 6 decimals, no sign): ${JSON.stringify(decimal)}`);
     }
     const [whole = '0', fraction = ''] = decimal.split('.');
     return (BigInt(whole) * SCALE + BigInt(fraction.padEnd(DECIMALS, '0'))).toString();
