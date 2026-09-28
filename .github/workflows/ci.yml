@@ -26,6 +26,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm check:packages
+      # dist/ is already built (pnpm typecheck built it above); every README ts/tsx snippet
+      # must type-check against it, or be marked ```ts no-check.
+      - run: node scripts/check-readme-snippets.mjs
       # Packs every published package and typechecks a tiny consumer against it under node10,
       # node16 and bundler module resolution — needs only the workspace's own tsc, so it runs
       # once rather than once per matrix leg.

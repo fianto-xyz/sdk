@@ -16,6 +16,7 @@
     "sync-versions": "node scripts/sync-versions.mjs",
     "size": "size-limit",
     "check:packages": "pnpm build && pnpm -r --filter \"./packages/**\" run check && pnpm size",
+    "check:docs": "pnpm build && node scripts/check-readme-snippets.mjs",
     "release": "pnpm check:packages && changeset publish"
   },
   "devDependencies": {
