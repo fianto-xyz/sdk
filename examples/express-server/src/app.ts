@@ -26,6 +26,14 @@ function defaultScriptPath(): string {
   return join(dirname(packageJsonPath), 'dist', 'fianto-button.global.iife.js');
 }
 
+function cookieValue(request: Request, name: string): string | undefined {
+  for (const pair of (request.headers.get('cookie') ?? '').split(';')) {
+    const [key, ...rest] = pair.trim().split('=');
+    if (key === name) return decodeURIComponent(rest.join('='));
+  }
+  return undefined;
+}
+
 export interface CreateAppOptions {
   /** Default: new Fianto() from FIANTO_* env vars, created on the first checkout request. */
   fianto?: Fianto;
@@ -72,10 +80,17 @@ export function createApp(options: CreateAppOptions = {}): Express {
         const chosen = plan ? PLANS[plan] : undefined;
         if (!chosen) return new Response('Unknown plan', { status: 400 });
 
+        // DEMO ONLY: a real app reads the authenticated user's id from its own session, not a
+        // plain unsigned cookie — see the Next.js example's app/api/checkout/route.ts for the
+        // same pattern. Deriving order_id from a stable per-visitor id (rather than a
+        // timestamp) keeps repeat clicks pointed at the same order, so
+        // createCheckoutHandler reissues the existing session's link instead of creating a
+        // new, colliding order on every click.
+        const userId = cookieValue(request, 'uid') ?? 'demo-user';
         const origin = new URL(request.url).origin;
         return {
           mode: 'payment',
-          order_id: `order_${Date.now()}`,
+          order_id: `order_${userId}_${plan}`,
           amount: chosen.amount,
           success_url: `${origin}/thank-you.html`,
           cancel_url: `${origin}/`,

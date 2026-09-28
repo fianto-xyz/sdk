@@ -21,6 +21,8 @@ beforeAll(() => {
   const require = createRequire(import.meta.url);
   const scriptPath = join(dirname(require.resolve('@fianto/js/package.json')), 'dist', 'fianto-button.global.iife.js');
   if (existsSync(scriptPath)) return;
+  // Missing on a clean checkout (dist/ is gitignored): build it once so this test never
+  // depends on some other script having run `pnpm build` first.
   const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
   execFileSync('pnpm', ['--filter', '@fianto/js', 'build'], { cwd: repoRoot, stdio: 'inherit' });
 }, 120_000);
