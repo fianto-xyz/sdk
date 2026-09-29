@@ -26,7 +26,7 @@ releases; upgrade to the latest release to pick up a fix.
 In scope: `@fianto/sdk`, `@fianto/js`, `@fianto/react`, `@fianto/nextjs`, `@fianto/hono`,
 `@fianto/express`, `@fianto/cli` — the code in this repository. A vulnerability in the fianto
 API or dashboard itself (as opposed to this SDK's client code) should also go to
-security@fianto.xyz, but is triaged separately.
+support@fianto.xyz, but is triaged separately.
 
 Some things are accepted, documented risk rather than vulnerabilities to report — see each
 package's README "Security" section (`@fianto/sdk`'s in particular) for what's already
