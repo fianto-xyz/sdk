@@ -1,6 +1,6 @@
 {
   "name": "@fianto/js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser SDK for fianto: open hosted checkout in a popup and the branded Pay with fianto button.",
   "license": "MIT",
   "type": "module",
