@@ -1,6 +1,6 @@
 {
   "name": "@fianto/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Server-side SDK for fianto: typed API client, webhook verification and route handlers.",
   "license": "MIT",
   "type": "module",

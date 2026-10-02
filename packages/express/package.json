@@ -1,6 +1,6 @@
 {
   "name": "@fianto/express",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Express middleware for fianto webhooks and checkout.",
   "license": "MIT",
   "type": "module",
