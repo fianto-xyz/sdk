@@ -32,6 +32,7 @@ export const ErrorCode = {
   ModeNotSupported: 'mode_not_supported',
   NotFound: 'not_found',
   OrderAlreadyPaid: 'order_already_paid',
+  OrderIdInUse: 'order_id_in_use',
   OrderNotFound: 'order_not_found',
   PayerTokenAccountFrozen: 'payer_token_account_frozen',
   PayerTokenAccountMissing: 'payer_token_account_missing',

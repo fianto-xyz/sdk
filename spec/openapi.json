@@ -1204,6 +1204,7 @@
                   "mode_not_supported",
                   "not_found",
                   "order_already_paid",
+                  "order_id_in_use",
                   "order_not_found",
                   "payer_token_account_frozen",
                   "payer_token_account_missing",
