@@ -1,6 +1,7 @@
 import { AbortError, ConnectionError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError } from './errors.js';
 import { resolveConfig } from './config.js';
 import { Transport } from './transport.js';
+import { VERSION } from '../version.js';
 
 type Call = { url: string; init: RequestInit };
 
@@ -60,7 +61,7 @@ it('sends auth, user agent, request id and JSON', async () => {
   expect(result).toEqual({ ok: 1 });
   expect(calls[0]!.url).toBe('https://api.test/v1/orders?limit=5');
   expect(header(0, 'authorization')).toBe(`Basic ${btoa('fian_app_1:fian_sk_live_2')}`);
-  expect(header(0, 'user-agent')).toMatch(/^fianto-sdk\/0\.1\.0 /);
+  expect(header(0, 'user-agent')).toMatch(new RegExp(`^fianto-sdk/${VERSION.replaceAll('.', '\\.')} `));
   expect(header(0, 'x-request-id')).toMatch(/^req_[0-9a-f]{32}$/);
   expect(header(0, 'idempotency-key')).toBeNull();
 });
