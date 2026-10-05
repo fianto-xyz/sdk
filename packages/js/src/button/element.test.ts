@@ -62,7 +62,7 @@ it('shows the in-progress message on a 409 and emits fianto:error', async () => 
   const error = new Promise<CustomEvent>((resolve) => el.addEventListener('fianto:error', (e) => resolve(e as CustomEvent)));
   button.click();
   expect((await error).detail.code).toBe('payment_in_progress');
-  expect(el.shadowRoot!.querySelector('.fianto-status')!.textContent).toBe('A payment for this order is already in progress.');
+  expect(el.shadowRoot!.querySelector('.fianto-status')!.textContent).toBe('A payment for this order may already be in progress.');
 });
 
 it('ignores clicks while disabled', () => {

@@ -6,7 +6,12 @@ import type { CheckoutSession, CheckoutSessionCreateParams } from '../types.js';
 export class CheckoutSessions {
   constructor(private readonly transport: Transport) {}
 
-  /** The response's `url` is the only copy of the payment link. A retry under the same idempotency key returns it again. */
+  /**
+   * For a new session, the response's `url` is the only copy of the payment link. `url` is
+   * null when `order_id` already has an OPEN session: that session is returned unchanged. Call
+   * `reissueLink(session.id)` for a new link to it, or use a new `order_id` for different terms.
+   * A retry under the same idempotency key returns the original response, `url` included.
+   */
   create(params: CheckoutSessionCreateParams, options?: RequestOptions): Promise<CheckoutSession> {
     assertNotRequestOptions(params, 'checkoutSessions.create');
     return this.transport.request({ method: 'POST', path: '/v1/checkout-sessions', body: params }, options);
@@ -25,9 +30,18 @@ export class CheckoutSessions {
   }
 
   /**
-   * A new `url` for an OPEN session; the old link stops working. 409 `payment_in_progress` /
-   * `session_not_reissuable` when it cannot. `params` is reserved for a future body field (F6):
-   * none exists yet.
+   * A new `url` for an OPEN session; the old link stops working. Refusals:
+   * - 409 `session_not_reissuable`: the session is not OPEN, or expires in under 2 minutes.
+   * - 409 `payment_in_progress`: a payment is live, or the last transaction built for the
+   *   session could still land.
+   * - 409 `checkout_unavailable` with `Retry-After`: the chain could not be read (retried
+   *   automatically).
+   * - 503 `checkout_busy` with `Retry-After`: fianto was too busy to start (retried
+   *   automatically).
+   *
+   * The link is reissued even when the session's price has since ended; check the price first
+   * if that matters (`createCheckoutHandler` does). `params` is reserved for a future body
+   * field (F6): none exists yet.
    */
   async reissueLink(id: string, params: Record<string, never> = {}, options?: RequestOptions): Promise<CheckoutSession> {
     assertNotRequestOptions(params, 'checkoutSessions.reissueLink');

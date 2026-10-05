@@ -136,6 +136,14 @@ it('does not retry a non-retryable 409 or any 4xx', async () => {
   expect(second.calls).toHaveLength(1);
 });
 
+// S9: plan_limit_reached is a per-day cap (no Retry-After): retrying within a call cannot help.
+it('does not retry a 429 plan_limit_reached', async () => {
+  const { transport, calls, sleeps } = setup([json(429, err('plan_limit_reached')), json(200, {})]);
+  await expect(transport.request({ method: 'POST', path: '/v1/x', body: {} })).rejects.toMatchObject({ code: 'plan_limit_reached' });
+  expect(calls).toHaveLength(1);
+  expect(sleeps).toEqual([]);
+});
+
 it('retries idempotency_request_in_progress', async () => {
   const { transport, calls } = setup([json(409, err('idempotency_request_in_progress')), json(200, { ok: true })]);
   await expect(transport.request({ method: 'POST', path: '/v1/x', body: {} })).resolves.toEqual({ ok: true });

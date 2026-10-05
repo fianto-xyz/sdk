@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { Checkout } from '@fianto/nextjs';
 import { siteOrigin } from '../../../src/site-origin.js';
+import { subscribeOrderId } from '../../../src/subscribe-attempts.js';
 
 interface Plan {
   priceId: string | undefined;
@@ -18,21 +19,23 @@ export const POST = Checkout({
     const body = (await request.json().catch(() => null)) as { plan?: string } | null;
     const plan = body?.plan;
     const chosen = plan ? PLANS[plan] : undefined;
-    if (!chosen) return new Response('Unknown plan', { status: 400 });
+    if (!plan || !chosen) return new Response('Unknown plan', { status: 400 });
     // `price_id` must be a string, not `string | undefined` — a real deployment sets
     // FIANTO_PRICE_PRO; this refuses to start a checkout that can't succeed either way.
     if (!chosen.priceId) return new Response('Plan not configured', { status: 500 });
 
     // DEMO ONLY: a real app reads the authenticated user's id from its own session, not a
-    // plain unsigned cookie. This stands in for that so the order_id below is stable and
-    // unique per user+plan across repeat attempts.
+    // plain unsigned cookie.
     const jar = await cookies();
     const userId = jar.get('uid')?.value ?? 'demo-user';
 
     const origin = siteOrigin(request);
     return {
       mode: 'subscription',
-      order_id: `sub_${userId}_${plan}`,
+      // Stable while this subscribe is open (a second click reuses its checkout), new once it
+      // completed: a subscription order_id can be used by one completed checkout only, and
+      // reusing it is refused with 409 order_id_in_use. See src/subscribe-attempts.ts.
+      order_id: subscribeOrderId(userId, plan),
       price_id: chosen.priceId,
       success_url: `${origin}/thank-you`,
       cancel_url: `${origin}/`,

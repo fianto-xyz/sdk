@@ -52,7 +52,7 @@ it('passes payment_in_progress through as 409', async () => {
   const response = await createCheckoutHandler({ fianto, createSession: async () => params })(sameOrigin());
   expect(response.status).toBe(409);
   expect(await response.json()).toEqual({
-    error: { code: 'payment_in_progress', message: 'A payment for this order is already being processed. Wait for it to finish before trying again.' },
+    error: { code: 'payment_in_progress', message: 'A payment for this order may already be in progress. Wait a minute before trying again.' },
   });
 });
 
@@ -223,8 +223,9 @@ it('relays a validation code for the merchant\'s own params with an SDK-written 
 
 it.each([
   [409, 'idempotency_key_reused'],
-  [422, 'merchant_token_account_missing'],
-  [503, 'subscriptions_paused'],
+  [409, 'subscription_preparing'],
+  [503, 'subscription_busy'],
+  [500, 'checkout_busy'],
   [500, 'internal_error'],
   [502, 'payment_in_progress'],
   [403, 'forbidden'],
@@ -255,4 +256,60 @@ it('passes the second handler argument to createSession as its context', async (
   const request = sameOrigin();
   await createCheckoutHandler({ fianto, createSession })(request, { userId: 'u_1' });
   expect(createSession).toHaveBeenCalledWith(request, { userId: 'u_1' });
+});
+
+// S1: a COMPLETED subscription checkout keeps its order_id; a new create for it can never succeed.
+it('relays order_id_in_use as 409 with an SDK-written message', async () => {
+  const { fianto } = fakeFianto([{ status: 409, body: { code: 'order_id_in_use', message: 'upstream', field: 'order_id' } }]);
+  const onError = vi.fn();
+  const response = await createCheckoutHandler({ fianto, createSession: async () => priced, onError })(sameOrigin());
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({
+    error: { code: 'order_id_in_use', message: 'This order has already been checked out. Start a new order.' },
+  });
+  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ status: 409, code: 'order_id_in_use' }));
+});
+
+// S3: the backend's 503 busy answers mean "nothing started, retry after Retry-After".
+it.each([
+  ['checkout_busy', '3', 'Payments are very busy right now. Try again in a few seconds.'],
+  ['service_busy', '3', 'Payments are very busy right now. Try again in a few seconds.'],
+  ['subscriptions_paused', null, 'New subscriptions are paused right now. Try again later.'],
+])('relays 503 %s with its retry-after once the client stops retrying', async (code, retryAfter, message) => {
+  const headers: Record<string, string> = retryAfter ? { 'retry-after': retryAfter } : {};
+  const { fianto } = fakeFianto([{ status: 503, body: { code, message: 'upstream' }, headers }]);
+  const response = await createCheckoutHandler({ fianto, createSession: async () => params })(sameOrigin());
+  expect(response.status).toBe(503);
+  expect(response.headers.get('retry-after')).toBe(retryAfter);
+  expect(await response.json()).toEqual({ error: { code, message } });
+});
+
+// S8: a merchant setup error is visible in development, without the wallet address.
+it('relays merchant_token_account_missing without the upstream message', async () => {
+  const { fianto } = fakeFianto([{ status: 422, body: { code: 'merchant_token_account_missing', message: 'Send any amount of USDC to Wa11et once' } }]);
+  const response = await createCheckoutHandler({ fianto, createSession: async () => params })(sameOrigin());
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({
+    error: { code: 'merchant_token_account_missing', message: "This shop's wallet cannot receive USDC yet." },
+  });
+});
+
+// S2: create returns an order's OPEN session without checking its price; the payer page then
+// refuses a new subscribe on an ended price. Never hand out a link for it.
+it.each([
+  ['subscription', priced, open({ mode: 'subscription', amount: '20000000', interval: 'MONTH' }), price({ status: 'ENDED' })],
+  [
+    'payment',
+    { ...priced, mode: 'payment' as const, order_id: 'o-2' },
+    open({ amount: '20000000' }),
+    price({ status: 'ENDED', interval: null, type: 'ONE_TIME' }),
+  ],
+])('answers 422 price_ended for an open %s session whose price has ended, never reissuing', async (_, sent, session, body) => {
+  const { fianto, calls } = fakeFianto([{ status: 201, body: session }, { status: 200, body }]);
+  const onError = vi.fn();
+  const response = await createCheckoutHandler({ fianto, createSession: async () => sent, onError })(sameOrigin());
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({ error: { code: 'price_ended', message: 'That price has ended and cannot be sold.' } });
+  expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/prices/fian_price_pro']);
+  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'price_ended', sessionId: 'fian_cs_1', priceId: 'fian_price_pro' }));
 });

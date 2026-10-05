@@ -34,13 +34,20 @@ const STATUS_COPY: Record<string, string> = {
 // the error's `code` instead (every error @fianto/js/@fianto/react throw is a
 // FiantoCheckoutError, which always carries one), and log the real message for the merchant.
 const ERROR_COPY: Record<string, string> = {
-  payment_in_progress: 'A payment for this order is already in progress.',
+  payment_in_progress: 'A payment for this order may already be in progress. Check your account before trying again.',
   order_already_paid: 'This order has already been paid.',
   order_session_mismatch: 'This checkout is out of date. Please refresh and try again.',
   rate_limited: 'Checkout is busy right now. Please try again shortly.',
   checkout_unavailable: 'Checkout is busy right now. Please try again shortly.',
   session_not_reissuable: 'Checkout is busy right now. Please try again shortly.',
-  subscription_preparing: 'The subscription is still being prepared. Please try again in a few seconds.',
+  checkout_busy: 'Checkout is busy right now. Please try again shortly.',
+  service_busy: 'Checkout is busy right now. Please try again shortly.',
+  // Retrying the same request cannot fix these: never say "try again".
+  order_id_in_use: 'This subscription checkout has already been completed. Check your account.',
+  price_ended: 'This plan is no longer available.',
+  product_ended: 'This plan is no longer available.',
+  plan_limit_reached: "Subscriptions can't be started right now.",
+  subscriptions_paused: "Subscriptions can't be started right now.",
 };
 const GENERIC_ERROR_COPY = 'Checkout could not be started. Please try again.';
 

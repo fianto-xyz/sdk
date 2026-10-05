@@ -25,6 +25,14 @@ export class Subscriptions {
     );
   }
 
+  /**
+   * `at: 'period_end'` schedules the end at `current_period_end` and sends
+   * `subscription.cancel_scheduled`, unless a cancel is already scheduled: a payer's own cancel
+   * stands and no new event is sent (asking twice changes nothing). `at: 'now'` ends it at once
+   * (`subscription.ended`, `end_reason: MERCHANT_CANCELED`) and clears any scheduled cancel.
+   * Refusals: 409 `subscription_already_ended`; 503 `subscription_busy` (nothing changed;
+   * retried automatically).
+   */
   async cancel(id: string, params: SubscriptionCancelParams, options?: RequestOptions): Promise<Subscription> {
     assertNotRequestOptions(params, 'subscriptions.cancel');
     return this.transport.request({ method: 'POST', path: `/v1/subscriptions/${pathId(id)}/cancel`, body: params }, options);

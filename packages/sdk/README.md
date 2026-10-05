@@ -34,9 +34,10 @@ export async function createCheckoutSession(): Promise<Response | undefined> {
   });
 
   // session.url is the hosted payment link. Redirect the browser to it, or hand it to a popup.
-  if (session.url) {
-    return Response.redirect(session.url, 303);
-  }
+  // It is null when order_1001 already has an OPEN session: create returned that session
+  // unchanged, so ask for a new link to it (or use a new order_id for different terms).
+  const url = session.url ?? (await fianto.checkoutSessions.reissueLink(session.id)).url;
+  return url ? Response.redirect(url, 303) : undefined;
 }
 ```
 
@@ -109,6 +110,18 @@ first argument; `orders.retrieveByOrderId` is the one method with neither an `id
 Path ids are validated client-side against `^[A-Za-z0-9_]{1,64}$` before any request is sent —
 an invalid id never reaches the network.
 
+**Ending a price.** A merchant ends a product or price in the dashboard; afterwards `status` is
+`ENDED` and a new checkout for it is refused with `422 price_ended` (or `product_ended`).
+Ending a recurring price also cancels its subscribers (a price archived before End replaced
+Archive on 2026-10-05 is not affected):
+
+- each live subscriber with no cancel yet gets a merchant cancel at the end of their current
+  period: `subscription.cancel_scheduled` with `cancel_reason: MERCHANT_CANCELED`;
+- a subscriber who already cancelled keeps their own cancel, and no new event is sent;
+- no renewal is charged after the End, even before that event arrives;
+- an open subscription checkout for that price can no longer be paid (the checkout page refuses
+  it with `subscription_plan_failed`).
+
 `fianto.events.retrieve`/`.list` resolve to `FiantoEvent` — the same typed union `@fianto/sdk/webhooks`
 delivers, plus the wire's own `object: 'event'` discriminator. It's named `FiantoEvent`, not
 `Event`: the generated schema's own name would otherwise shadow the DOM global and break
@@ -147,15 +160,26 @@ cursor after a full last page, so the next fetch comes back empty rather than lo
 
 Every `POST` sends an `Idempotency-Key` — `crypto.randomUUID()` by default, generated **once
 per logical call and reused on every retry** of that call (pass `options.idempotencyKey` to supply
-your own). This matters because a checkout session's `url` is returned exactly once, in the
-create response: if the response is lost after the API created the session, a retry under the
-same key gets the stored response back (`Idempotent-Replayed: true` header) with the same `url`,
-rather than creating a second session or losing the link.
+your own). This matters because a checkout session's `url` is returned only by `create` (for a
+new session) and by `reissueLink`; every other read, and a `create` that returns the order's
+already-open session, has `url: null`. If the create response is lost after the API created the
+session, a retry under the same key gets the stored response back (`Idempotent-Replayed: true`
+header) with the same `url`, rather than creating a second session or losing the link.
 
 Automatically retried (each with jittered backoff, honouring `Retry-After` when the server
-sends one): network errors, timeouts, `408`, `429`, every `5xx`, and `409` only when `code` is
-`idempotency_request_in_progress` or `checkout_unavailable` (the latter always carries
-`Retry-After`). Never retried: any other `4xx`, including `422 idempotency_key_reused`.
+sends one): network errors, timeouts, `408`, `429 rate_limited`, every `5xx`, and `409` only when
+`code` is `idempotency_request_in_progress` or `checkout_unavailable` (the latter always carries
+`Retry-After`). Never retried: any other `4xx`, including `422 idempotency_key_reused` and
+`429 plan_limit_reached` (a per-day cap on new subscription plans, sent without `Retry-After`).
+
+The `503`s you may see once retries run out:
+
+- `503 checkout_busy` (checkout-session routes) / `503 service_busy` (every other route): fianto's
+  database was too busy to start the request. It sends `Retry-After: 3`; try again after it.
+- `503 subscription_busy` (`subscriptions.cancel`): another request was updating the
+  subscription. Nothing was changed; try again.
+- `503 subscriptions_paused` (`checkoutSessions.create` with `mode: 'subscription'`): new
+  subscriptions are paused for now; existing ones are unaffected. Try again later.
 
 For crash recovery — say your process dies after the API created the session but before you
 persisted its `url` — reuse a **stable** key derived from data you already have, e.g.:
@@ -336,7 +360,10 @@ fianto forever. Deliveries already queued when that happens are held, not droppe
 and go out once the endpoint is verified again. To reactivate: fix whatever was rejecting or
 timing out deliveries, then in the dashboard (**Developers → Applications → your app → Webhook**)
 click "Verify again" — that sends a fresh `endpoint.verification` probe, and a `200` answer to it
-puts the endpoint back to active and releases the held deliveries.
+puts the endpoint back to active and releases the held deliveries. At most 10,000 deliveries are
+held per endpoint: events past that cap are not delivered, even after the endpoint is verified
+again (the dashboard shows that the cap was reached). After a long outage, reconcile with
+`fianto.events.list()`.
 
 ### The generic handler
 
@@ -505,21 +532,31 @@ Hono: the `Context`, Next.js: the route context) — see each adapter's README.
   'order_session_mismatch', ... } }` and leaves the open session untouched — it never cancels and
   recreates one, because a transaction the payer already built for the old session can still
   settle after a cancel. Use a new `order_id` for changed terms (e.g. include a cart version), or
-  cancel the open session yourself first.
+  cancel the open session yourself first. An open session for a `price_id` that has since
+  ended is not reopened either: the handler answers `422 { error: { code: 'price_ended', ... } }`
+  (the `OpenSessionPriceEndedError` passed to `onError` names the session and the price).
+- **`mode: 'subscription'`: an `order_id` can be used by one completed checkout only.** A new
+  subscribe (after a cancel, or a second click once the first one completed) needs a new
+  `order_id`, for example one with an attempt number or a timestamp in it; otherwise fianto
+  answers `409 { error: { code: 'order_id_in_use', ... } }`. A stable `order_id` is right for a
+  `mode: 'payment'` order, where a paid order answers `order_already_paid`.
 - The browser receives `200 { id, url }` on success. On an API error it receives
   `{ error: { code, message } }` with the upstream status for an allowlisted set of codes the
-  payer can act on — a session already in flight for this order answers `409 { error: { code:
-  'payment_in_progress', ... } }`; the API's own rate limit answers `429 { error: { code:
-  'rate_limited', ... } }` with a `retry-after` header passed through. That 429 isn't necessarily
+  payer can act on — a session that may already have a payment in flight answers `409 { error:
+  { code: 'payment_in_progress', ... } }`; a used subscription `order_id` answers `409 order_id_in_use`;
+  the API's own rate limit answers `429 { error: { code: 'rate_limited', ... } }` with a
+  `retry-after` header passed through (a `429 plan_limit_reached` is a per-day cap, relayed but
+  never retried); a busy or paused fianto answers `503` with `checkout_busy`, `service_busy` or
+  `subscriptions_paused`, `retry-after` passed through when sent. That 429 isn't necessarily
   the first thing the payer sees, though: the underlying client (`new Fianto()`) already retries
   a 429 whose `Retry-After` is 10 s or less, up to `maxRetries` attempts (default 2) — the
   checkout route only answers `429` at once when `Retry-After` exceeds 10 s, or once those
   retries are exhausted, not on every rate-limited attempt (see [Idempotency and
   retries](#idempotency-and-retries)). Pass `fianto: new Fianto({ maxRetries: 0 })` to
-  `createCheckoutHandler` if you'd rather it answer `429` immediately every time. **Every other
-  failure — including a `401`/`403` from fianto itself (a credentials problem) and every `5xx` —
-  answers a generic `500 { error: { code: 'internal_error', ... } }`**, never the upstream status
-  or body. Neither response ever echoes your credentials or the full upstream error body.
+  `createCheckoutHandler` if you'd rather it answer `429` immediately every time. The same holds
+  for those `503`s: the client retries them first. **Every other failure — including a
+  `401`/`403` from fianto itself (a credentials problem) and every other `5xx` — answers a generic
+  `500 { error: { code: 'internal_error', ... } }`**, never the upstream status or body. Neither response ever echoes your credentials or the full upstream error body.
 
 `onError(error)` is called for every error, including the ones relayed to the browser and the
 ones collapsed into the generic `500` (the response is unchanged either way) — wire it up, or a

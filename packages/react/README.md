@@ -68,7 +68,8 @@ render the same DOM.
 `fetchCheckoutSession` (re-exported from `@fianto/js`, with its errors `FiantoCheckoutError`,
 `CheckoutSessionError`, `InvalidSessionError` and `PopupBlockedError`) `POST`s its
 `body` as JSON to your route and rejects with a `CheckoutSessionError` carrying the route's
-`code` (`payment_in_progress`, `order_session_mismatch`, `rate_limited`, …), `status` and
+`code` (`payment_in_progress`, `order_id_in_use`, `order_session_mismatch`, `price_ended`,
+`rate_limited`, `checkout_busy`, …), `status` and
 `retryAfter` — see [`@fianto/js`](https://github.com/fianto-xyz/sdk/tree/master/packages/js#fetchcheckoutsession).
 The button shows the payer a short localised line chosen by that `code`, never the route's own
 `message` (written for you; it reaches `onError`). On a `closed` result with `reason:

@@ -24,7 +24,9 @@ export interface CheckoutHandlerOptions<Context = unknown> {
    * Decide price and order_id HERE, on your server. Never take a price from the request body.
    * Return a Response to refuse. An order_id that already has an open checkout with different
    * terms is refused with 409 `order_session_mismatch`: give changed terms a new order_id (for
-   * example, include a cart version).
+   * example, include a cart version). For `mode: 'subscription'`, an order_id can be used by one
+   * completed checkout only: a later subscribe (after a cancel, say) needs a new order_id, or
+   * fianto answers 409 `order_id_in_use`.
    */
   createSession: (request: Request, context: Context) => Promise<CheckoutSessionParams | Response>;
   /** Origins allowed to call this route. Default: the request URL's own origin. */
@@ -49,12 +51,14 @@ function sameSite(request: Request, allowed: readonly string[] | undefined): boo
 /**
  * The server route behind openCheckout() / <fianto-button>: creates a popup-mode session and
  * answers { id, url }. When the order already has an open session with the same terms it
- * reissues that session's link; with different terms it answers 409 `order_session_mismatch`
- * and leaves the open session alone.
+ * reissues that session's link; with different terms it answers 409 `order_session_mismatch`,
+ * and for a price that has since ended 422 `price_ended`, leaving the open session alone.
  *
  * Errors reach the browser as `{ error: { code, message } }` only for an allowlisted set of codes
- * (with SDK-written messages, and `retry-after` passed through — a 429 is `rate_limited`);
- * anything else is a generic 500 `internal_error`.
+ * (with SDK-written messages, and `retry-after` passed through): 4xx codes the payer or the
+ * merchant can act on (a 429 is `rate_limited` or `plan_limit_reached`), and the 503s
+ * `checkout_busy`, `service_busy` and `subscriptions_paused`. Anything else, including every
+ * other 5xx, is a generic 500 `internal_error`.
  */
 export function createCheckoutHandler<Context = unknown>(
   options: CheckoutHandlerOptions<Context>,

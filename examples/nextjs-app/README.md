@@ -7,9 +7,14 @@ and `@fianto/react`:
 - `app/pay-button.tsx` — a client component wrapping `@fianto/react`'s `<FiantoButton>`, showing
   the money-safe copy for each of the four checkout statuses.
 - `app/api/checkout/route.ts` — `Checkout()` from `@fianto/nextjs`. Decides the price and
-  `order_id` **on the server** from a `PLANS` map, never from the request body.
-- `app/api/webhooks/fianto/route.ts` — `Webhooks()` from `@fianto/nextjs`. This is where an order
-  or subscription actually gets fulfilled.
+  `order_id` **on the server** from a `PLANS` map, never from the request body. For
+  `mode: 'subscription'` an `order_id` can be used by one completed checkout only; a new
+  subscribe needs a new `order_id` (fianto answers `409 order_id_in_use` otherwise), so the
+  route takes it from `src/subscribe-attempts.ts`: the same id while a subscribe is open, a new
+  one once `subscription.created` arrived.
+- `app/api/webhooks/fianto/route.ts` — `Webhooks()` from `@fianto/nextjs`. This is where a
+  subscription actually gets granted (`subscription.created`), extended
+  (`subscription.renewed`) and revoked (`subscription.ended`).
 
 ## Setup
 
@@ -53,9 +58,12 @@ so run it locally (`pnpm --filter nextjs-app build`) before shipping a change he
 
 The checkout button's `succeeded` status means the payer's browser saw checkout finish **on the
 checkout page** — it is not proof of payment or settlement. This example only logs fulfilment
-inside the webhook handler (`onOrderPaid`, `onSubscriptionRenewed`); a real app would write to its
-database there, deduped on `event.id` in the same transaction as the write (delivery is
-at-least-once and unordered). The `closed` status means **unknown**, not "nothing was charged" —
+inside the webhook handler: `onSubscriptionCreated` (grant access), `onSubscriptionRenewed`
+(extend it), `onSubscriptionPastDue` (dunning) and `onSubscriptionEnded` (revoke it). A
+subscription checkout creates no order, so `order.paid` never fires for it; `onOrderPaid` is kept
+only for `mode: 'payment'` checkouts. A real app would write to its database in those callbacks,
+deduped on `event.id` in the same transaction as the write (delivery is at-least-once and
+unordered). The `closed` status means **unknown**, not "nothing was charged" —
 never tell a payer nothing was charged based on the browser's view alone. `canceled` isn't proof
 of that either — a transaction the payer already built can still land after they clicked
 "cancel" — and `expired` never says just "try again" without pointing the payer at their order

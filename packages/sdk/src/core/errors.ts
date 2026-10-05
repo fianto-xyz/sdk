@@ -80,6 +80,11 @@ export class ConflictError extends APIError { override name = 'ConflictError'; }
 export class ServiceUnavailableError extends APIError { override name = 'ServiceUnavailableError'; }
 export class InternalServerError extends APIError { override name = 'InternalServerError'; }
 
+/**
+ * HTTP 429: `rate_limited` (retried automatically, honouring `Retry-After`), or
+ * `plan_limit_reached` (a per-day cap on new subscription plans, sent without `Retry-After`:
+ * never retried).
+ */
 export class RateLimitError extends APIError {
   override name = 'RateLimitError';
   readonly retryAfterSeconds: number | undefined;

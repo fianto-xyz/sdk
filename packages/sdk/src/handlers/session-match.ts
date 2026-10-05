@@ -31,6 +31,31 @@ export class OrderSessionMismatchError extends FiantoError {
   }
 }
 
+/**
+ * The order already has an OPEN checkout session, but the price it was asked for has since
+ * ENDED. `createCheckoutHandler` answers 422 `price_ended` and never reissues the link: fianto
+ * returns an order's open session without checking its price, and would refuse a new subscribe
+ * on that session at the checkout page (`subscription_plan_failed`). The session is left open;
+ * cancel it yourself, or sell a different price under a new `order_id`.
+ */
+export class OpenSessionPriceEndedError extends FiantoError {
+  override name = 'OpenSessionPriceEndedError';
+  readonly code = 'price_ended';
+  /** @internal Constructed only by `createCheckoutHandler`. */
+  constructor(
+    /** The open session's id (`fian_cs_…`). */
+    readonly sessionId: string,
+    /** The ended price (`fian_price_…`). */
+    readonly priceId: string,
+    orderId: string,
+  ) {
+    super(
+      `Order ${orderId} already has an open checkout session (${sessionId}), but price ${priceId} has ended. ` +
+        'No new link was issued: sell a different price under a new order_id, or cancel that session.',
+    );
+  }
+}
+
 function sameAmount(decimal: string, baseUnits: string): boolean {
   try {
     return usdc.toBaseUnits(decimal) === baseUnits;
@@ -47,6 +72,10 @@ function sameAmount(decimal: string, baseUnits: string): boolean {
  * the price itself: prices are immutable apart from ending, so the session was opened for
  * this price only if the price's amount, currency and interval all match the session's. Two
  * different prices with identical amount, currency and interval cannot be told apart this way.
+ *
+ * Throws `OpenSessionPriceEndedError` when that price has ENDED (ending a product ends its
+ * prices too): a new create for it would be refused with `price_ended`, so its open session is
+ * not handed out again either.
  */
 export async function mismatchedFields(
   client: Fianto,
@@ -61,6 +90,7 @@ export async function mismatchedFields(
   } else if (fields.length === 0) {
     // Only worth an API read when nothing else already rules the session out.
     const price = await client.prices.retrieve(params.price_id);
+    if (price.status === 'ENDED') throw new OpenSessionPriceEndedError(session.id, price.id, params.order_id);
     if (price.amount !== session.amount || price.currency !== session.currency || price.interval !== session.interval) {
       fields.push('price_id');
     }

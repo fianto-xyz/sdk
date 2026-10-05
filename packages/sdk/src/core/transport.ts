@@ -55,8 +55,11 @@ function isRedirectResponse(response: Response): boolean {
   return response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400);
 }
 
+/** A 429 that no retry within one call can fix: a per-day cap, sent with no Retry-After. */
+const FINAL_429 = new Set(['plan_limit_reached']);
+
 function isRetryable(error: APIError): boolean {
-  return error.status === 408 || error.status === 429 || error.status >= 500
+  return error.status === 408 || (error.status === 429 && !FINAL_429.has(error.code)) || error.status >= 500
     || (error.status === 409 && RETRYABLE_409.has(error.code));
 }
 

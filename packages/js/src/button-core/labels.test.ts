@@ -25,6 +25,19 @@ it('maps plan_limit_reached to a dedicated, neutral key that never promises a re
   expect(STATUS_TEXT.en.unavailable.toLowerCase()).not.toContain('try again');
 });
 
+// S1/S5/S3: codes a retry with the same params can never fix get the neutral line, not "try again".
+it.each(['order_id_in_use', 'price_ended', 'product_ended', 'subscriptions_paused'])('maps %s to unavailable', (code) => {
+  expect(errorTextKey(code)).toBe('unavailable');
+});
+
+it.each(['checkout_busy', 'service_busy'])('maps the transient %s to busy', (code) => {
+  expect(errorTextKey(code)).toBe('busy');
+});
+
+it('never says a payment is being processed when one may only be possible (S15)', () => {
+  expect(STATUS_TEXT.en.payment_in_progress).toBe('A payment for this order may already be in progress.');
+});
+
 it('falls back to generic for an unknown or missing error code', () => {
   expect(errorTextKey('some_new_code_this_sdk_does_not_know')).toBe('generic');
   expect(errorTextKey(undefined)).toBe('generic');

@@ -79,7 +79,7 @@ it('shows the in-progress message and calls onError on a 409 FiantoCheckoutError
   expect(error).toBeInstanceOf(FiantoCheckoutError);
   expect((error as FiantoCheckoutError).code).toBe('payment_in_progress');
   const status = container.querySelector('.fianto-status')!;
-  expect(status.textContent).toBe('A payment for this order is already in progress.');
+  expect(status.textContent).toBe('A payment for this order may already be in progress.');
 });
 
 it('clears the 6s status timer on unmount, not just on a later re-render', async () => {
@@ -103,7 +103,7 @@ it('clears the 6s status timer on unmount, not just on a later re-render', async
     // replace macrotasks (setTimeout/setInterval), so plain microtask ticks still settle it.
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
   });
-  expect(container.querySelector('.fianto-status')!.textContent).toBe('A payment for this order is already in progress.');
+  expect(container.querySelector('.fianto-status')!.textContent).toBe('A payment for this order may already be in progress.');
   expect(vi.getTimerCount()).toBeGreaterThan(0);
   clearTimeoutSpy.mockClear();
   unmount();
@@ -165,7 +165,7 @@ it('falls back to logo-only when the label overflows', () => {
 // D3: fetchCheckoutSession (re-exported here) keeps the route's code; the payer sees copy chosen
 // by that code, never the route's own message.
 it.each([
-  [409, 'payment_in_progress', 'A payment for this order is already in progress.'],
+  [409, 'payment_in_progress', 'A payment for this order may already be in progress.'],
   [429, 'rate_limited', 'Checkout is busy right now. Please try again shortly.'],
   [400, 'validation_failed', 'Checkout could not be started. Please try again.'],
 ])('with fetchCheckoutSession, a %i %s shows payer copy and hands onError the typed error', async (httpStatus, code, copy) => {

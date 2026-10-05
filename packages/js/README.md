@@ -132,7 +132,7 @@ returns its `{ id, url }`. When the route refuses, it rejects with a `CheckoutSe
 
 | Field | Value |
 |---|---|
-| `code` | the route's `error.code` — e.g. `payment_in_progress` (409), `order_already_paid` (409), `order_session_mismatch` (409), `checkout_unavailable` (409), `rate_limited` (429), a validation code for your own params, `internal_error` (500); or `network_error` (no response) / `session_request_failed` (an error status with no `{ error: { code } }` body) |
+| `code` | the route's `error.code` — e.g. `payment_in_progress` (409), `order_already_paid` (409), `order_id_in_use` (409), `order_session_mismatch` (409), `checkout_unavailable` (409), `session_not_reissuable` (409), `price_ended` / `product_ended` (422), `rate_limited` / `plan_limit_reached` (429), `checkout_busy` / `service_busy` / `subscriptions_paused` (503), a validation code for your own params, `internal_error` (500); or `network_error` (no response) / `session_request_failed` (an error status with no `{ error: { code } }` body) |
 | `status` | the HTTP status |
 | `retryAfter` | the `Retry-After` header in seconds, when sent |
 | `message` | the route's message — written for you, not for the payer |
@@ -251,11 +251,14 @@ session_id }`, plus `reason` when `closed` — the same result as `openCheckout`
 
 `session-endpoint` is called with `fetchCheckoutSession`, and the payer sees a short, localised
 line chosen by the error's `code` — never your route's `message`, which can name your own
-params: `payment_in_progress` → "A payment for this order is already in progress.",
+params: `payment_in_progress` → "A payment for this order may already be in progress.",
 `order_already_paid` → "This order has already been paid.", `rate_limited` /
-`checkout_unavailable` / `session_not_reissuable` / `subscription_preparing` → "Checkout is busy
-right now. Please try again shortly.", anything else → "Checkout could not be started. Please try
-again." On a `closed` result with `reason: 'unreachable'` it shows "Lost track of the checkout
+`checkout_unavailable` / `session_not_reissuable` / `checkout_busy` / `service_busy` → "Checkout
+is busy right now. Please try again shortly.", `order_session_mismatch` → "This checkout changed —
+reload the page and try again.", `plan_limit_reached` / `order_id_in_use` / `price_ended` /
+`product_ended` / `subscriptions_paused` → "Checkout isn't available right now." (a retry
+cannot fix these, so it never says to try again), anything else → "Checkout could not be
+started. Please try again." On a `closed` result with `reason: 'unreachable'` it shows "Lost track of the checkout
 window. Check your order status before trying again." and ignores clicks for 6 s, rather than
 re-enabling straight into a second checkout. Clicking the button while a checkout is open brings
 its popup to the front.
