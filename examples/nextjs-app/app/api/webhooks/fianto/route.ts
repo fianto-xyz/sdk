@@ -1,5 +1,5 @@
 import { Webhooks } from '@fianto/nextjs';
-import { subscribeCompleted } from '../../../../src/subscribe-attempts.js';
+import { subscribeEnded } from '../../../../src/subscribe-attempts.js';
 
 // Delivery is at-least-once and unordered: every callback below WILL be called more than once
 // for the same event.id, and may run before or after other events for the same subscription.
@@ -13,8 +13,6 @@ export const POST = Webhooks({
   onSubscriptionCreated: async (event) => {
     // Grant access for the first period.
     console.log('subscription created', event.data.id, event.data.order_id);
-    // The user's next subscribe to this plan needs a new order_id (see src/subscribe-attempts.ts).
-    subscribeCompleted(event.data.order_id);
   },
   onSubscriptionRenewed: async (event) => {
     // Extend access by one period.
@@ -27,6 +25,9 @@ export const POST = Webhooks({
   onSubscriptionEnded: async (event) => {
     // Revoke access. event.data.end_reason says why.
     console.log('subscription ended', event.data.id, event.data.end_reason);
+    // Only now may this user subscribe to the plan again, under a new order_id (see
+    // src/subscribe-attempts.ts).
+    subscribeEnded(event.data.order_id);
   },
   // Covers mode: 'payment' checkouts only (none in this example): a subscription creates no order.
   onOrderPaid: async (event) => {

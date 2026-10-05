@@ -43,7 +43,7 @@ const ERROR_COPY: Record<string, string> = {
   checkout_busy: 'Checkout is busy right now. Please try again shortly.',
   service_busy: 'Checkout is busy right now. Please try again shortly.',
   // Retrying the same request cannot fix these: never say "try again".
-  order_id_in_use: 'This subscription checkout has already been completed. Check your account.',
+  order_id_in_use: 'This subscription has already been started. Check your account.',
   price_ended: 'This plan is no longer available.',
   product_ended: 'This plan is no longer available.',
   plan_limit_reached: "Subscriptions can't be started right now.",

@@ -9,9 +9,10 @@ and `@fianto/react`:
 - `app/api/checkout/route.ts` — `Checkout()` from `@fianto/nextjs`. Decides the price and
   `order_id` **on the server** from a `PLANS` map, never from the request body. For
   `mode: 'subscription'` an `order_id` can be used by one completed checkout only; a new
-  subscribe needs a new `order_id` (fianto answers `409 order_id_in_use` otherwise), so the
-  route takes it from `src/subscribe-attempts.ts`: the same id while a subscribe is open, a new
-  one once `subscription.created` arrived.
+  subscribe needs a new `order_id` (fianto answers `409 order_id_in_use` otherwise). The route
+  takes it from `src/subscribe-attempts.ts`: the same id for the whole life of the user's
+  subscription (so a live subscriber cannot start a second one), and a new one once
+  `subscription.ended` arrived.
 - `app/api/webhooks/fianto/route.ts` — `Webhooks()` from `@fianto/nextjs`. This is where a
   subscription actually gets granted (`subscription.created`), extended
   (`subscription.renewed`) and revoked (`subscription.ended`).

@@ -144,6 +144,17 @@ it('does not retry a 429 plan_limit_reached', async () => {
   expect(sleeps).toEqual([]);
 });
 
+// Review fix 6: subscriptions_paused is a switch that flips only on a restart: retrying is pointless.
+it('does not retry a 503 subscriptions_paused, but still retries other 503s', async () => {
+  const { transport, calls, sleeps } = setup([json(503, err('subscriptions_paused')), json(200, {})]);
+  await expect(transport.request({ method: 'POST', path: '/v1/x', body: {} })).rejects.toMatchObject({ code: 'subscriptions_paused' });
+  expect(calls).toHaveLength(1);
+  expect(sleeps).toEqual([]);
+  const busy = setup([json(503, err('checkout_busy'), { 'retry-after': '3' }), json(200, { ok: true })]);
+  await expect(busy.transport.request({ method: 'POST', path: '/v1/x', body: {} })).resolves.toEqual({ ok: true });
+  expect(busy.sleeps).toEqual([3_000]);
+});
+
 it('retries idempotency_request_in_progress', async () => {
   const { transport, calls } = setup([json(409, err('idempotency_request_in_progress')), json(200, { ok: true })]);
   await expect(transport.request({ method: 'POST', path: '/v1/x', body: {} })).resolves.toEqual({ ok: true });

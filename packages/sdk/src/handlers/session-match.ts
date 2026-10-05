@@ -33,14 +33,17 @@ export class OrderSessionMismatchError extends FiantoError {
 
 /**
  * The order already has an OPEN checkout session, but the price it was asked for has since
- * ENDED. `createCheckoutHandler` answers 422 `price_ended` and never reissues the link: fianto
+ * ENDED. `createCheckoutHandler` answers the browser 422 `price_ended` and never reissues the
+ * link. Its own code is `open_session_price_ended`, not the API's `price_ended`: it is the
+ * SDK's refusal, not an API response, so it has no `status`, `headers` or `requestId`, and
+ * `isFiantoError(e, 'price_ended')` (which narrows to `APIError`) is false for it. fianto
  * returns an order's open session without checking its price, and would refuse a new subscribe
  * on that session at the checkout page (`subscription_plan_failed`). The session is left open;
  * cancel it yourself, or sell a different price under a new `order_id`.
  */
 export class OpenSessionPriceEndedError extends FiantoError {
   override name = 'OpenSessionPriceEndedError';
-  readonly code = 'price_ended';
+  readonly code = 'open_session_price_ended';
   /** @internal Constructed only by `createCheckoutHandler`. */
   constructor(
     /** The open session's id (`fian_cs_…`). */

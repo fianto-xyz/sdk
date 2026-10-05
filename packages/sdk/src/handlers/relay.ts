@@ -64,7 +64,8 @@ export function checkoutErrorResponse(error: unknown): Response {
     return json(409, { error: { code: error.code, message: relayed(error.code) } });
   }
   if (error instanceof OpenSessionPriceEndedError) {
-    return json(422, { error: { code: error.code, message: relayed(error.code) } });
+    // The browser sees the API's own code for an ended price, as a fresh create would answer.
+    return json(422, { error: { code: 'price_ended', message: relayed('price_ended') } });
   }
   if (isAPIError(error) && relayable(error.status, error.code)) {
     const message = relayed(error.code);

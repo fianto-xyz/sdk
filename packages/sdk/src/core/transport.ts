@@ -55,11 +55,16 @@ function isRedirectResponse(response: Response): boolean {
   return response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400);
 }
 
-/** A 429 that no retry within one call can fix: a per-day cap, sent with no Retry-After. */
-const FINAL_429 = new Set(['plan_limit_reached']);
+/**
+ * Codes on a normally retryable status that no retry within one call can fix:
+ * `plan_limit_reached` (429) is a per-day cap sent with no Retry-After, and
+ * `subscriptions_paused` (503) is a switch that only changes when fianto restarts.
+ */
+const FINAL = new Set(['plan_limit_reached', 'subscriptions_paused']);
 
 function isRetryable(error: APIError): boolean {
-  return error.status === 408 || (error.status === 429 && !FINAL_429.has(error.code)) || error.status >= 500
+  if (FINAL.has(error.code)) return false;
+  return error.status === 408 || error.status === 429 || error.status >= 500
     || (error.status === 409 && RETRYABLE_409.has(error.code));
 }
 

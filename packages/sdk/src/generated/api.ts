@@ -1215,7 +1215,7 @@ export interface components {
             total_amount: string;
             /** @enum {string} */
             ui_mode: "redirect" | "popup";
-            /** @description The hosted payment link. Returned ONLY by create and by reissuing the link: the token is never recoverable, so every other read returns null. */
+            /** @description The hosted payment link. Returned ONLY by create for a NEW session and by reissuing the link: the token is never recoverable, so it is null when create returns the order's already-open session, and on every other read. */
             url: string | null;
         };
         ApiSubscriptionResponse: {

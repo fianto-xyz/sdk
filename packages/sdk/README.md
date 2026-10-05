@@ -117,8 +117,11 @@ Archive on 2026-10-05 is not affected):
 
 - each live subscriber with no cancel yet gets a merchant cancel at the end of their current
   period: `subscription.cancel_scheduled` with `cancel_reason: MERCHANT_CANCELED`;
-- a subscriber who already cancelled keeps their own cancel, and no new event is sent;
-- no renewal is charged after the End, even before that event arrives;
+- a subscriber who already cancelled keeps their own cancel, and no new event is sent; the
+  merchant cancel is still recorded, so if that payer resumes, it takes over and a second
+  `subscription.cancel_scheduled` (`cancel_reason: MERCHANT_CANCELED`) is sent;
+- no new renewal charge is started after the End, even before that event arrives (one already
+  sent before it can still land);
 - an open subscription checkout for that price can no longer be paid (the checkout page refuses
   it with `subscription_plan_failed`).
 
@@ -167,19 +170,21 @@ session, a retry under the same key gets the stored response back (`Idempotent-R
 header) with the same `url`, rather than creating a second session or losing the link.
 
 Automatically retried (each with jittered backoff, honouring `Retry-After` when the server
-sends one): network errors, timeouts, `408`, `429 rate_limited`, every `5xx`, and `409` only when
-`code` is `idempotency_request_in_progress` or `checkout_unavailable` (the latter always carries
-`Retry-After`). Never retried: any other `4xx`, including `422 idempotency_key_reused` and
-`429 plan_limit_reached` (a per-day cap on new subscription plans, sent without `Retry-After`).
+sends one): network errors, timeouts, `408`, `429 rate_limited`, every `5xx` except
+`503 subscriptions_paused`, and `409` only when `code` is `idempotency_request_in_progress` or
+`checkout_unavailable` (the latter always carries `Retry-After`). Never retried: any other `4xx`,
+including `422 idempotency_key_reused` and `429 plan_limit_reached` (a per-day cap on new
+subscription plans, sent without `Retry-After`), and `503 subscriptions_paused`.
 
-The `503`s you may see once retries run out:
+The `503`s you may see (the busy ones once retries run out):
 
 - `503 checkout_busy` (checkout-session routes) / `503 service_busy` (every other route): fianto's
   database was too busy to start the request. It sends `Retry-After: 3`; try again after it.
 - `503 subscription_busy` (`subscriptions.cancel`): another request was updating the
   subscription. Nothing was changed; try again.
 - `503 subscriptions_paused` (`checkoutSessions.create` with `mode: 'subscription'`): new
-  subscriptions are paused for now; existing ones are unaffected. Try again later.
+  subscriptions are paused for now; existing ones are unaffected. Not retried (it only changes
+  when fianto restarts); try again later.
 
 For crash recovery — say your process dies after the API created the session but before you
 persisted its `url` — reuse a **stable** key derived from data you already have, e.g.:
@@ -534,7 +539,8 @@ Hono: the `Context`, Next.js: the route context) — see each adapter's README.
   settle after a cancel. Use a new `order_id` for changed terms (e.g. include a cart version), or
   cancel the open session yourself first. An open session for a `price_id` that has since
   ended is not reopened either: the handler answers `422 { error: { code: 'price_ended', ... } }`
-  (the `OpenSessionPriceEndedError` passed to `onError` names the session and the price).
+  (the `OpenSessionPriceEndedError` passed to `onError`, code `open_session_price_ended`, names the
+  session and the price).
 - **`mode: 'subscription'`: an `order_id` can be used by one completed checkout only.** A new
   subscribe (after a cancel, or a second click once the first one completed) needs a new
   `order_id`, for example one with an attempt number or a timestamp in it; otherwise fianto
@@ -547,14 +553,14 @@ Hono: the `Context`, Next.js: the route context) — see each adapter's README.
   the API's own rate limit answers `429 { error: { code: 'rate_limited', ... } }` with a
   `retry-after` header passed through (a `429 plan_limit_reached` is a per-day cap, relayed but
   never retried); a busy or paused fianto answers `503` with `checkout_busy`, `service_busy` or
-  `subscriptions_paused`, `retry-after` passed through when sent. That 429 isn't necessarily
+  `subscriptions_paused`, `retry-after` passed through when sent. A `429 rate_limited` isn't necessarily
   the first thing the payer sees, though: the underlying client (`new Fianto()`) already retries
   a 429 whose `Retry-After` is 10 s or less, up to `maxRetries` attempts (default 2) — the
   checkout route only answers `429` at once when `Retry-After` exceeds 10 s, or once those
   retries are exhausted, not on every rate-limited attempt (see [Idempotency and
   retries](#idempotency-and-retries)). Pass `fianto: new Fianto({ maxRetries: 0 })` to
   `createCheckoutHandler` if you'd rather it answer `429` immediately every time. The same holds
-  for those `503`s: the client retries them first. **Every other failure — including a
+  for the busy `503`s: the client retries them first (`subscriptions_paused` is answered at once). **Every other failure — including a
   `401`/`403` from fianto itself (a credentials problem) and every other `5xx` — answers a generic
   `500 { error: { code: 'internal_error', ... } }`**, never the upstream status or body. Neither response ever echoes your credentials or the full upstream error body.
 

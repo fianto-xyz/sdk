@@ -32,8 +32,9 @@ export class CheckoutSessions {
   /**
    * A new `url` for an OPEN session; the old link stops working. Refusals:
    * - 409 `session_not_reissuable`: the session is not OPEN, or expires in under 2 minutes.
-   * - 409 `payment_in_progress`: a payment is live, or the last transaction built for the
-   *   session could still land.
+   * - 409 `payment_in_progress`: a payment is live, the last transaction built for the
+   *   session could still land, or another request (a build, submit or cancel) held the
+   *   session past the lock timeout.
    * - 409 `checkout_unavailable` with `Retry-After`: the chain could not be read (retried
    *   automatically).
    * - 503 `checkout_busy` with `Retry-After`: fianto was too busy to start (retried

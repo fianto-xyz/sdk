@@ -27,9 +27,15 @@ export class Subscriptions {
 
   /**
    * `at: 'period_end'` schedules the end at `current_period_end` and sends
-   * `subscription.cancel_scheduled`, unless a cancel is already scheduled: a payer's own cancel
-   * stands and no new event is sent (asking twice changes nothing). `at: 'now'` ends it at once
-   * (`subscription.ended`, `end_reason: MERCHANT_CANCELED`) and clears any scheduled cancel.
+   * `subscription.cancel_scheduled`, unless a cancel is already scheduled: asking twice changes
+   * nothing, and behind a payer's own cancel the payer's stands with no new event. Your cancel is
+   * still recorded (`merchant_cancel_requested: true`): if the payer then resumes, it takes over
+   * (ending at `current_period_end`), announced by a second `subscription.cancel_scheduled` with
+   * `cancel_reason: MERCHANT_CANCELED`.
+   *
+   * `at: 'now'` ends it at once (`subscription.ended`, `end_reason: MERCHANT_CANCELED`) and clears
+   * any scheduled cancel. A renewal charge already in flight is not stopped and can still land
+   * after that; fianto flags it to the merchant for a refund decision.
    * Refusals: 409 `subscription_already_ended`; 503 `subscription_busy` (nothing changed;
    * retried automatically).
    */

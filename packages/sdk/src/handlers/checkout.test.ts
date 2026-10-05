@@ -1,5 +1,7 @@
 import { Fianto } from '../client.js';
 import { createCheckoutHandler } from './checkout.js';
+import { isAPIError, isFiantoError } from '../core/errors.js';
+import { OpenSessionPriceEndedError } from './session-match.js';
 
 function fakeFianto(responses: Array<{ status: number; body: unknown; headers?: Record<string, string> }>) {
   const calls: Array<{ path: string; body: unknown }> = [];
@@ -311,5 +313,11 @@ it.each([
   expect(response.status).toBe(422);
   expect(await response.json()).toEqual({ error: { code: 'price_ended', message: 'That price has ended and cannot be sold.' } });
   expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/prices/fian_price_pro']);
-  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'price_ended', sessionId: 'fian_cs_1', priceId: 'fian_price_pro' }));
+  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'open_session_price_ended', sessionId: 'fian_cs_1', priceId: 'fian_price_pro' }));
+  const error = onError.mock.calls[0]![0];
+  expect(error).toBeInstanceOf(OpenSessionPriceEndedError);
+  // Not an API response: it must never narrow to APIError through the API's own code.
+  expect(isFiantoError(error, 'price_ended')).toBe(false);
+  expect(isAPIError(error)).toBe(false);
+  expect(isFiantoError(error, 'open_session_price_ended')).toBe(true);
 });

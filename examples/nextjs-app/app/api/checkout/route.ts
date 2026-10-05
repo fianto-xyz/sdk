@@ -32,9 +32,10 @@ export const POST = Checkout({
     const origin = siteOrigin(request);
     return {
       mode: 'subscription',
-      // Stable while this subscribe is open (a second click reuses its checkout), new once it
-      // completed: a subscription order_id can be used by one completed checkout only, and
-      // reusing it is refused with 409 order_id_in_use. See src/subscribe-attempts.ts.
+      // The same order_id for the whole life of the user's subscription: a second click reuses
+      // the open checkout, and while the subscription is live fianto refuses another subscribe
+      // with 409 order_id_in_use. A new one only after subscription.ended. See
+      // src/subscribe-attempts.ts.
       order_id: subscribeOrderId(userId, plan),
       price_id: chosen.priceId,
       success_url: `${origin}/thank-you`,
