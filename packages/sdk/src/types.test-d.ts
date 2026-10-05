@@ -6,7 +6,7 @@
 // behaviour to assert; the type itself is the thing under test.
 import { expectTypeOf } from 'vitest';
 import type { Fianto } from './client.js';
-import type { CheckoutSessionCreateParams, FiantoEvent } from './types.js';
+import type { CheckoutSession, CheckoutSessionCreateParams, FiantoEvent, Payment, Subscription } from './types.js';
 import { isEventType } from './webhooks/events.js';
 
 declare const fianto: Fianto;
@@ -97,3 +97,9 @@ void typedEventRetrieve;
 // @ts-expect-error 'Event' is not an exported member of './index.js' — F12 renamed it to
 // FiantoEvent specifically so it stops shadowing the DOM global.
 type _EventIsNotExported = import('./index.js').Event;
+
+// --- Renewal network fee (October 2026): always present on v1 reads ("0" where none) ---------
+// total_amount = amount + fee_amount + network_fee_amount on sessions, payments and subscriptions.
+expectTypeOf<CheckoutSession['network_fee_amount']>().toEqualTypeOf<string>();
+expectTypeOf<Payment['network_fee_amount']>().toEqualTypeOf<string>();
+expectTypeOf<Subscription['network_fee_amount']>().toEqualTypeOf<string>();

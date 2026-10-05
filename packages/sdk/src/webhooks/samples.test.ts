@@ -49,3 +49,34 @@ it('gives each event a status that fits its type', () => {
 it('builds the verification probe without an id', () => {
   expect(sampleVerificationEvent('abc')).toEqual({ type: 'endpoint.verification', timestamp: expect.any(String), data: { challenge: 'abc' } });
 });
+
+// The renewal network fee (October 2026): every subscription charge, the first included, is
+// price + Fianto fee + network fee, and `total_amount` includes it. A payment session has none.
+it('puts the network fee inside every subscription total, and none on a payment session', () => {
+  const total = (d: { amount: string; fee_amount: string; network_fee_amount?: string }) =>
+    BigInt(d.amount) + BigInt(d.fee_amount) + BigInt(d.network_fee_amount ?? '0');
+  for (const type of WEBHOOK_EVENT_TYPES.filter((t) => t.startsWith('subscription.'))) {
+    const data = sampleEvent(type as 'subscription.created').data;
+    expect(data.network_fee_amount).toBe('10000');
+    expect(BigInt(data.total_amount)).toBe(total(data));
+  }
+  const renewed = sampleEvent('subscription.renewed').data;
+  expect(renewed.period?.network_fee_due).toBe('10000');
+  expect(BigInt(renewed.period!.amount_due) + BigInt(renewed.period!.fee_due) + BigInt(renewed.period!.network_fee_due!)).toBe(
+    BigInt(renewed.total_amount),
+  );
+  const session = sampleEvent('checkout.session.completed').data;
+  expect(session.network_fee_amount).toBe('0');
+  expect(BigInt(session.total_amount)).toBe(total(session));
+});
+
+it('still validates an event stored before the network fee (no network_fee_amount)', () => {
+  const envelope = JSON.parse(
+    JSON.stringify(spec.webhooks['subscription.renewed'].post.requestBody.content['application/json'].schema).replaceAll('"#/components', '"doc#/components'),
+  );
+  const validate = ajv.compile(strict(envelope) as object);
+  const event = sampleEvent('subscription.renewed');
+  const { network_fee_amount: _fee, ...data } = event.data;
+  const { network_fee_due: _due, ...period } = data.period!;
+  expect(validate({ ...event, data: { ...data, total_amount: '10100000', period } }), JSON.stringify(validate.errors)).toBe(true);
+});

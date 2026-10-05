@@ -179,7 +179,10 @@ subscription plans, sent without `Retry-After`), and `503 subscriptions_paused`.
 The `503`s you may see (the busy ones once retries run out):
 
 - `503 checkout_busy` (checkout-session routes) / `503 service_busy` (every other route): fianto's
-  database was too busy to start the request. It sends `Retry-After: 3`; try again after it.
+  database, or the Solana RPC it reads, was too busy to answer, and nothing was started. It sends
+  `Retry-After: 3`; try again after it. The API's message is "Payments are very busy right now.
+  Nothing was charged. Try again in a few seconds." for `checkout_busy` and "Fianto is very busy
+  right now. Nothing was changed. Try again in a few seconds." for `service_busy`.
 - `503 subscription_busy` (`subscriptions.cancel`): another request was updating the
   subscription. Nothing was changed; try again.
 - `503 subscriptions_paused` (`checkoutSessions.create` with `mode: 'subscription'`): new
@@ -295,6 +298,33 @@ usdc.toBaseUnits('12.5'); // '12500000' — throws on more than 6 decimals, nega
 usdc.fromBaseUnits('12500000'); // '12.5'
 usdc.format('12500000'); // '12.50 USDC'
 usdc.format('12500000', { symbol: false }); // '12.50'
+```
+
+**What a total is made of.** Checkout sessions, payments and subscriptions carry `amount` (the
+price, what reaches the merchant), `fee_amount` (Fianto's fee), `network_fee_amount` and
+`total_amount`, which is always `amount + fee_amount + network_fee_amount`:
+
+- `network_fee_amount` is a flat fee that the **payer** pays on every subscription charge, the
+  first one included. It goes to Fianto with the fee. It is fixed per subscription plan when the
+  plan is created (0.01 USDC, `'10000'`, by default) and never changes for that plan; a
+  subscription from a plan created before the fee existed carries `'0'`.
+- A one-off payment and a `mode: 'payment'` session carry `network_fee_amount: '0'`, and an order
+  has no network fee field at all (its `total_amount` is `amount + fee_amount`).
+- On a subscription, `total_amount` is what every charge takes (the cap the payer signed). In a
+  webhook's `period`, `network_fee_due` is that period's share, next to `amount_due` and
+  `fee_due`.
+- `v1` reads always include `network_fee_amount`. In webhook payloads (`checkout.session.*`,
+  `subscription.*`) it is optional, as is `period.network_fee_due`: events created before the
+  fee existed (October 2026) do not have them, and redeliveries and `fianto.events` return them
+  as they were stored. Treat a missing value as `'0'`:
+
+```ts
+import { usdc } from '@fianto/sdk';
+import type { WebhookEventOf } from '@fianto/sdk/webhooks';
+
+declare const event: WebhookEventOf<'subscription.renewed'>;
+const networkFee = event.data.network_fee_amount ?? '0';
+console.log(usdc.format(event.data.total_amount), usdc.format(networkFee));
 ```
 
 ## Webhooks

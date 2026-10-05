@@ -1104,6 +1104,8 @@ export interface components {
             failed_at: string | null;
             fee_amount: string;
             id: string;
+            /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+            network_fee_amount: string;
             /** @constant */
             object: "payment";
             order_id: string | null;
@@ -1113,6 +1115,7 @@ export interface components {
             status: "PROCESSING" | "CONFIRMED" | "SUCCEEDED" | "FAILED";
             /** Format: date-time */
             succeeded_at: string | null;
+            /** @description What the customer paid: amount + fee_amount + network_fee_amount. */
             total_amount: string;
         };
         ApiPriceResponse: {
@@ -1190,6 +1193,8 @@ export interface components {
              * @enum {string}
              */
             mode: "payment" | "subscription";
+            /** @description SUBSCRIPTION mode: the plan's flat network fee, part of every charge; "0" for a payment. */
+            network_fee_amount: string;
             /** @constant */
             object: "checkout_session";
             order: {
@@ -1212,6 +1217,7 @@ export interface components {
                 status: "ACTIVE" | "PAST_DUE" | "ENDED";
             } | null;
             success_url: string;
+            /** @description amount + fee_amount + network_fee_amount: what the payer is charged now. */
             total_amount: string;
             /** @enum {string} */
             ui_mode: "redirect" | "popup";
@@ -1263,6 +1269,8 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /** @description The flat network fee every charge carries; "0" for a subscription from before it. */
+            network_fee_amount: string;
             /** @constant */
             object: "subscription";
             order_id: string;
@@ -1274,6 +1282,7 @@ export interface components {
             started_at: string;
             /** @enum {string} */
             status: "ACTIVE" | "PAST_DUE" | "ENDED";
+            /** @description What every charge takes: amount + fee_amount + network_fee_amount (the cap signed). */
             total_amount: string;
         };
         /** @description `POST v1/webhook/test-event`'s 202 body: the id of the test.event queued for delivery. */
@@ -1503,6 +1512,8 @@ export interface components {
              * @enum {string}
              */
             mode: "payment" | "subscription";
+            /** @description Absent on events created before the renewal network fee (October 2026). */
+            network_fee_amount?: string;
             /** @constant */
             object: "checkout_session";
             order_id: string;
@@ -1570,6 +1581,8 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /** @description Absent on events created before the renewal network fee (October 2026). */
+            network_fee_amount?: string;
             /** @constant */
             object: "subscription";
             order_id: string;
@@ -1585,6 +1598,8 @@ export interface components {
                 end: string;
                 fee_due: string;
                 index: number;
+                /** @description Absent on events created before the renewal network fee (October 2026). */
+                network_fee_due?: string;
                 /** Format: date-time */
                 start: string;
                 /** @enum {string} */
@@ -1598,6 +1613,7 @@ export interface components {
             started_at: string;
             /** @enum {string} */
             status: "ACTIVE" | "PAST_DUE" | "ENDED";
+            /** @description What every charge takes: amount + fee_amount + network_fee_amount (the cap signed). */
             total_amount: string;
         };
         /** @description The `test.event` webhook's `data`. */

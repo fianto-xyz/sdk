@@ -351,6 +351,10 @@
           "id": {
             "type": "string"
           },
+          "network_fee_amount": {
+            "description": "A subscription charge's flat network fee; \"0\" for a one-off payment.",
+            "type": "string"
+          },
           "object": {
             "const": "payment",
             "type": "string"
@@ -390,6 +394,7 @@
             ]
           },
           "total_amount": {
+            "description": "What the customer paid: amount + fee_amount + network_fee_amount.",
             "type": "string"
           }
         },
@@ -401,6 +406,7 @@
           "checkout_session_id",
           "amount",
           "fee_amount",
+          "network_fee_amount",
           "total_amount",
           "currency",
           "customer",
@@ -651,6 +657,10 @@
             ],
             "type": "string"
           },
+          "network_fee_amount": {
+            "description": "SUBSCRIPTION mode: the plan's flat network fee, part of every charge; \"0\" for a payment.",
+            "type": "string"
+          },
           "object": {
             "const": "checkout_session",
             "type": "string"
@@ -761,6 +771,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "amount + fee_amount + network_fee_amount: what the payer is charged now.",
             "type": "string"
           },
           "ui_mode": {
@@ -789,6 +800,7 @@
           "order",
           "amount",
           "fee_amount",
+          "network_fee_amount",
           "total_amount",
           "currency",
           "interval",
@@ -969,6 +981,10 @@
             },
             "type": "object"
           },
+          "network_fee_amount": {
+            "description": "The flat network fee every charge carries; \"0\" for a subscription from before it.",
+            "type": "string"
+          },
           "object": {
             "const": "subscription",
             "type": "string"
@@ -1004,6 +1020,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "What every charge takes: amount + fee_amount + network_fee_amount (the cap signed).",
             "type": "string"
           }
         },
@@ -1018,6 +1035,7 @@
           "amount",
           "fee_amount",
           "total_amount",
+          "network_fee_amount",
           "currency",
           "interval",
           "period_hours",
@@ -1943,6 +1961,10 @@
             ],
             "type": "string"
           },
+          "network_fee_amount": {
+            "description": "Absent on events created before the renewal network fee (October 2026).",
+            "type": "string"
+          },
           "object": {
             "const": "checkout_session",
             "type": "string"
@@ -2208,6 +2230,10 @@
             },
             "type": "object"
           },
+          "network_fee_amount": {
+            "description": "Absent on events created before the renewal network fee (October 2026).",
+            "type": "string"
+          },
           "object": {
             "const": "subscription",
             "type": "string"
@@ -2265,6 +2291,10 @@
               "index": {
                 "type": "number"
               },
+              "network_fee_due": {
+                "description": "Absent on events created before the renewal network fee (October 2026).",
+                "type": "string"
+              },
               "start": {
                 "format": "date-time",
                 "type": "string"
@@ -2317,6 +2347,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "What every charge takes: amount + fee_amount + network_fee_amount (the cap signed).",
             "type": "string"
           }
         },

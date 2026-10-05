@@ -3,6 +3,7 @@ import type { EndpointVerificationEvent, WebhookEventMap, WebhookEventOf, Webhoo
 const AT = '2026-09-28T10:00:00.000Z';
 const LATER = '2026-09-28T10:05:00.000Z';
 const NEXT = '2026-10-28T10:00:00.000Z';
+const LAST = '2026-11-27T10:00:00.000Z';
 // `evt_` ids must stay 32 hex chars (the wire format the backend and this SDK validate), so a
 // literal "sample" can't appear in one (C5) — this all-but-one-digit pattern is unmistakably a
 // placeholder instead. The order/subscription ids below carry the "sample_" prefix that hex
@@ -17,7 +18,7 @@ type SessionStatus = WebhookEventMap['checkout.session.completed']['status'];
 function session(status: SessionStatus): WebhookEventMap['checkout.session.completed'] {
   return {
     id: 'fian_cs_sample', object: 'checkout_session', mode: 'payment', status, order_id: 'sample_order_1001',
-    amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC',
+    amount: '10000000', fee_amount: '100000', network_fee_amount: '0', total_amount: '10100000', currency: 'USDC',
     interval: null, subscription: null, customer,
     payment: status === 'COMPLETED' ? payment : { id: null, status: null, signature: null },
     metadata: { cart: 'c_1' }, expires_at: LATER, created_at: AT,
@@ -44,7 +45,8 @@ function subscription(patch: Partial<Sub>): Sub {
   return {
     id: 'fian_sub_sample', object: 'subscription', status: 'ACTIVE', order_id: 'sample_sub_user_42_pro',
     price_id: 'fian_price_sample', plan_id: 'fian_plan_sample', product_name: 'Pro plan',
-    amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC',
+    // total_amount = amount + fee_amount + network_fee_amount: what every charge takes.
+    amount: '10000000', fee_amount: '100000', network_fee_amount: '10000', total_amount: '10110000', currency: 'USDC',
     interval: 'MONTH', period_hours: 720, customer: { ...customer, wallet: WALLET },
     current_period_index: 0, current_period_start: AT, current_period_end: NEXT,
     cancel_at_period_end: false, cancel_at: null, cancel_reason: null, merchant_cancel_requested: false,
@@ -54,6 +56,10 @@ function subscription(patch: Partial<Sub>): Sub {
   };
 }
 
+// The billing period a created/renewed event settled: the same price, fee and network fee.
+const paid = (index: number, start: string, end: string): NonNullable<Sub['period']> => ({
+  index, start, end, amount_due: '10000000', fee_due: '100000', network_fee_due: '10000', status: 'PAID',
+});
 const failure = { reason: 'INSUFFICIENT_FUNDS' as const, attempt_no: 1, next_attempt_at: LATER };
 const unpaid = { id: null, status: null, signature: null };
 
@@ -64,8 +70,9 @@ const DATA: { [K in WebhookEventType]: () => WebhookEventMap[K] } = {
   'order.paid': () => order('PAID'),
   'order.expired': () => order('EXPIRED'),
   'order.duplicate_payment': () => ({ ...order('PAID'), duplicate: { signature: SIGNATURE.replace('5', '4'), amount: '10100000' } }),
-  'subscription.created': () => subscription({}),
-  'subscription.renewed': () => subscription({ current_period_index: 1, current_period_start: NEXT }),
+  'subscription.created': () => subscription({ period: paid(0, AT, NEXT) }),
+  'subscription.renewed': () =>
+    subscription({ current_period_index: 1, current_period_start: NEXT, current_period_end: LAST, period: paid(1, NEXT, LAST) }),
   'subscription.past_due': () => subscription({ status: 'PAST_DUE', payment: unpaid, failure }),
   'subscription.payment_failed': () => subscription({ payment: unpaid, failure }),
   'subscription.ended': () => subscription({ status: 'ENDED', end_reason: 'PAYER_CANCELED', ended_at: LATER, payment: unpaid }),

@@ -22,6 +22,12 @@ export async function narrowsTheVerifiedEvent(): Promise<void> {
       break;
     case 'subscription.renewed':
       expectTypeOf(event.data.current_period_index).toEqualTypeOf<number>();
+      // Absent on events created before the renewal network fee (October 2026): optional.
+      expectTypeOf(event.data.network_fee_amount).toEqualTypeOf<string | undefined>();
+      expectTypeOf(event.data.total_amount).toEqualTypeOf<string>();
+      break;
+    case 'checkout.session.completed':
+      expectTypeOf(event.data.network_fee_amount).toEqualTypeOf<string | undefined>();
       break;
     case 'endpoint.verification':
       expectTypeOf(event.data.challenge).toEqualTypeOf<string>();
