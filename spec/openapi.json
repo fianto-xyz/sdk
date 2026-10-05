@@ -418,13 +418,6 @@
           "amount": {
             "type": "string"
           },
-          "archived_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -432,6 +425,13 @@
           "currency": {
             "const": "USDC",
             "type": "string"
+          },
+          "ended_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "type": "string"
@@ -457,7 +457,7 @@
           "status": {
             "enum": [
               "ACTIVE",
-              "ARCHIVED"
+              "ENDED"
             ],
             "type": "string"
           },
@@ -479,24 +479,24 @@
           "interval",
           "status",
           "created_at",
-          "archived_at"
+          "ended_at"
         ],
         "type": "object"
       },
       "ApiProductResponse": {
         "properties": {
-          "archived_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "created_at": {
             "format": "date-time",
             "type": "string"
           },
           "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ended_at": {
+            "format": "date-time",
             "type": [
               "string",
               "null"
@@ -521,7 +521,7 @@
           "status": {
             "enum": [
               "ACTIVE",
-              "ARCHIVED"
+              "ENDED"
             ],
             "type": "string"
           },
@@ -539,7 +539,7 @@
           "status",
           "created_at",
           "updated_at",
-          "archived_at"
+          "ended_at"
         ],
         "type": "object"
       },
@@ -1181,6 +1181,7 @@
                   "amount_out_of_range",
                   "build_limit_reached",
                   "cancel_at_invalid",
+                  "checkout_busy",
                   "checkout_link_invalid",
                   "checkout_link_outdated",
                   "checkout_session_closed",
@@ -1212,14 +1213,15 @@
                   "payment_in_progress",
                   "payment_not_found",
                   "plan_limit_reached",
-                  "price_archived",
+                  "price_ended",
                   "price_id_required",
                   "price_not_found",
                   "price_not_recurring",
                   "price_type_mismatch",
-                  "product_archived",
+                  "product_ended",
                   "product_not_found",
                   "rate_limited",
+                  "service_busy",
                   "session_not_cancelable",
                   "session_not_reissuable",
                   "subscription_already_ended",
@@ -1235,6 +1237,7 @@
                   "transaction_mismatch",
                   "url_insecure",
                   "validation_failed",
+                  "wallet_blocked",
                   "wallet_invalid",
                   "webhook_endpoint_not_active"
                 ],
@@ -1244,7 +1247,7 @@
                 "type": "string"
               }
             ],
-            "description": "Known codes are listed; treat any other string as an unknown error."
+            "description": "Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`."
           },
           "details": {
             "items": {
@@ -1465,7 +1468,7 @@
             "default": "ALL",
             "enum": [
               "ACTIVE",
-              "ARCHIVED",
+              "ENDED",
               "ALL"
             ],
             "type": "string"
@@ -1496,7 +1499,7 @@
             "default": "ALL",
             "enum": [
               "ACTIVE",
-              "ARCHIVED",
+              "ENDED",
               "ALL"
             ],
             "type": "string"
@@ -2369,7 +2372,7 @@
     }
   },
   "info": {
-    "title": "fianto API",
+    "title": "Fianto API",
     "version": "1"
   },
   "openapi": "3.1.0",
@@ -3037,7 +3040,7 @@
               "default": "ALL",
               "enum": [
                 "ACTIVE",
-                "ARCHIVED",
+                "ENDED",
                 "ALL"
               ],
               "type": "string"
@@ -3149,7 +3152,7 @@
               "default": "ALL",
               "enum": [
                 "ACTIVE",
-                "ARCHIVED",
+                "ENDED",
                 "ALL"
               ],
               "type": "string"

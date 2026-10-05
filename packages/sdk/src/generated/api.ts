@@ -1118,11 +1118,11 @@ export interface components {
         ApiPriceResponse: {
             amount: string;
             /** Format: date-time */
-            archived_at: string | null;
-            /** Format: date-time */
             created_at: string;
             /** @constant */
             currency: "USDC";
+            /** Format: date-time */
+            ended_at: string | null;
             id: string;
             /** @enum {string|null} */
             interval: "MONTH" | "YEAR" | null;
@@ -1130,16 +1130,16 @@ export interface components {
             object: "price";
             product_id: string;
             /** @enum {string} */
-            status: "ACTIVE" | "ARCHIVED";
+            status: "ACTIVE" | "ENDED";
             /** @enum {string} */
             type: "ONE_TIME" | "RECURRING";
         };
         ApiProductResponse: {
             /** Format: date-time */
-            archived_at: string | null;
-            /** Format: date-time */
             created_at: string;
             description: string | null;
+            /** Format: date-time */
+            ended_at: string | null;
             id: string;
             metadata: {
                 [key: string]: string;
@@ -1148,7 +1148,7 @@ export interface components {
             /** @constant */
             object: "product";
             /** @enum {string} */
-            status: "ACTIVE" | "ARCHIVED";
+            status: "ACTIVE" | "ENDED";
             /** Format: date-time */
             updated_at: string;
         };
@@ -1309,8 +1309,8 @@ export interface components {
             challenge: string;
         };
         Error: {
-            /** @description Known codes are listed; treat any other string as an unknown error. */
-            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "build_limit_reached" | "cancel_at_invalid" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "customer_not_found" | "event_not_found" | "expires_at_out_of_range" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_not_found" | "plan_limit_reached" | "price_archived" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_archived" | "product_not_found" | "rate_limited" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_mismatch" | "url_insecure" | "validation_failed" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
+            /** @description Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`. */
+            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "build_limit_reached" | "cancel_at_invalid" | "checkout_busy" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "customer_not_found" | "event_not_found" | "expires_at_out_of_range" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_not_found" | "plan_limit_reached" | "price_ended" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_ended" | "product_not_found" | "rate_limited" | "service_busy" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_mismatch" | "url_insecure" | "validation_failed" | "wallet_blocked" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
             details?: string[];
             error: string;
             field?: string;
@@ -1368,7 +1368,7 @@ export interface components {
              * @default ALL
              * @enum {string}
              */
-            status: "ACTIVE" | "ARCHIVED" | "ALL";
+            status: "ACTIVE" | "ENDED" | "ALL";
             /** @enum {string} */
             type?: "ONE_TIME" | "RECURRING";
         };
@@ -1380,7 +1380,7 @@ export interface components {
              * @default ALL
              * @enum {string}
              */
-            status: "ACTIVE" | "ARCHIVED" | "ALL";
+            status: "ACTIVE" | "ENDED" | "ALL";
         };
         ListSubscriptionsQueryDto: {
             cursor?: string;
@@ -1941,7 +1941,7 @@ export interface operations {
                 product_id?: string;
                 type?: "ONE_TIME" | "RECURRING";
                 interval?: "MONTH" | "YEAR";
-                status?: "ACTIVE" | "ARCHIVED" | "ALL";
+                status?: "ACTIVE" | "ENDED" | "ALL";
                 /** @description The next_cursor of the previous page. An unparseable value starts from the first page. */
                 cursor?: string;
                 limit?: number;
@@ -1993,7 +1993,7 @@ export interface operations {
     "products.list": {
         parameters: {
             query?: {
-                status?: "ACTIVE" | "ARCHIVED" | "ALL";
+                status?: "ACTIVE" | "ENDED" | "ALL";
                 /** @description The next_cursor of the previous page. An unparseable value starts from the first page. */
                 cursor?: string;
                 limit?: number;

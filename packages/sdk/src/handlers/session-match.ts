@@ -44,7 +44,7 @@ function sameAmount(decimal: string, baseUnits: string): boolean {
  *
  * The session response echoes `mode`, `ui_mode`, `amount`, `currency` and `interval`, but not
  * `price_id` (nor `description`/`line_items`). A price_id checkout is therefore compared through
- * the price itself: prices are immutable apart from archiving, so the session was opened for
+ * the price itself: prices are immutable apart from ending, so the session was opened for
  * this price only if the price's amount, currency and interval all match the session's. Two
  * different prices with identical amount, currency and interval cannot be told apart this way.
  */

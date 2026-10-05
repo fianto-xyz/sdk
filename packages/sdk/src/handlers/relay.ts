@@ -30,8 +30,8 @@ const RELAYED: Readonly<Record<string, string>> = {
   mode_not_supported: 'This checkout mode is not available.',
   price_id_required: 'A subscription checkout needs a price_id.',
   price_not_found: 'No price with that price_id belongs to this shop.',
-  price_archived: 'That price is archived and cannot be sold.',
-  product_archived: "That price's product is archived and cannot be sold.",
+  price_ended: 'That price has ended and cannot be sold.',
+  product_ended: "That price's product has ended and cannot be sold.",
   price_not_recurring: 'A subscription checkout needs a recurring price.',
   price_type_mismatch: "That price's type does not fit this checkout mode.",
 };
