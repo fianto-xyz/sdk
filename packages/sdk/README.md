@@ -182,7 +182,7 @@ The `503`s you may see (the busy ones once retries run out):
   database, or the Solana RPC it reads, was too busy to answer, and nothing was started. It sends
   `Retry-After: 3`; try again after it. The API's message is "Payments are very busy right now.
   Nothing was charged. Try again in a few seconds." for `checkout_busy` and "Fianto is very busy
-  right now. Nothing was changed. Try again in a few seconds." for `service_busy`.
+  right now. Try again in a few seconds." for `service_busy`.
 - `503 subscription_busy` (`subscriptions.cancel`): another request was updating the
   subscription. Nothing was changed; try again.
 - `503 subscriptions_paused` (`checkoutSessions.create` with `mode: 'subscription'`): new

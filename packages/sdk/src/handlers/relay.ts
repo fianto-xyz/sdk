@@ -26,7 +26,7 @@ const RELAYED: Readonly<Record<string, string>> = {
   // 503s (see BUSY): nothing was started; the same request can succeed later. The busy lines
   // are the API's own wording (a checkout start never charges anything).
   checkout_busy: 'Payments are very busy right now. Nothing was charged. Try again in a few seconds.',
-  service_busy: 'Fianto is very busy right now. Nothing was changed. Try again in a few seconds.',
+  service_busy: 'Fianto is very busy right now. Try again in a few seconds.',
   subscriptions_paused: 'New subscriptions are paused right now. Try again later.',
   // The merchant's own setup or checkout params were refused.
   merchant_token_account_missing: "This shop's wallet cannot receive USDC yet.",

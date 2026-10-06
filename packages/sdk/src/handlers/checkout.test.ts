@@ -276,7 +276,7 @@ it('relays order_id_in_use as 409 with an SDK-written message', async () => {
 // wording is the API's own (owner ruling 2026-10-06): starting a checkout never charges anything.
 it.each([
   ['checkout_busy', '3', 'Payments are very busy right now. Nothing was charged. Try again in a few seconds.'],
-  ['service_busy', '3', 'Fianto is very busy right now. Nothing was changed. Try again in a few seconds.'],
+  ['service_busy', '3', 'Fianto is very busy right now. Try again in a few seconds.'],
   ['subscriptions_paused', null, 'New subscriptions are paused right now. Try again later.'],
 ])('relays 503 %s with its retry-after once the client stops retrying', async (code, retryAfter, message) => {
   const headers: Record<string, string> = retryAfter ? { 'retry-after': retryAfter } : {};
