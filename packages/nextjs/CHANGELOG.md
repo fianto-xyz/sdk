@@ -1,5 +1,13 @@
 # @fianto/nextjs
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [fbc0e6a]
+- Updated dependencies [a996a46]
+  - @fianto/sdk@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes
