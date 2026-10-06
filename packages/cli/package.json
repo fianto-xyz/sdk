@@ -1,6 +1,6 @@
 {
   "name": "@fianto/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "fianto command line: inspect events, forward webhooks to localhost, trigger and sign test events.",
   "license": "MIT",
   "type": "module",
