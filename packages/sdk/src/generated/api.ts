@@ -1064,12 +1064,22 @@ export interface components {
                 wallet: string | null;
             };
             description: string;
+            discount: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description "0" when none. */
+            discount_amount: string;
             /** Format: date-time */
             expired_at: string | null;
             fee_amount: string;
             /** @description At least one transfer landed under one of this order's checkout sessions' references and could not be adopted as its payment — money the merchant may owe back. */
             has_unmatched_transfer: boolean;
             id: string;
+            /** @description The price before any discount; `amount` is what is charged. */
+            list_amount: string;
             metadata: {
                 [key: string]: string;
             };
@@ -1172,6 +1182,14 @@ export interface components {
                 reference: string | null;
                 wallet: string | null;
             };
+            discount: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description "0" when none. */
+            discount_amount: string;
             /** Format: date-time */
             expired_at: string | null;
             /** Format: date-time */
@@ -1183,6 +1201,8 @@ export interface components {
              * @enum {string|null}
              */
             interval: "MONTH" | "YEAR" | null;
+            /** @description The price before any discount; `amount` is what is charged. */
+            list_amount: string;
             metadata: {
                 [key: string]: string;
             };
@@ -1249,6 +1269,14 @@ export interface components {
                 reference: string | null;
                 wallet: string;
             };
+            discount: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description Taken off each discounted charge; "0" for none. */
+            discount_amount: string;
             /** @enum {string|null} */
             end_reason: "PAYER_CANCELED" | "PAYMENT_FAILED" | "MERCHANT_CANCELED" | "PLAN_ENDED" | "PLAN_SUNSET" | null;
             /** Format: date-time */
@@ -1264,6 +1292,8 @@ export interface components {
                 /** @enum {string} */
                 status: "PROCESSING" | "CONFIRMED" | "SUCCEEDED" | "FAILED";
             } | null;
+            /** @description The list price, the same as `amount`: a subscription keeps its plan's terms; a discount is beside them. */
+            list_amount: string;
             /** @description True when the merchant ALSO asked to cancel at period end while the payer's own cancellation (`cancel_reason: PAYER_CANCELED`) was pending: it stands even if the payer resumes on chain. Additive (2026-09-28). */
             merchant_cancel_requested: boolean;
             metadata: {
@@ -1318,8 +1348,8 @@ export interface components {
             challenge: string;
         };
         Error: {
-            /** @description Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`. */
-            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "build_limit_reached" | "cancel_at_invalid" | "checkout_busy" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "customer_not_found" | "event_not_found" | "expires_at_out_of_range" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_not_found" | "plan_limit_reached" | "price_ended" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_ended" | "product_not_found" | "rate_limited" | "service_busy" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_mismatch" | "url_insecure" | "validation_failed" | "wallet_blocked" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
+            /** @description Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`. `insufficient_sol`: Deprecated: never returned since 2026-10 (Fianto pays network fees). */
+            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "body_too_deep" | "build_limit_reached" | "cancel_at_invalid" | "checkout_amount_changed" | "checkout_busy" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "customer_not_found" | "discount_unavailable" | "event_not_found" | "expires_at_out_of_range" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_not_found" | "plan_limit_reached" | "price_ended" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_ended" | "product_not_found" | "rate_limited" | "service_busy" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_mismatch" | "url_insecure" | "validation_failed" | "wallet_blocked" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
             details?: string[];
             error: string;
             field?: string;
@@ -1416,6 +1446,15 @@ export interface components {
                 reference: string | null;
                 wallet: string | null;
             };
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount?: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount_amount?: string;
             duplicate: {
                 amount: string;
                 signature: string;
@@ -1424,6 +1463,8 @@ export interface components {
             expired_at: string | null;
             fee_amount: string;
             id: string;
+            /** @description Absent on events created before discount codes (October 2026). */
+            list_amount?: string;
             metadata: {
                 [key: string]: string;
             };
@@ -1454,10 +1495,21 @@ export interface components {
                 reference: string | null;
                 wallet: string | null;
             };
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount?: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount_amount?: string;
             /** Format: date-time */
             expired_at: string | null;
             fee_amount: string;
             id: string;
+            /** @description Absent on events created before discount codes (October 2026). */
+            list_amount?: string;
             metadata: {
                 [key: string]: string;
             };
@@ -1494,6 +1546,15 @@ export interface components {
                 reference: string | null;
                 wallet: string | null;
             };
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount?: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount_amount?: string;
             /** Format: date-time */
             expired_at: string | null;
             /** Format: date-time */
@@ -1502,6 +1563,8 @@ export interface components {
             id: string;
             /** @enum {string|null} */
             interval: "MONTH" | "YEAR" | null;
+            /** @description Absent on events created before discount codes (October 2026). */
+            list_amount?: string;
             metadata: {
                 [key: string]: string;
             };
@@ -1561,6 +1624,15 @@ export interface components {
                 reference: string | null;
                 wallet: string;
             };
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount?: {
+                code: string;
+                /** @enum {string|null} */
+                duration: "once" | "repeating" | "forever" | null;
+                periods: number | null;
+            } | null;
+            /** @description Absent on events created before discount codes (October 2026). */
+            discount_amount?: string;
             /** @enum {string|null} */
             end_reason: "PAYER_CANCELED" | "PAYMENT_FAILED" | "MERCHANT_CANCELED" | "PLAN_ENDED" | "PLAN_SUNSET" | null;
             /** Format: date-time */
@@ -1576,6 +1648,8 @@ export interface components {
             id: string;
             /** @enum {string} */
             interval: "MONTH" | "YEAR";
+            /** @description Absent on events created before discount codes (October 2026). */
+            list_amount?: string;
             /** @description Absent on events created before 2026-09-28. */
             merchant_cancel_requested?: boolean;
             metadata: {

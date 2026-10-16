@@ -11,7 +11,14 @@ const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
 const codeSchema = spec.components.schemas.Error.properties.code;
 const known = (codeSchema.anyOf ?? [codeSchema]).find((s) => Array.isArray(s.enum)).enum;
 const pascal = (code) => code.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join('');
-const lines = [...known].sort().map((code) => `  ${pascal(code)}: '${code}',`);
+// The Error.code description marks a retired code as "`code`: Deprecated: <why>."; carry it as @deprecated.
+const deprecated = new Map(
+  [...(codeSchema.description ?? '').matchAll(/`(\w+)`: Deprecated: ([^.]*\.)/g)].map((m) => [m[1], m[2]]),
+);
+const lines = [...known].sort().flatMap((code) => [
+  ...(deprecated.has(code) ? [`  /** @deprecated ${deprecated.get(code)} */`] : []),
+  `  ${pascal(code)}: '${code}',`,
+]);
 writeFileSync(
   `${OUT}/error-codes.ts`,
   [

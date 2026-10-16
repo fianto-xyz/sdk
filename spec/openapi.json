@@ -191,6 +191,49 @@
           "description": {
             "type": "string"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discount_amount": {
+            "description": "\"0\" when none.",
+            "type": "string"
+          },
           "expired_at": {
             "format": "date-time",
             "type": [
@@ -206,6 +249,10 @@
             "type": "boolean"
           },
           "id": {
+            "type": "string"
+          },
+          "list_amount": {
+            "description": "The price before any discount; `amount` is what is charged.",
             "type": "string"
           },
           "metadata": {
@@ -272,6 +319,9 @@
           "amount",
           "fee_amount",
           "total_amount",
+          "list_amount",
+          "discount_amount",
+          "discount",
           "currency",
           "customer",
           "payment",
@@ -614,6 +664,49 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discount_amount": {
+            "description": "\"0\" when none.",
+            "type": "string"
+          },
           "expired_at": {
             "format": "date-time",
             "type": [
@@ -642,6 +735,10 @@
               "string",
               "null"
             ]
+          },
+          "list_amount": {
+            "description": "The price before any discount; `amount` is what is charged.",
+            "type": "string"
           },
           "metadata": {
             "additionalProperties": {
@@ -802,6 +899,9 @@
           "fee_amount",
           "network_fee_amount",
           "total_amount",
+          "list_amount",
+          "discount_amount",
+          "discount",
           "currency",
           "interval",
           "subscription",
@@ -901,6 +1001,49 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discount_amount": {
+            "description": "Taken off each discounted charge; \"0\" for none.",
+            "type": "string"
+          },
           "end_reason": {
             "enum": [
               "PAYER_CANCELED",
@@ -971,6 +1114,10 @@
             ],
             "description": "The newest payment of this subscription that SUCCEEDED — the last money that actually arrived (plan-2 re-review O2). Never an in-flight or failed attempt: those surface as `status: PAST_DUE` and the `subscription.payment_failed` webhook. `status` is kept for parity with the webhook `payment` object and always reads `SUCCEEDED`."
           },
+          "list_amount": {
+            "description": "The list price, the same as `amount`: a subscription keeps its plan's terms; a discount is beside them.",
+            "type": "string"
+          },
           "merchant_cancel_requested": {
             "description": "True when the merchant ALSO asked to cancel at period end while the payer's own cancellation (`cancel_reason: PAYER_CANCELED`) was pending: it stands even if the payer resumes on chain. Additive (2026-09-28).",
             "type": "boolean"
@@ -1036,6 +1183,9 @@
           "fee_amount",
           "total_amount",
           "network_fee_amount",
+          "list_amount",
+          "discount_amount",
+          "discount",
           "currency",
           "interval",
           "period_hours",
@@ -1197,8 +1347,10 @@
                   "amount_not_allowed",
                   "amount_or_price_required",
                   "amount_out_of_range",
+                  "body_too_deep",
                   "build_limit_reached",
                   "cancel_at_invalid",
+                  "checkout_amount_changed",
                   "checkout_busy",
                   "checkout_link_invalid",
                   "checkout_link_outdated",
@@ -1207,6 +1359,7 @@
                   "checkout_session_not_found",
                   "checkout_unavailable",
                   "customer_not_found",
+                  "discount_unavailable",
                   "event_not_found",
                   "expires_at_out_of_range",
                   "idempotency_key_invalid",
@@ -1265,7 +1418,7 @@
                 "type": "string"
               }
             ],
-            "description": "Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`."
+            "description": "Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`. `insufficient_sol`: Deprecated: never returned since 2026-10 (Fianto pays network fees)."
           },
           "details": {
             "items": {
@@ -1612,6 +1765,50 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent on events created before discount codes (October 2026)."
+          },
+          "discount_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
+            "type": "string"
+          },
           "duplicate": {
             "properties": {
               "amount": {
@@ -1638,6 +1835,10 @@
             "type": "string"
           },
           "id": {
+            "type": "string"
+          },
+          "list_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
             "type": "string"
           },
           "metadata": {
@@ -1769,6 +1970,50 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent on events created before discount codes (October 2026)."
+          },
+          "discount_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
+            "type": "string"
+          },
           "expired_at": {
             "format": "date-time",
             "type": [
@@ -1780,6 +2025,10 @@
             "type": "string"
           },
           "id": {
+            "type": "string"
+          },
+          "list_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
             "type": "string"
           },
           "metadata": {
@@ -1919,6 +2168,50 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent on events created before discount codes (October 2026)."
+          },
+          "discount_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
+            "type": "string"
+          },
           "expired_at": {
             "format": "date-time",
             "type": [
@@ -1946,6 +2239,10 @@
               "string",
               "null"
             ]
+          },
+          "list_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
+            "type": "string"
           },
           "metadata": {
             "additionalProperties": {
@@ -2151,6 +2448,50 @@
             ],
             "type": "object"
           },
+          "discount": {
+            "anyOf": [
+              {
+                "description": "The discount object on v1 responses and webhook payloads (contract §5).",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "duration": {
+                    "enum": [
+                      "once",
+                      "repeating",
+                      "forever",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "periods": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "duration",
+                  "periods"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent on events created before discount codes (October 2026)."
+          },
+          "discount_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
+            "type": "string"
+          },
           "end_reason": {
             "enum": [
               "PAYER_CANCELED",
@@ -2218,6 +2559,10 @@
               "MONTH",
               "YEAR"
             ],
+            "type": "string"
+          },
+          "list_amount": {
+            "description": "Absent on events created before discount codes (October 2026).",
             "type": "string"
           },
           "merchant_cancel_requested": {
