@@ -31,7 +31,7 @@ A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exac
 env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
 or point it at your own self-hosted deployment or a backend running locally.
 `--network devnet` (or `FIANTO_NETWORK=devnet`) targets the devnet sandbox at
-`https://devnet-api.fianto.xyz` with the same application secret keys, for every command including
+`https://devnet-api.fianto.xyz` with the same application secret keys, for every command that calls the API, including
 `events tail`. The default is `mainnet`; any other value exits `2`. An explicit `--base-url` still
 wins over the network's URL.
 
