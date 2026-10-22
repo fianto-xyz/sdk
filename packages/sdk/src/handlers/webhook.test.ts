@@ -193,3 +193,37 @@ it('reads FIANTO_WEBHOOK_SECRET per request when no secret is passed', async () 
   vi.stubEnv('FIANTO_WEBHOOK_SECRET', secret);
   expect((await handler(await post(sampleEvent('order.paid')))).status).toBe(200);
 });
+
+describe('network', () => {
+  it('answers 400 and reports network_mismatch for an event from the other network', async () => {
+    const onVerificationError = vi.fn();
+    const onEvent = vi.fn();
+    const handler = createWebhookHandler({ secret, network: 'mainnet', onEvent, onVerificationError });
+    const response = await handler(await post(sampleEvent('order.paid', { network: 'devnet' })));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_webhook' });
+    expect(onVerificationError).toHaveBeenCalledWith(expect.objectContaining({ reason: 'network_mismatch' }));
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('handles an event from the expected network', async () => {
+    const onEvent = vi.fn();
+    const response = await createWebhookHandler({ secret, network: 'devnet', onEvent })(await post(sampleEvent('order.paid', { network: 'devnet' })));
+    expect(response.status).toBe(200);
+    expect(onEvent).toHaveBeenCalledOnce();
+  });
+
+  it('does not check the network when the option is absent', async () => {
+    const onEvent = vi.fn();
+    const response = await createWebhookHandler({ secret, onEvent })(await post(sampleEvent('order.paid', { network: 'devnet' })));
+    expect(response.status).toBe(200);
+    expect(onEvent).toHaveBeenCalledOnce();
+  });
+
+  it('checks the network only after the signature verifies', async () => {
+    const onVerificationError = vi.fn();
+    const other = `whsec_${randomBytes(32).toString('base64')}`;
+    await createWebhookHandler({ secret, network: 'mainnet', onVerificationError })(await post(sampleEvent('order.paid', { network: 'devnet' }), { secret: other }));
+    expect(onVerificationError).toHaveBeenCalledWith(expect.objectContaining({ reason: 'no_matching_signature' }));
+  });
+});

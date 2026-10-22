@@ -1,6 +1,7 @@
+import type { Network } from '../core/config.js';
 import { isWebhookVerificationError, type WebhookVerificationError } from '../webhooks/errors.js';
 import type { FiantoWebhookEvent, WebhookEvent, WebhookEventOf, WebhookEventType } from '../webhooks/events.js';
-import { readSignedHeaders, resolveTolerance, secretKeys, signedPrefix, verifySignedContent } from '../webhooks/verify.js';
+import { assertNetwork, readSignedHeaders, resolveTolerance, secretKeys, signedPrefix, verifySignedContent } from '../webhooks/verify.js';
 import { readBoundedBody, resolveMaxBodyBytes } from './body.js';
 import { json, report } from './respond.js';
 
@@ -31,6 +32,12 @@ export interface WebhookHandlerOptions extends WebhookCallbacks {
   secret?: string | readonly string[];
   /** Default 300, between 1 and 3600. */
   toleranceSeconds?: number;
+  /**
+   * Refuse an event that did not come from this network: it is answered 400 `invalid_webhook` and
+   * `onVerificationError` gets reason `network_mismatch`. An event with no `network` fails too.
+   * Checked after the signature verifies. Not set: the network is not checked.
+   */
+  network?: Network;
   /**
    * The largest body accepted, in bytes. Default 1_048_576 (1 MiB). A larger body is answered
    * 413 as soon as its content-length or the bytes received pass the limit, never read in full.
@@ -92,6 +99,7 @@ export function createWebhookHandler(options: WebhookHandlerOptions = {}): (requ
       const prefix = signedPrefix(signed);
       const content = await readBoundedBody(request, prefix, maxBodyBytes);
       event = await verifySignedContent(content, prefix.length, signed, keys);
+      assertNetwork(event, options.network);
     } catch (error) {
       if (!isWebhookVerificationError(error)) throw error;
       report(() => options.onVerificationError?.(error));

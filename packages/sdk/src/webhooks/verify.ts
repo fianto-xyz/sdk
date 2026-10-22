@@ -153,6 +153,17 @@ export async function verifySignedContent(
   return event as WebhookEvent;
 }
 
+/**
+ * @internal The network check shared by `verifyWebhook` and `createWebhookHandler`: with
+ * `expected` set, a verified event from another network, or with none, is refused. Not set: no check.
+ */
+export function assertNetwork(event: WebhookEvent, expected: Network | undefined): void {
+  if (expected === undefined) return;
+  const actual = (event as { network?: unknown }).network;
+  if (actual === undefined) throw new WebhookVerificationError('network_mismatch', `The webhook event has no network; expected ${expected}.`);
+  if (actual !== expected) throw new WebhookVerificationError('network_mismatch', `The webhook did not come from ${expected}.`);
+}
+
 /** One buffer holding `prefix` then `body`: the only copy of the body verification makes. */
 function signedContent(prefix: Uint8Array, body: string | Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {
   const bytes = typeof body === 'string' ? encoder.encode(body) : body instanceof Uint8Array ? body : new Uint8Array(body);
@@ -183,8 +194,6 @@ export async function verifyWebhook(
   const keys = secretKeys(options.secret);
   const prefix = signedPrefix(signed);
   const event = await verifySignedContent(signedContent(prefix, rawBody), prefix.length, signed, keys);
-  if (options.network !== undefined && (event as { network?: unknown }).network !== options.network) {
-    throw new WebhookVerificationError('network_mismatch', `The webhook did not come from ${options.network}.`);
-  }
+  assertNetwork(event, options.network);
   return event;
 }

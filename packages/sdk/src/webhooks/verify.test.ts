@@ -261,5 +261,6 @@ describe('network check', () => {
   it('throws when the event carries no network and a check was asked for', async () => {
     const { body, headers } = signed();
     expect(await reason(verifyWebhook(body, headers, { secret, now, network: 'mainnet' }))).toBe('network_mismatch');
+    await expect(verifyWebhook(body, headers, { secret, now, network: 'devnet' })).rejects.toThrow('The webhook event has no network; expected devnet.');
   });
 });

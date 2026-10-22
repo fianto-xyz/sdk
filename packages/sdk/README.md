@@ -81,6 +81,10 @@ const fianto = new Fianto({ network: 'devnet' }); // or FIANTO_NETWORK=devnet
 const event = await verifyWebhook(rawBody, headers, { network: 'devnet' }); // throws 'network_mismatch' otherwise
 ```
 
+`createWebhookHandler({ network })` does the same check, answering 400 and calling
+`onVerificationError`; `createCheckoutHandler({ network })` sets the network of the client it creates.
+If you switch exhaustively over `WebhookVerificationFailure`, add `network_mismatch`.
+
 A devnet call may answer 503 `service_busy` with `Retry-After` when the sandbox cannot reach its
 identity source; retry it.
 

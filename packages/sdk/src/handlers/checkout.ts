@@ -1,4 +1,5 @@
 import { Fianto } from '../client.js';
+import type { Network } from '../core/config.js';
 import type { CheckoutSessionCreateParams } from '../types.js';
 import { checkoutErrorResponse } from './relay.js';
 import { json, report } from './respond.js';
@@ -20,6 +21,11 @@ export type CheckoutSessionParams = DistributiveOmit<CheckoutSessionCreateParams
 export interface CheckoutHandlerOptions<Context = unknown> {
   /** Default: new Fianto() from FIANTO_* env vars, created on the first request. */
   fianto?: Fianto;
+  /**
+   * `'mainnet'` or `'devnet'` (the sandbox) for the client this handler creates itself; the same
+   * as `new Fianto({ network })`. Ignored when you pass `fianto`. Default: FIANTO_NETWORK, else mainnet.
+   */
+  network?: Network;
   /**
    * Decide price and order_id HERE, on your server. Never take a price from the request body.
    * Return a Response to refuse. An order_id that already has an open checkout with different
@@ -72,7 +78,7 @@ export function createCheckoutHandler<Context = unknown>(
     try {
       const params = await options.createSession(request, rest[0] as Context);
       if (params instanceof Response) return params;
-      client ??= new Fianto();
+      client ??= new Fianto({ network: options.network });
       const sent: CheckoutSessionCreateParams = { ...params, ui_mode: 'popup' };
       let session = await client.checkoutSessions.create(sent);
       if (session.url === null) {
