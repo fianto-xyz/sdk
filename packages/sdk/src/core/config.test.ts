@@ -141,6 +141,43 @@ describe('network', () => {
     expect(resolveConfig({ ...creds, network: 'devnet' })).toMatchObject({ network: 'devnet', baseUrl: 'https://env.example.com' });
   });
 
+  describe('an explicit network that the base URL contradicts', () => {
+    it("throws for network: 'devnet' with FIANTO_BASE_URL set to the production API, naming both", () => {
+      vi.stubEnv('FIANTO_BASE_URL', 'https://api.fianto.xyz');
+      const attempt = () => resolveConfig({ ...creds, network: 'devnet' });
+      expect(attempt).toThrow(FiantoError);
+      expect(attempt).toThrow(/devnet/);
+      expect(attempt).toThrow(/https:\/\/api\.fianto\.xyz/);
+    });
+
+    it("throws for network: 'mainnet' with the devnet API as FIANTO_BASE_URL, even with a trailing slash", () => {
+      vi.stubEnv('FIANTO_BASE_URL', `${DEVNET_BASE_URL}/`);
+      expect(() => resolveConfig({ ...creds, network: 'mainnet' })).toThrow(/mainnet/);
+    });
+
+    it('throws for an explicit baseUrl option that is the other network\'s host', () => {
+      expect(() => resolveConfig({ ...creds, network: 'devnet', baseUrl: 'https://api.fianto.xyz/' })).toThrow(FiantoError);
+      expect(() => resolveConfig({ ...creds, network: 'mainnet', baseUrl: DEVNET_BASE_URL })).toThrow(FiantoError);
+    });
+
+    it('lets a custom or self-hosted URL win silently', () => {
+      vi.stubEnv('FIANTO_BASE_URL', 'https://self-hosted.example.com');
+      expect(resolveConfig({ ...creds, network: 'devnet' })).toMatchObject({ baseUrl: 'https://self-hosted.example.com' });
+    });
+
+    it('accepts a base URL that matches the explicit network', () => {
+      vi.stubEnv('FIANTO_BASE_URL', DEVNET_BASE_URL);
+      expect(resolveConfig({ ...creds, network: 'devnet' })).toMatchObject({ baseUrl: DEVNET_BASE_URL });
+    });
+
+    it('keeps today\'s behaviour when the network is not explicit', () => {
+      vi.stubEnv('FIANTO_BASE_URL', 'https://api.fianto.xyz');
+      vi.stubEnv('FIANTO_NETWORK', 'devnet');
+      expect(resolveConfig(creds)).toMatchObject({ network: 'devnet', baseUrl: 'https://api.fianto.xyz' });
+      expect(resolveConfig({ ...creds, baseUrl: DEVNET_BASE_URL })).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+    });
+  });
+
   it('rejects an unknown network, from the option or the environment', () => {
     const message = 'Invalid network: expected "mainnet" or "devnet".';
     expect(() => resolveConfig({ ...creds, network: 'testnet' as never })).toThrow(message);

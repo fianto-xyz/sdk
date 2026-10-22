@@ -16,7 +16,8 @@ export interface ClientOptions {
   appSecret?: string;
   /**
    * Default: FIANTO_BASE_URL, else the API of `network`. Override for a self-hosted or local
-   * backend. It wins over `network` for where requests go; `network` still reports what you asked for.
+   * backend. It wins over `network` for where requests go, except that the other network's own host
+   * (api.fianto.xyz for devnet, devnet-api.fianto.xyz for mainnet) with an explicit `network` throws.
    */
   baseUrl?: string;
   /**
@@ -109,12 +110,25 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new FiantoError('No fetch implementation: pass options.fetch (Node ≥ 20 has one built in).');
   const network = resolveNetwork(options.network ?? env('FIANTO_NETWORK'));
+  const baseUrl = normaliseBaseUrl(
+    options.baseUrl ?? env('FIANTO_BASE_URL') ?? (network === 'devnet' ? DEVNET_BASE_URL : DEFAULT_BASE_URL),
+  );
+  // An EXPLICIT network must not be silently overridden by a stray FIANTO_BASE_URL (or baseUrl)
+  // that is the other network's own host: that sends the calls to the wrong network. Any other
+  // URL (self-hosted, local) still wins.
+  if (options.network !== undefined) {
+    const other = network === 'devnet' ? DEFAULT_BASE_URL : DEVNET_BASE_URL;
+    if (baseUrl === other) {
+      throw new FiantoError(
+        `network is "${network}" but the base URL is ${baseUrl}, the ${network === 'devnet' ? 'mainnet' : 'devnet'} API. ` +
+          `Remove FIANTO_BASE_URL / baseUrl, or change network.`,
+      );
+    }
+  }
   return {
     appId: required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID'),
     appSecret: required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET'),
-    baseUrl: normaliseBaseUrl(
-      options.baseUrl ?? env('FIANTO_BASE_URL') ?? (network === 'devnet' ? DEVNET_BASE_URL : DEFAULT_BASE_URL),
-    ),
+    baseUrl,
     network,
     timeoutMs: options.timeoutMs === undefined ? 30_000 : assertTimeoutMs(options.timeoutMs),
     maxRetries: options.maxRetries === undefined ? 2 : assertMaxRetries(options.maxRetries),
