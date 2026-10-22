@@ -1,3 +1,4 @@
+import type { Network } from '../core/config.js';
 import type { EndpointVerificationEvent, WebhookEventMap, WebhookEventOf, WebhookEventType } from './events.js';
 
 const AT = '2026-09-28T10:00:00.000Z';
@@ -84,16 +85,17 @@ const DATA: { [K in WebhookEventType]: () => WebhookEventMap[K] } = {
 /** A realistic, schema-valid event for tests. Deterministic: no random ids, no clock. */
 export function sampleEvent<T extends WebhookEventType>(
   type: T,
-  overrides: { id?: string; timestamp?: string; data?: Partial<WebhookEventMap[T]> } = {},
+  overrides: { id?: string; timestamp?: string; network?: Network; data?: Partial<WebhookEventMap[T]> } = {},
 ): WebhookEventOf<T> {
   return {
     id: overrides.id ?? EVENT_ID,
     type,
     timestamp: overrides.timestamp ?? AT,
+    network: overrides.network ?? 'mainnet',
     data: { ...DATA[type](), ...overrides.data } as WebhookEventMap[T],
   };
 }
 
 export function sampleVerificationEvent(challenge = 'sample-challenge'): EndpointVerificationEvent {
-  return { type: 'endpoint.verification', timestamp: AT, data: { challenge } };
+  return { type: 'endpoint.verification', timestamp: AT, network: 'mainnet', data: { challenge } };
 }

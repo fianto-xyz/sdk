@@ -49,7 +49,8 @@ Never fulfil an order from this response alone — see [Money safety](#money-saf
 new Fianto({
   appId, // default: process.env.FIANTO_APP_ID
   appSecret, // default: process.env.FIANTO_APP_SECRET — server-side only
-  baseUrl, // default: process.env.FIANTO_BASE_URL, else https://api.fianto.xyz
+  baseUrl, // default: process.env.FIANTO_BASE_URL, else the API of `network`
+  network, // 'mainnet' | 'devnet'; default: process.env.FIANTO_NETWORK, else 'mainnet'
   timeoutMs: 30_000,
   maxRetries: 2,
   fetch, // optional custom fetch
@@ -61,14 +62,27 @@ new Fianto({
 |---|---|---|---|
 | `appId` | `FIANTO_APP_ID` | — (required) | |
 | `appSecret` | `FIANTO_APP_SECRET` | — (required) | Never send to a browser. |
-| `baseUrl` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` | The production fianto API. Override it to point at your own self-hosted deployment or a backend running locally, e.g. `http://localhost:3000`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. There is no separate "devnet" API host to switch to — the Solana cluster a deployment settles against (devnet vs. mainnet-beta) is that backend's own configuration, not something `baseUrl` selects. |
+| `baseUrl` | `FIANTO_BASE_URL` | the API of `network` | Override it to point at your own self-hosted deployment or a backend running locally, e.g. `http://localhost:3000`. It wins over `network`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
+| `network` | `FIANTO_NETWORK` | `'mainnet'` | `'mainnet'` is production (`https://api.fianto.xyz`, real USDC). `'devnet'` is the sandbox (`https://devnet-api.fianto.xyz`, exported as `DEVNET_BASE_URL`, test USDC). The same application secret keys work on both. Anything else throws a `FiantoError`. |
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
 | `dangerouslyAllowBrowser` | — | `false` | Constructing `Fianto` in a browser page (`window`/`document` exist) or a browser Web Worker (`importScripts` exists) throws unless this is `true`. There is no publishable/browser-safe key: the merchant's server always creates checkout sessions (see [Checkout route](#checkout-route)). |
 
 A missing `appId` or `appSecret` throws a `FiantoError` at construction, naming the option and
-the env var to set. `baseUrl` needs neither: it falls back to the production API.
+the env var to set. `baseUrl` and `network` need neither: they fall back to the production API.
+
+To try things out on the sandbox, pick the devnet network. Responses and webhook events carry a
+`network` field (`"mainnet"` or `"devnet"`), and `verifyWebhook` takes an optional `network` to
+refuse an event from the other one:
+
+```ts no-check
+const fianto = new Fianto({ network: 'devnet' }); // or FIANTO_NETWORK=devnet
+const event = await verifyWebhook(rawBody, headers, { network: 'devnet' }); // throws 'network_mismatch' otherwise
+```
+
+A devnet call may answer 503 `service_busy` with `Retry-After` when the sandbox cannot reach its
+identity source; retry it.
 
 Get `appId`/`appSecret` from **Dashboard → Developers → Applications**: your app, then "Reveal"
 the secret.

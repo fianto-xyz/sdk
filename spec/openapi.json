@@ -56,6 +56,14 @@
           "name": {
             "type": "string"
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "webhook": {
             "anyOf": [
               {
@@ -91,7 +99,8 @@
           "app_id",
           "name",
           "merchant",
-          "webhook"
+          "webhook",
+          "network"
         ],
         "type": "object"
       },
@@ -104,6 +113,14 @@
           },
           "id": {
             "pattern": "^evt_[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
             "type": "string"
           },
           "object": {
@@ -123,7 +140,8 @@
           "object",
           "type",
           "timestamp",
-          "data"
+          "data",
+          "network"
         ],
         "type": "object"
       },
@@ -261,6 +279,14 @@
             },
             "type": "object"
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "object": {
             "const": "order",
             "type": "string"
@@ -330,7 +356,8 @@
           "paid_at",
           "expired_at",
           "canceled_at",
-          "has_unmatched_transfer"
+          "has_unmatched_transfer",
+          "network"
         ],
         "type": "object"
       },
@@ -401,6 +428,14 @@
           "id": {
             "type": "string"
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "network_fee_amount": {
             "description": "A subscription charge's flat network fee; \"0\" for a one-off payment.",
             "type": "string"
@@ -465,7 +500,8 @@
           "block_time",
           "created_at",
           "succeeded_at",
-          "failed_at"
+          "failed_at",
+          "network"
         ],
         "type": "object"
       },
@@ -503,6 +539,14 @@
               "null"
             ]
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "object": {
             "const": "price",
             "type": "string"
@@ -535,7 +579,8 @@
           "interval",
           "status",
           "created_at",
-          "ended_at"
+          "ended_at",
+          "network"
         ],
         "type": "object"
       },
@@ -570,6 +615,14 @@
           "name": {
             "type": "string"
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "object": {
             "const": "product",
             "type": "string"
@@ -595,7 +648,8 @@
           "status",
           "created_at",
           "updated_at",
-          "ended_at"
+          "ended_at",
+          "network"
         ],
         "type": "object"
       },
@@ -751,6 +805,14 @@
             "enum": [
               "payment",
               "subscription"
+            ],
+            "type": "string"
+          },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
             ],
             "type": "string"
           },
@@ -914,7 +976,8 @@
           "created_at",
           "completed_at",
           "expired_at",
-          "canceled_at"
+          "canceled_at",
+          "network"
         ],
         "type": "object"
       },
@@ -1128,6 +1191,14 @@
             },
             "type": "object"
           },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
           "network_fee_amount": {
             "description": "The flat network fee every charge carries; \"0\" for a subscription from before it.",
             "type": "string"
@@ -1202,7 +1273,8 @@
           "ended_at",
           "created_at",
           "latest_payment",
-          "metadata"
+          "metadata",
+          "network"
         ],
         "type": "object"
       },
@@ -1211,10 +1283,19 @@
         "properties": {
           "event_id": {
             "type": "string"
+          },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "event_id"
+          "event_id",
+          "network"
         ],
         "type": "object"
       },
@@ -2968,6 +3049,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "string",
@@ -2977,6 +3066,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3125,6 +3215,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "integer",
@@ -3134,6 +3232,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3311,6 +3410,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "integer",
@@ -3320,6 +3427,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3456,6 +3564,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "integer",
@@ -3465,6 +3581,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3568,6 +3685,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "integer",
@@ -3577,6 +3702,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3699,6 +3825,14 @@
                       },
                       "type": "array"
                     },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
                     "next_cursor": {
                       "type": [
                         "integer",
@@ -3708,6 +3842,7 @@
                   },
                   "required": [
                     "items",
+                    "network",
                     "next_cursor"
                   ],
                   "type": "object"
@@ -3860,6 +3995,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -3872,6 +4015,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -3902,6 +4046,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -3914,6 +4066,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -3944,6 +4097,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -3956,6 +4117,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -3982,6 +4144,14 @@
                   "data": {
                     "$ref": "#/components/schemas/EndpointVerificationPayload"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -3993,6 +4163,7 @@
                 "required": [
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4023,6 +4194,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4035,6 +4214,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4065,6 +4245,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4077,6 +4265,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4107,6 +4296,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4119,6 +4316,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4149,6 +4347,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4161,6 +4367,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4191,6 +4398,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4203,6 +4418,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4233,6 +4449,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4245,6 +4469,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4275,6 +4500,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4287,6 +4520,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4317,6 +4551,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4329,6 +4571,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4359,6 +4602,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4371,6 +4622,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4401,6 +4653,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4413,6 +4673,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"
@@ -4443,6 +4704,14 @@
                     "pattern": "^evt_[0-9a-f]{32}$",
                     "type": "string"
                   },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
                   "timestamp": {
                     "format": "date-time",
                     "type": "string"
@@ -4455,6 +4724,7 @@
                   "id",
                   "type",
                   "timestamp",
+                  "network",
                   "data"
                 ],
                 "type": "object"

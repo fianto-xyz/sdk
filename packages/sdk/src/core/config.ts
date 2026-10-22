@@ -1,7 +1,13 @@
 import { FiantoError } from './errors.js';
 
-/** The production fianto API, used when neither `baseUrl` nor `FIANTO_BASE_URL` is set. */
+/** The production fianto API, used when none of `baseUrl`, `FIANTO_BASE_URL` or a devnet `network` is set. */
 export const DEFAULT_BASE_URL = 'https://api.fianto.xyz';
+
+/** The sandbox API (test USDC on Solana devnet). It takes the same application secret keys as production. */
+export const DEVNET_BASE_URL = 'https://devnet-api.fianto.xyz';
+
+/** `mainnet` is production (real USDC); `devnet` is the sandbox. */
+export type Network = 'mainnet' | 'devnet';
 
 export interface ClientOptions {
   /** Default: process.env.FIANTO_APP_ID */
@@ -9,12 +15,15 @@ export interface ClientOptions {
   /** Default: process.env.FIANTO_APP_SECRET. Server-side only. */
   appSecret?: string;
   /**
-   * Default: FIANTO_BASE_URL, else https://api.fianto.xyz. Override for a self-hosted or local
-   * backend. There is no separate "devnet" API host to switch to — the Solana cluster a
-   * deployment settles against (devnet vs. mainnet-beta) is that backend's own configuration,
-   * not something `baseUrl` selects.
+   * Default: FIANTO_BASE_URL, else the API of `network`. Override for a self-hosted or local
+   * backend. It wins over `network` for where requests go; `network` still reports what you asked for.
    */
   baseUrl?: string;
+  /**
+   * `'mainnet'` (production, real USDC) or `'devnet'` (the sandbox at https://devnet-api.fianto.xyz,
+   * test USDC; same application secret keys). Default: FIANTO_NETWORK, else `'mainnet'`.
+   */
+  network?: Network;
   /** Per attempt. Default 30 000. */
   timeoutMs?: number;
   /** Retries after the first attempt. Default 2. */
@@ -28,6 +37,7 @@ export interface ResolvedConfig {
   appId: string;
   appSecret: string;
   baseUrl: string;
+  network: Network;
   timeoutMs: number;
   maxRetries: number;
   fetch: typeof fetch;
@@ -78,6 +88,12 @@ function normaliseBaseUrl(raw: string): string {
   return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
+function resolveNetwork(value: string | undefined): Network {
+  if (value === undefined) return 'mainnet';
+  if (value !== 'mainnet' && value !== 'devnet') throw new FiantoError('Invalid network: expected "mainnet" or "devnet".');
+  return value;
+}
+
 export function resolveConfig(options: ClientOptions): ResolvedConfig {
   const g = globalThis as { window?: unknown; document?: unknown; importScripts?: unknown };
   // A page (window + document), or a browser Web Worker: it has neither, but its bundle still
@@ -92,10 +108,14 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
   }
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new FiantoError('No fetch implementation: pass options.fetch (Node ≥ 20 has one built in).');
+  const network = resolveNetwork(options.network ?? env('FIANTO_NETWORK'));
   return {
     appId: required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID'),
     appSecret: required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET'),
-    baseUrl: normaliseBaseUrl(options.baseUrl ?? env('FIANTO_BASE_URL') ?? DEFAULT_BASE_URL),
+    baseUrl: normaliseBaseUrl(
+      options.baseUrl ?? env('FIANTO_BASE_URL') ?? (network === 'devnet' ? DEVNET_BASE_URL : DEFAULT_BASE_URL),
+    ),
+    network,
     timeoutMs: options.timeoutMs === undefined ? 30_000 : assertTimeoutMs(options.timeoutMs),
     maxRetries: options.maxRetries === undefined ? 2 : assertMaxRetries(options.maxRetries),
     fetch: fetchImpl.bind(globalThis),

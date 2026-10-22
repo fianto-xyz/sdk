@@ -239,3 +239,27 @@ it('skips candidates that do not decode to 32 bytes (a truncated MAC never match
   const truncated = { ...headers, 'webhook-signature': `v1,${mac.subarray(0, 16).toString('base64')}` };
   expect(await reason(verifyWebhook(body, truncated, { secret, now }))).toBe('no_matching_signature');
 });
+
+describe('network check', () => {
+  const devnetBody = JSON.stringify({ ...envelope(), network: 'devnet' });
+
+  it('passes without the option, whatever the event network', async () => {
+    const { body, headers } = signed({ body: devnetBody });
+    await expect(verifyWebhook(body, headers, { secret, now })).resolves.toMatchObject({ network: 'devnet' });
+  });
+
+  it('passes when the event network matches', async () => {
+    const { body, headers } = signed({ body: devnetBody });
+    await expect(verifyWebhook(body, headers, { secret, now, network: 'devnet' })).resolves.toMatchObject({ network: 'devnet' });
+  });
+
+  it('throws when the event network differs', async () => {
+    const { body, headers } = signed({ body: devnetBody });
+    expect(await reason(verifyWebhook(body, headers, { secret, now, network: 'mainnet' }))).toBe('network_mismatch');
+  });
+
+  it('throws when the event carries no network and a check was asked for', async () => {
+    const { body, headers } = signed();
+    expect(await reason(verifyWebhook(body, headers, { secret, now, network: 'mainnet' }))).toBe('network_mismatch');
+  });
+});

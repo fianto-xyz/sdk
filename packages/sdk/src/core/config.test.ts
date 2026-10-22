@@ -1,5 +1,5 @@
 import { FiantoError } from './errors.js';
-import { DEFAULT_BASE_URL, resolveConfig } from './config.js';
+import { DEFAULT_BASE_URL, DEVNET_BASE_URL, resolveConfig } from './config.js';
 
 const base = { appId: 'fian_app_x', appSecret: 'fian_sk_live_y', baseUrl: 'https://api.example.com/' };
 
@@ -100,4 +100,52 @@ it('rejects an out-of-range or non-integer timeoutMs', () => {
   }
   expect(resolveConfig({ ...base, timeoutMs: 1 }).timeoutMs).toBe(1);
   expect(resolveConfig({ ...base, timeoutMs: 600_000 }).timeoutMs).toBe(600_000);
+});
+
+describe('network', () => {
+  const creds = { appId: 'a', appSecret: 's' };
+
+  it('defaults to mainnet on the production API', () => {
+    expect(resolveConfig(creds)).toMatchObject({ network: 'mainnet', baseUrl: 'https://api.fianto.xyz' });
+  });
+
+  it("resolves network: 'devnet' to the devnet API", () => {
+    expect(DEVNET_BASE_URL).toBe('https://devnet-api.fianto.xyz');
+    expect(resolveConfig({ ...creds, network: 'devnet' })).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+  });
+
+  it('reads FIANTO_NETWORK', () => {
+    vi.stubEnv('FIANTO_NETWORK', 'devnet');
+    expect(resolveConfig(creds)).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+  });
+
+  it('treats an empty FIANTO_NETWORK as unset', () => {
+    vi.stubEnv('FIANTO_NETWORK', '');
+    expect(resolveConfig(creds)).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+  });
+
+  it('lets the network option override FIANTO_NETWORK', () => {
+    vi.stubEnv('FIANTO_NETWORK', 'devnet');
+    expect(resolveConfig({ ...creds, network: 'mainnet' })).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+  });
+
+  it('lets baseUrl win over network, which is still reported', () => {
+    expect(resolveConfig({ ...creds, network: 'devnet', baseUrl: 'https://own.example.com' })).toMatchObject({
+      network: 'devnet',
+      baseUrl: 'https://own.example.com',
+    });
+  });
+
+  it('lets FIANTO_BASE_URL win over the network', () => {
+    vi.stubEnv('FIANTO_BASE_URL', 'https://env.example.com');
+    expect(resolveConfig({ ...creds, network: 'devnet' })).toMatchObject({ network: 'devnet', baseUrl: 'https://env.example.com' });
+  });
+
+  it('rejects an unknown network, from the option or the environment', () => {
+    const message = 'Invalid network: expected "mainnet" or "devnet".';
+    expect(() => resolveConfig({ ...creds, network: 'testnet' as never })).toThrow(message);
+    vi.stubEnv('FIANTO_NETWORK', 'testnet');
+    expect(() => resolveConfig(creds)).toThrow(FiantoError);
+    expect(() => resolveConfig(creds)).toThrow(message);
+  });
 });

@@ -1,6 +1,6 @@
 export { Fianto } from './client.js';
-export { DEFAULT_BASE_URL } from './core/config.js';
-export type { ClientOptions } from './core/config.js';
+export { DEFAULT_BASE_URL, DEVNET_BASE_URL } from './core/config.js';
+export type { ClientOptions, Network } from './core/config.js';
 export type { RequestOptions } from './core/transport.js';
 // Type only: a `PagePromise` is only ever obtained from a `list()` call, never constructed
 // directly — its constructor (and `stringifyCursor`, the raw-page-to-opaque-cursor helper it's

@@ -1,3 +1,4 @@
+import type { Network } from '../core/config.js';
 import type { components } from '../generated/api.js';
 
 type S = components['schemas'];
@@ -26,6 +27,8 @@ export interface WebhookEventOf<T extends WebhookEventType> {
   id: string;
   type: T;
   timestamp: string;
+  /** The network that sent the event: `mainnet` or `devnet` (the sandbox). */
+  network: Network;
   data: WebhookEventMap[T];
 }
 
@@ -33,6 +36,7 @@ export interface WebhookEventOf<T extends WebhookEventType> {
 export interface EndpointVerificationEvent {
   type: 'endpoint.verification';
   timestamp: string;
+  network: Network;
   data: S['EndpointVerificationPayload'];
 }
 
@@ -62,6 +66,7 @@ export interface UnknownWebhookEvent {
   id: string;
   type: string;
   timestamp: string;
+  network: Network;
   data: unknown;
 }
 

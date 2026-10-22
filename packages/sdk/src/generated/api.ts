@@ -368,6 +368,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SessionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -413,6 +418,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SessionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -458,6 +468,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SessionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -502,6 +517,11 @@ export interface webhooks {
                 content: {
                     "application/json": {
                         data: components["schemas"]["EndpointVerificationPayload"];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -547,6 +567,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["OrderDuplicatePaymentPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -592,6 +617,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["OrderEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -637,6 +667,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["OrderEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -682,6 +717,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -727,6 +767,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -772,6 +817,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -817,6 +867,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -862,6 +917,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -907,6 +967,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -952,6 +1017,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["SubscriptionEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -997,6 +1067,11 @@ export interface webhooks {
                     "application/json": {
                         data: components["schemas"]["TestEventPayload"];
                         id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         /** Format: date-time */
                         timestamp: string;
                         /** @constant */
@@ -1030,6 +1105,11 @@ export interface components {
                 name: string;
             };
             name: string;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             webhook: {
                 /** @enum {string} */
                 status: "PENDING" | "ACTIVE" | "DISABLED";
@@ -1042,6 +1122,11 @@ export interface components {
                 [key: string]: unknown;
             };
             id: string;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @constant */
             object: "event";
             /** Format: date-time */
@@ -1083,6 +1168,11 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @constant */
             object: "order";
             order_id: string;
@@ -1114,6 +1204,11 @@ export interface components {
             failed_at: string | null;
             fee_amount: string;
             id: string;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
             network_fee_amount: string;
             /** @constant */
@@ -1139,6 +1234,11 @@ export interface components {
             id: string;
             /** @enum {string|null} */
             interval: "MONTH" | "YEAR" | null;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @constant */
             object: "price";
             product_id: string;
@@ -1158,6 +1258,11 @@ export interface components {
                 [key: string]: string;
             };
             name: string;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @constant */
             object: "product";
             /** @enum {string} */
@@ -1213,6 +1318,11 @@ export interface components {
              * @enum {string}
              */
             mode: "payment" | "subscription";
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @description SUBSCRIPTION mode: the plan's flat network fee, part of every charge; "0" for a payment. */
             network_fee_amount: string;
             /** @constant */
@@ -1299,6 +1409,11 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
             /** @description The flat network fee every charge carries; "0" for a subscription from before it. */
             network_fee_amount: string;
             /** @constant */
@@ -1318,6 +1433,11 @@ export interface components {
         /** @description `POST v1/webhook/test-event`'s 202 body: the id of the test.event queued for delivery. */
         ApiTestEventResponse: {
             event_id: string;
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
         };
         CancelSubscriptionDto: {
             /** @enum {string} */
@@ -1863,6 +1983,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiEventResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: string | null;
                     };
                 };
@@ -1918,6 +2043,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiOrderResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: number | null;
                     };
                 };
@@ -1995,6 +2125,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiPaymentResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: number | null;
                     };
                 };
@@ -2050,6 +2185,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiPriceResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: number | null;
                     };
                 };
@@ -2102,6 +2242,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiProductResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: number | null;
                     };
                 };
@@ -2156,6 +2301,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ApiSubscriptionResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
                         next_cursor: number | null;
                     };
                 };

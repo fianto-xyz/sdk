@@ -8,6 +8,8 @@ export type WebhookVerificationFailure =
   | 'invalid_secret'
   | 'no_matching_signature'
   | 'invalid_payload'
+  /** `verifyWebhook` was given `network` and the event's `network` is different, or absent (a backend older than the sandbox). */
+  | 'network_mismatch'
   /** The webhook handler refused a body over its `maxBodyBytes` (answered 413). */
   | 'payload_too_large';
 

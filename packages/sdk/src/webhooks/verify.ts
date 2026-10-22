@@ -1,6 +1,7 @@
 import { FiantoError } from '../core/errors.js';
 import { base64ToBytes } from './base64.js';
 import { WebhookVerificationError } from './errors.js';
+import type { Network } from '../core/config.js';
 import type { WebhookEvent } from './events.js';
 import { readHeader, type HeadersLike } from './headers.js';
 
@@ -12,6 +13,12 @@ export interface VerifyOptions {
   secret?: string | readonly string[];
   /** Default 300. Between 1 and 3600: replay protection can be neither switched off nor made meaningless. */
   toleranceSeconds?: number;
+  /**
+   * Refuse an event that did not come from this network (`'mainnet'` or `'devnet'`) with
+   * `WebhookVerificationError('network_mismatch')`. An event with no `network` (sent by a backend
+   * older than the sandbox) fails too. Not set: the network is not checked.
+   */
+  network?: Network;
   /** Current time in ms (tests). */
   now?: () => number;
 }
@@ -175,5 +182,9 @@ export async function verifyWebhook(
   const signed = readSignedHeaders(headers, tolerance, options.now?.() ?? Date.now());
   const keys = secretKeys(options.secret);
   const prefix = signedPrefix(signed);
-  return verifySignedContent(signedContent(prefix, rawBody), prefix.length, signed, keys);
+  const event = await verifySignedContent(signedContent(prefix, rawBody), prefix.length, signed, keys);
+  if (options.network !== undefined && (event as { network?: unknown }).network !== options.network) {
+    throw new WebhookVerificationError('network_mismatch', `The webhook did not come from ${options.network}.`);
+  }
+  return event;
 }

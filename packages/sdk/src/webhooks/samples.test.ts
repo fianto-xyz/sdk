@@ -47,7 +47,7 @@ it('gives each event a status that fits its type', () => {
 });
 
 it('builds the verification probe without an id', () => {
-  expect(sampleVerificationEvent('abc')).toEqual({ type: 'endpoint.verification', timestamp: expect.any(String), data: { challenge: 'abc' } });
+  expect(sampleVerificationEvent('abc')).toEqual({ type: 'endpoint.verification', timestamp: expect.any(String), network: 'mainnet', data: { challenge: 'abc' } });
 });
 
 // The renewal network fee (October 2026): every subscription charge, the first included, is
