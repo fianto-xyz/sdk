@@ -25,11 +25,15 @@ flags (**flags win**). Get them from **Dashboard → Developers → Applications
 | `--app-id <id>` | `FIANTO_APP_ID` | — (required) |
 | `--app-secret <secret>` | `FIANTO_APP_SECRET` | — (required) |
 | `--base-url <url>` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` |
+| `--network <mainnet\|devnet>` | `FIANTO_NETWORK` | `mainnet` |
 
 A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exactly which flag or
 env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
-or point it at your own self-hosted deployment or a backend running locally (there's no separate
-"devnet" API host to switch to).
+or point it at your own self-hosted deployment or a backend running locally.
+`--network devnet` (or `FIANTO_NETWORK=devnet`) targets the devnet sandbox at
+`https://devnet-api.fianto.xyz` with the same application secret keys, for every command including
+`events tail`. The default is `mainnet`; any other value exits `2`. An explicit `--base-url` still
+wins over the network's URL.
 
 Commands that sign or verify webhooks instead take a **webhook** secret. Set it once as
 `FIANTO_WEBHOOK_SECRET` in your shell/CI env — the safest place for it — or override it per
@@ -231,7 +235,8 @@ webhook endpoint.
 
 - **`Missing --app-id: pass --app-id or set FIANTO_APP_ID.`** (or `--app-secret`) — set the named
   flag or env var. `trigger --forward-to` and `sign` don't need any of these. `--base-url` is
-  never required: it defaults to the production API.
+  never required: it defaults to the production API. `--network` is optional too (`mainnet` or
+  `devnet`).
 - **`Missing --secret: pass --secret, --secret-file <path>, or set FIANTO_WEBHOOK_SECRET.`** —
   needed by `events tail`, `trigger --forward-to` and `sign`; use the signing secret for the
   endpoint you registered.

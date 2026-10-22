@@ -279,4 +279,58 @@ describe('main: events tail, trigger, sign usage errors', () => {
     expect(client.events.list).not.toHaveBeenCalled();
     expect(lines[0]).toBe('Forwarding events from the last 5m to http://localhost:3000/wh (Ctrl-C to stop)');
   });
+
+  describe('--network', () => {
+    const creds = (d: Deps) => (d.makeClient as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+
+    it('passes --network devnet to makeClient', async () => {
+      const { d } = deps();
+      expect(await main(['whoami', '--network', 'devnet'], d)).toBe(0);
+      expect(creds(d)).toMatchObject({ network: 'devnet' });
+    });
+
+    it('passes FIANTO_NETWORK to makeClient, and the flag wins over it', async () => {
+      const a = deps({ env: { FIANTO_APP_ID: 'a', FIANTO_APP_SECRET: 's', FIANTO_NETWORK: 'devnet' } });
+      expect(await main(['whoami'], a.d)).toBe(0);
+      expect(creds(a.d)).toMatchObject({ network: 'devnet' });
+      const b = deps({ env: { FIANTO_APP_ID: 'a', FIANTO_APP_SECRET: 's', FIANTO_NETWORK: 'devnet' } });
+      expect(await main(['whoami', '--network', 'mainnet'], b.d)).toBe(0);
+      expect(creds(b.d)).toMatchObject({ network: 'mainnet' });
+    });
+
+    it('keeps an explicit --base-url next to --network devnet', async () => {
+      const { d } = deps();
+      expect(await main(['whoami', '--network', 'devnet', '--base-url', 'https://own.test'], d)).toBe(0);
+      expect(creds(d)).toMatchObject({ network: 'devnet', baseUrl: 'https://own.test' });
+    });
+
+    it('leaves network undefined by default', async () => {
+      const { d } = deps();
+      await main(['whoami'], d);
+      expect(creds(d).network).toBeUndefined();
+    });
+
+    it('exits 2 with usage for a bad value, from the flag or the env', async () => {
+      const a = deps();
+      expect(await main(['whoami', '--network', 'testnet'], a.d)).toBe(2);
+      expect(a.errors.join('\n')).toMatch(/--network.*testnet.*mainnet.*devnet/);
+      expect(a.errors.join('\n')).toContain('Usage: fianto');
+      const b = deps({ env: { FIANTO_APP_ID: 'a', FIANTO_APP_SECRET: 's', FIANTO_NETWORK: 'nope' } });
+      expect(await main(['events', 'list'], b.d)).toBe(2);
+      expect(b.errors.join('\n')).toMatch(/FIANTO_NETWORK.*nope/);
+    });
+
+    it('events tail honours it', async () => {
+      const { d, client } = deps({ signal: AbortSignal.abort() });
+      client.events.list.mockResolvedValue({ data: [] } as never);
+      await main(['events', 'tail', '--forward-to', 'http://localhost:1/x', '--secret', 'whsec_x', '--network', 'devnet'], d);
+      expect(creds(d)).toMatchObject({ network: 'devnet' });
+    });
+
+    it('shows --network in help', async () => {
+      const { d, lines } = deps();
+      await main(['--help'], d);
+      expect(lines.join('\n')).toMatch(/--network <mainnet\|devnet>\s+overrides FIANTO_NETWORK/);
+    });
+  });
 });

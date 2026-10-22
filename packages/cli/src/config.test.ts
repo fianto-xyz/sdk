@@ -109,3 +109,36 @@ describe('webhookSecretFrom', () => {
     });
   });
 });
+
+describe('credentialsFrom network', () => {
+  const base = { 'app-id': 'a', 'app-secret': 's' };
+
+  it('leaves network undefined when neither --network nor FIANTO_NETWORK is set', () => {
+    expect(credentialsFrom(base, {}).network).toBeUndefined();
+  });
+
+  it('reads FIANTO_NETWORK, treating an empty value as unset', () => {
+    expect(credentialsFrom(base, { FIANTO_NETWORK: 'devnet' }).network).toBe('devnet');
+    expect(credentialsFrom(base, { FIANTO_NETWORK: '' }).network).toBeUndefined();
+  });
+
+  it('prefers --network over FIANTO_NETWORK', () => {
+    expect(credentialsFrom({ ...base, network: 'mainnet' }, { FIANTO_NETWORK: 'devnet' }).network).toBe('mainnet');
+    expect(credentialsFrom({ ...base, network: 'devnet' }, { FIANTO_NETWORK: 'mainnet' }).network).toBe('devnet');
+  });
+
+  it('keeps baseUrl alongside network', () => {
+    const c = credentialsFrom({ ...base, network: 'devnet', 'base-url': 'https://x.test' }, {});
+    expect(c).toMatchObject({ network: 'devnet', baseUrl: 'https://x.test' });
+  });
+
+  it('rejects a bad --network or FIANTO_NETWORK with a UsageError naming the allowed values', () => {
+    expect(() => credentialsFrom({ ...base, network: 'testnet' }, {})).toThrow(UsageError);
+    expect(() => credentialsFrom({ ...base, network: 'testnet' }, {})).toThrow(/--network.*testnet.*mainnet.*devnet/);
+    expect(() => credentialsFrom(base, { FIANTO_NETWORK: 'Devnet' })).toThrow(/FIANTO_NETWORK.*Devnet.*mainnet.*devnet/);
+  });
+
+  it('a bad --network is rejected even when the env value is fine', () => {
+    expect(() => credentialsFrom({ ...base, network: '' }, { FIANTO_NETWORK: 'devnet' })).toThrow(UsageError);
+  });
+});

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { Network } from '@fianto/sdk';
 
 /** A bad flag, a missing flag/env var, or an unknown command: exits 2 with usage on stderr. */
 export class UsageError extends Error {
@@ -10,6 +11,8 @@ export interface CliCredentials {
   appSecret: string;
   /** Undefined when neither `--base-url` nor `FIANTO_BASE_URL` is set: the SDK's own default applies. */
   baseUrl: string | undefined;
+  /** Undefined when neither `--network` nor `FIANTO_NETWORK` is set: the SDK's own default (mainnet) applies. */
+  network: Network | undefined;
 }
 
 function required(value: string | undefined, flag: string, variable: string): string {
@@ -17,15 +20,26 @@ function required(value: string | undefined, flag: string, variable: string): st
   return value;
 }
 
+const NETWORKS: readonly Network[] = ['mainnet', 'devnet'];
+
+function networkFrom(flag: string | undefined, env: string | undefined): Network | undefined {
+  // An explicit `--network ''` is a usage mistake to report, never a silent fall-through to the env.
+  const [raw, source] = flag !== undefined ? [flag, '--network'] : [env, 'FIANTO_NETWORK'];
+  if (raw === undefined || (source === 'FIANTO_NETWORK' && raw === '')) return undefined;
+  if ((NETWORKS as readonly string[]).includes(raw)) return raw as Network;
+  throw new UsageError(`Invalid ${source} (${raw}): expected mainnet or devnet.`);
+}
+
 /** Flags win over env. Throws `UsageError` naming the missing flag/env var. */
 export function credentialsFrom(
-  flags: { 'app-id'?: string; 'app-secret'?: string; 'base-url'?: string },
+  flags: { 'app-id'?: string; 'app-secret'?: string; 'base-url'?: string; network?: string },
   env: NodeJS.ProcessEnv,
 ): CliCredentials {
   return {
     appId: required(flags['app-id'] ?? env.FIANTO_APP_ID, '--app-id', 'FIANTO_APP_ID'),
     appSecret: required(flags['app-secret'] ?? env.FIANTO_APP_SECRET, '--app-secret', 'FIANTO_APP_SECRET'),
     baseUrl: flags['base-url'] ?? env.FIANTO_BASE_URL,
+    network: networkFrom(flags.network, env.FIANTO_NETWORK),
   };
 }
 

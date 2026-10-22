@@ -15,7 +15,7 @@ process.on('SIGINT', () => {
 const code = await main(process.argv.slice(2), {
   output: consoleOutput,
   env: process.env,
-  makeClient: (c) => new Fianto({ appId: c.appId, appSecret: c.appSecret, ...(c.baseUrl ? { baseUrl: c.baseUrl } : {}) }),
+  makeClient: (c) => new Fianto({ appId: c.appId, appSecret: c.appSecret, ...(c.baseUrl ? { baseUrl: c.baseUrl } : {}), ...(c.network ? { network: c.network } : {}) }),
   fetch: globalThis.fetch,
   now: Date.now,
   sleep: (ms, signal) => new Promise((resolve) => { const t = setTimeout(resolve, ms); signal?.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true }); }),
