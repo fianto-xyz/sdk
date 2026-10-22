@@ -6,7 +6,7 @@ import { eventsTail } from './commands/events-tail.js';
 import { sign } from './commands/sign.js';
 import { trigger } from './commands/trigger.js';
 import { whoami } from './commands/whoami.js';
-import { credentialsFrom, UsageError, webhookSecretFrom, type CliCredentials } from './config.js';
+import { credentialsFrom, networkFrom, UsageError, webhookSecretFrom, type CliCredentials } from './config.js';
 import { parseDuration } from './duration.js';
 import type { Output } from './output.js';
 import { VERSION } from './version.js';
@@ -113,7 +113,14 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
         const getClient = () => deps.makeClient(credentialsFrom(values, deps.env));
         await trigger(
           type,
-          { forwardTo, secret: secret?.secret, secretFromEnv: secret?.fromEnv, allowRemote: values['allow-remote'] },
+          {
+            forwardTo,
+            secret: secret?.secret,
+            secretFromEnv: secret?.fromEnv,
+            allowRemote: values['allow-remote'],
+            // Only a --forward-to run builds a sample, so only it validates the network here.
+            network: forwardTo ? networkFrom(values.network, deps.env.FIANTO_NETWORK) : undefined,
+          },
           getClient,
           deps,
         );

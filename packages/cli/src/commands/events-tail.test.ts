@@ -230,3 +230,20 @@ it('logs a failed poll and keeps polling after the interval', async () => {
   expect(sleep).toHaveBeenCalledWith(2000, controller.signal);
   expect(posted).toEqual(['evt_z']);
 });
+
+it('forwards the event network as the API returned it, in envelope order, so a devnet handler accepts it', async () => {
+  const { verifyWebhook } = await import('@fianto/sdk/webhooks');
+  const { run, fetch } = setup([{ items: [{ ...ev('evt_n', 8), network: 'devnet' } as never] }]);
+  await run();
+  const [, init] = fetch.mock.calls[0]!;
+  expect(Object.keys(JSON.parse(init.body as string))).toEqual(['id', 'type', 'timestamp', 'network', 'data']);
+  await expect(verifyWebhook(init.body as string, init.headers as Record<string, string>, { secret, network: 'devnet' })).resolves.toMatchObject({ network: 'devnet' });
+  await expect(verifyWebhook(init.body as string, init.headers as Record<string, string>, { secret, network: 'mainnet' })).rejects.toMatchObject({ code: 'network_mismatch' });
+});
+
+it('forwards without a network when the API item has none (old backend), never inventing one', async () => {
+  const { run, fetch } = setup([{ items: [ev('evt_o', 8)] }]);
+  await run();
+  const [, init] = fetch.mock.calls[0]!;
+  expect(Object.keys(JSON.parse(init.body as string))).toEqual(['id', 'type', 'timestamp', 'data']);
+});

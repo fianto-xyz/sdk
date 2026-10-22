@@ -23,9 +23,18 @@ function remember(seen: Set<string>, id: string): void {
   }
 }
 
-/** What fianto actually delivers: `id`, `type`, `timestamp`, `data` — `object` is list/retrieve-only (A6). */
-function toDeliveryEnvelope(event: FiantoEvent): { id: string; type: string; timestamp: string; data: unknown } {
-  return { id: event.id, type: event.type, timestamp: event.timestamp, data: event.data };
+/** What fianto actually delivers: `id`, `type`, `timestamp`, `network`, `data` — `object` is list/retrieve-only (A6). */
+function toDeliveryEnvelope(event: FiantoEvent): { id: string; type: string; timestamp: string; network?: string; data: unknown } {
+  // `network` rides exactly as the API returned it, between `timestamp` and `data` like the
+  // backend envelope; an item without one (an older backend) is forwarded without, never invented.
+  const network = (event as { network?: string }).network;
+  return {
+    id: event.id,
+    type: event.type,
+    timestamp: event.timestamp,
+    ...(network === undefined ? {} : { network }),
+    data: event.data,
+  };
 }
 
 async function forwardEvent(

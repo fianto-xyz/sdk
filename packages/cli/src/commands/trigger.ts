@@ -1,4 +1,4 @@
-import type { Fianto } from '@fianto/sdk';
+import type { Fianto, Network } from '@fianto/sdk';
 import { isKnownEventType, sampleEvent, signWebhook, WEBHOOK_EVENT_TYPES } from '@fianto/sdk/webhooks';
 import { UsageError } from '../config.js';
 import { isLoopbackUrl } from '../loopback.js';
@@ -16,6 +16,8 @@ export interface TriggerOptions {
   secretFromEnv?: boolean;
   /** Lets `--forward-to` target a non-loopback URL. Off by default (C5). */
   allowRemote?: boolean;
+  /** Network stamped on the local sample (the resolved `--network`/`FIANTO_NETWORK`); default mainnet. */
+  network?: Network;
 }
 
 /**
@@ -60,7 +62,7 @@ export async function trigger(
     // A fresh id per trigger: `sampleEvent` alone always returns the same evt_000…1 id (it's
     // deterministic on purpose, for the SDK's own tests), so a handler that dedupes on event.id
     // would treat every trigger after the first as a repeat delivery and silently ignore it.
-    const { body, headers } = await signWebhook({ event: sampleEvent(type, { id: freshEventId() }), secret: options.secret });
+    const { body, headers } = await signWebhook({ event: sampleEvent(type, { id: freshEventId(), network: options.network ?? 'mainnet' }), secret: options.secret });
     // redirect: 'manual' — a loopback endpoint answering 307/308 must not carry the signed
     // sample off-host to wherever Location points; that would defeat the loopback check above.
     // fetch turns any redirect response into an opaque one (status 0) instead of following it,

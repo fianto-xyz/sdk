@@ -332,5 +332,29 @@ describe('main: events tail, trigger, sign usage errors', () => {
       await main(['--help'], d);
       expect(lines.join('\n')).toMatch(/--network <mainnet\|devnet>\s+overrides FIANTO_NETWORK/);
     });
+
+    it('trigger --forward-to stamps the sample with --network, else FIANTO_NETWORK, else mainnet', async () => {
+      const body = async (argv: string[], env: NodeJS.ProcessEnv) => {
+        const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+        const { d } = deps({ env, fetch: fetch as never });
+        const secret = 'whsec_' + Buffer.alloc(32, 1).toString('base64');
+        expect(await main(['trigger', 'order.paid', '--forward-to', 'http://localhost:1/x', '--secret', secret, ...argv], d)).toBe(0);
+        expect(d.makeClient).not.toHaveBeenCalled();
+        return JSON.parse((fetch.mock.calls[0]! as unknown as [string, RequestInit])[1].body as string).network;
+      };
+      expect(await body([], {})).toBe('mainnet');
+      expect(await body([], { FIANTO_NETWORK: 'devnet' })).toBe('devnet');
+      expect(await body(['--network', 'devnet'], {})).toBe('devnet');
+      expect(await body(['--network', 'mainnet'], { FIANTO_NETWORK: 'devnet' })).toBe('mainnet');
+    });
+
+    it('trigger --forward-to with a bad network is a usage error and posts nothing', async () => {
+      const fetch = vi.fn();
+      const { d, errors } = deps({ fetch: fetch as never });
+      const secret = 'whsec_' + Buffer.alloc(32, 1).toString('base64');
+      expect(await main(['trigger', 'order.paid', '--forward-to', 'http://localhost:1/x', '--secret', secret, '--network', 'nope'], d)).toBe(2);
+      expect(errors.join('\n')).toMatch(/--network.*nope/);
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 });

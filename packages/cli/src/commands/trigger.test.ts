@@ -35,6 +35,17 @@ describe('trigger', () => {
     expect(lines).toEqual(['→ 200 order.paid (local sample)']);
   });
 
+  it('stamps the sample with the resolved network and it verifies against that network', async () => {
+    const { verifyWebhook } = await import('@fianto/sdk/webhooks');
+    for (const [network, expected] of [[undefined, 'mainnet'], ['mainnet', 'mainnet'], ['devnet', 'devnet']] as const) {
+      const { output, fetch } = fakeDeps();
+      await trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret, network }, noClient, { fetch: fetch as never, output });
+      const [, init] = fetch.mock.calls[0]! as unknown as [string, RequestInit];
+      expect(JSON.parse(init.body as string).network).toBe(expected);
+      await expect(verifyWebhook(init.body as string, init.headers as Record<string, string>, { secret, network: expected })).resolves.toMatchObject({ network: expected });
+    }
+  });
+
   // Review Focus 4
   it('refuses a known business event with no --forward-to, and calls nothing', async () => {
     const { output, fetch } = fakeDeps();

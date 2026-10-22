@@ -22,7 +22,7 @@ function required(value: string | undefined, flag: string, variable: string): st
 
 const NETWORKS: readonly Network[] = ['mainnet', 'devnet'];
 
-function networkFrom(flag: string | undefined, env: string | undefined): Network | undefined {
+export function networkFrom(flag: string | undefined, env: string | undefined): Network | undefined {
   // An explicit `--network ''` is a usage mistake to report, never a silent fall-through to the env.
   const [raw, source] = flag !== undefined ? [flag, '--network'] : [env, 'FIANTO_NETWORK'];
   if (raw === undefined || (source === 'FIANTO_NETWORK' && raw === '')) return undefined;

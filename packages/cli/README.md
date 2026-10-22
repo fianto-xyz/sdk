@@ -111,7 +111,8 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   across as many pages as it takes to catch up, so a burst of more than 100 new events in one
   interval is never skipped.
 - **What's forwarded is the delivery envelope fianto itself would send** — `id`, `type`,
-  `timestamp`, `data` — not the `list`/`get` shape (which also carries `object: "event"`).
+  `timestamp`, `network` (as the API returned it, so a handler built for `devnet` accepts events
+  tailed from the devnet sandbox; omitted if the API item has none), `data` — not the `list`/`get` shape (which also carries `object: "event"`).
 - **A failed poll** (API or network error) prints `✗ poll failed: <message>` and tries again after
   `--interval`; the tail keeps running.
 - **Each event id is forwarded once, oldest first** — within a single poll and across polls for
@@ -132,7 +133,9 @@ split](#safety-split) below.
 
 **Any** known event type (including `test.event`) **with** `--forward-to`: signs a realistic
 local sample (`sampleEvent(type)`) and `POST`s it to that URL only. No API call, no app
-credentials needed — only the webhook secret.
+credentials needed — only the webhook secret. The sample's `network` is `--network`, else
+`FIANTO_NETWORK`, else `mainnet`, so `--network devnet` produces events a `network: 'devnet'`
+handler accepts (a bad value exits `2`).
 
 ```
 $ fianto trigger order.paid --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
