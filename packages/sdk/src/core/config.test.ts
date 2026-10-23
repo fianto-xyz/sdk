@@ -42,6 +42,11 @@ it('names the missing environment variable', () => {
   expect(() => resolveConfig({ baseUrl: 'https://x.test', appId: 'a' })).toThrow(/FIANTO_APP_SECRET/);
 });
 
+it('reports missing credentials before an unparseable baseUrl, as before the network option', () => {
+  expect(() => resolveConfig({ baseUrl: 'not a url', appSecret: 's' })).toThrow(/FIANTO_APP_ID/);
+  expect(() => resolveConfig({ baseUrl: 'not a url', appId: 'a' })).toThrow(/FIANTO_APP_SECRET/);
+});
+
 it('never echoes credentials or userinfo from an unparseable baseUrl', () => {
   const evil = 'https://user:hunter2@[::1'; // unparseable: unterminated IPv6 literal
   expect(() => resolveConfig({ ...base, baseUrl: evil })).toThrow(FiantoError);

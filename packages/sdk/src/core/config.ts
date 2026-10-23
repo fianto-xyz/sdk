@@ -110,6 +110,9 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new FiantoError('No fetch implementation: pass options.fetch (Node ≥ 20 has one built in).');
   const network = resolveNetwork(options.network ?? env('FIANTO_NETWORK'));
+  // Credentials first: a missing one is reported before an unparseable base URL, as it always was.
+  const appId = required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID');
+  const appSecret = required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET');
   const baseUrl = normaliseBaseUrl(
     options.baseUrl ?? env('FIANTO_BASE_URL') ?? (network === 'devnet' ? DEVNET_BASE_URL : DEFAULT_BASE_URL),
   );
@@ -126,8 +129,8 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
     }
   }
   return {
-    appId: required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID'),
-    appSecret: required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET'),
+    appId,
+    appSecret,
     baseUrl,
     network,
     timeoutMs: options.timeoutMs === undefined ? 30_000 : assertTimeoutMs(options.timeoutMs),
