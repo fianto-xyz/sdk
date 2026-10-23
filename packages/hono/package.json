@@ -1,6 +1,6 @@
 {
   "name": "@fianto/hono",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Hono handlers for fianto webhooks and checkout (Workers, Bun, Deno, Node).",
   "license": "MIT",
   "type": "module",
