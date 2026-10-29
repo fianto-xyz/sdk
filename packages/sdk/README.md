@@ -318,22 +318,24 @@ usdc.format('12500000'); // '12.50 USDC'
 usdc.format('12500000', { symbol: false }); // '12.50'
 ```
 
-**What a total is made of.** Checkout sessions, payments and subscriptions carry `amount` (the
+**What a total is made of.** Checkout sessions, orders, payments and subscriptions carry `amount` (the
 price, what reaches the merchant), `fee_amount` (Fianto's fee), `network_fee_amount` and
 `total_amount`, which is always `amount + fee_amount + network_fee_amount`:
 
 - `network_fee_amount` is a flat fee that the **payer** pays on every subscription charge, the
-  first one included. It goes to Fianto with the fee. It is fixed per subscription plan when the
-  plan is created (0.01 USDC, `'10000'`, by default) and never changes for that plan; a
-  subscription from a plan created before the fee existed carries `'0'`.
-- A one-off payment and a `mode: 'payment'` session carry `network_fee_amount: '0'`, and an order
-  has no network fee field at all (its `total_amount` is `amount + fee_amount`).
+  first one included, and on every one-time payment. It goes to Fianto with the fee. Its amount is
+  a Fianto setting (currently 0.01 USDC, `'10000'`).
+- On a subscription it is fixed per plan when the plan is created and never changes for that plan;
+  a subscription from a plan created before the fee existed carries `'0'`.
+- On a one-time payment it is fixed on the order (and its `mode: 'payment'` session and payment)
+  when the checkout is created; an order whose checkout was opened before 29 October 2026, when
+  one-time payments started carrying it, carries `'0'`.
 - On a subscription, `total_amount` is what every charge takes (the cap the payer signed). In a
   webhook's `period`, `network_fee_due` is that period's share, next to `amount_due` and
   `fee_due`.
 - `v1` reads always include `network_fee_amount`. In webhook payloads (`checkout.session.*`,
-  `subscription.*`) it is optional, as is `period.network_fee_due`: events created before the
-  fee existed (October 2026) do not have them, and redeliveries and `fianto.events` return them
+  `order.*`, `subscription.*`) it is optional, as is `period.network_fee_due`: events created before
+  the fee existed (October 2026; for `order.*`, before one-time payments carried it) do not have them, and redeliveries and `fianto.events` return them
   as they were stored. Treat a missing value as `'0'`:
 
 ```ts

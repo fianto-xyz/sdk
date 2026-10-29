@@ -1173,6 +1173,8 @@ export interface components {
              * @enum {string}
              */
             network: "devnet" | "mainnet";
+            /** @description The payer's flat network fee, base units: "0" on orders from before it (October 2026). */
+            network_fee_amount: string;
             /** @constant */
             object: "order";
             order_id: string;
@@ -1184,6 +1186,7 @@ export interface components {
             };
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
+            /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
             total_amount: string;
         };
         ApiPaymentResponse: {
@@ -1588,6 +1591,8 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /** @description Absent on events created before one-time payments carried the network fee (October 2026). */
+            network_fee_amount?: string;
             /** @constant */
             object: "order";
             order_id: string;
@@ -1599,6 +1604,7 @@ export interface components {
             };
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
+            /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
             total_amount: string;
         };
         /** @description The webhook body for order.paid / order.expired (spec §6.6, constraints.md's published payload table). Built from EXPLICIT keys, in the published order — never a spread of `toApiOrderResponse`, which also carries `description` and `canceled_at`: fields the published contract does not list. The contract wins; a dashboard-only field must not leak into a webhook just because the API response and the webhook payload happen to share most of their shape. */
@@ -1633,6 +1639,8 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /** @description Absent on events created before one-time payments carried the network fee (October 2026). */
+            network_fee_amount?: string;
             /** @constant */
             object: "order";
             order_id: string;
@@ -1644,6 +1652,7 @@ export interface components {
             };
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
+            /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
             total_amount: string;
         };
         /** @description The webhook body for the three checkout.session.* events (spec §6.6). */

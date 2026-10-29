@@ -19,7 +19,8 @@ type SessionStatus = WebhookEventMap['checkout.session.completed']['status'];
 function session(status: SessionStatus): WebhookEventMap['checkout.session.completed'] {
   return {
     id: 'fian_cs_sample', object: 'checkout_session', mode: 'payment', status, order_id: 'sample_order_1001',
-    amount: '10000000', fee_amount: '100000', network_fee_amount: '0', total_amount: '10100000', currency: 'USDC',
+    // total_amount = amount + fee_amount + network_fee_amount: what the payer pays.
+    amount: '10000000', fee_amount: '100000', network_fee_amount: '10000', total_amount: '10110000', currency: 'USDC',
     interval: null, subscription: null, customer,
     payment: status === 'COMPLETED' ? payment : { id: null, status: null, signature: null },
     metadata: { cart: 'c_1' }, expires_at: LATER, created_at: AT,
@@ -33,7 +34,7 @@ type OrderStatus = WebhookEventMap['order.paid']['status'];
 function order(status: OrderStatus): WebhookEventMap['order.paid'] {
   return {
     id: 'fian_ord_sample', object: 'order', order_id: 'sample_order_1001', checkout_session_id: 'fian_cs_sample', status,
-    amount: '10000000', fee_amount: '100000', total_amount: '10100000', currency: 'USDC', customer,
+    amount: '10000000', fee_amount: '100000', network_fee_amount: '10000', total_amount: '10110000', currency: 'USDC', customer,
     payment: status === 'PAID' ? { id: payment.id, signature: SIGNATURE } : { id: null, signature: null },
     metadata: { cart: 'c_1' }, created_at: AT,
     paid_at: status === 'PAID' ? AT : null,

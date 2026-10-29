@@ -50,9 +50,10 @@ it('builds the verification probe without an id', () => {
   expect(sampleVerificationEvent('abc')).toEqual({ type: 'endpoint.verification', timestamp: expect.any(String), network: 'mainnet', data: { challenge: 'abc' } });
 });
 
-// The renewal network fee (October 2026): every subscription charge, the first included, is
-// price + Fianto fee + network fee, and `total_amount` includes it. A payment session has none.
-it('puts the network fee inside every subscription total, and none on a payment session', () => {
+// The network fee (October 2026): every subscription charge, the first included, and (since
+// 29 October 2026) every one-time payment is price + Fianto fee + network fee, and `total_amount`
+// includes it.
+it('puts the network fee inside every subscription, session and order total', () => {
   const total = (d: { amount: string; fee_amount: string; network_fee_amount?: string }) =>
     BigInt(d.amount) + BigInt(d.fee_amount) + BigInt(d.network_fee_amount ?? '0');
   for (const type of WEBHOOK_EVENT_TYPES.filter((t) => t.startsWith('subscription.'))) {
@@ -65,9 +66,11 @@ it('puts the network fee inside every subscription total, and none on a payment 
   expect(BigInt(renewed.period!.amount_due) + BigInt(renewed.period!.fee_due) + BigInt(renewed.period!.network_fee_due!)).toBe(
     BigInt(renewed.total_amount),
   );
-  const session = sampleEvent('checkout.session.completed').data;
-  expect(session.network_fee_amount).toBe('0');
-  expect(BigInt(session.total_amount)).toBe(total(session));
+  for (const type of ['checkout.session.completed', 'order.paid', 'order.expired', 'order.duplicate_payment'] as const) {
+    const data = sampleEvent(type).data;
+    expect(data.network_fee_amount, type).toBe('10000');
+    expect(BigInt(data.total_amount), type).toBe(total(data));
+  }
 });
 
 it('still validates an event stored before the network fee (no network_fee_amount)', () => {
@@ -79,4 +82,16 @@ it('still validates an event stored before the network fee (no network_fee_amoun
   const { network_fee_amount: _fee, ...data } = event.data;
   const { network_fee_due: _due, ...period } = data.period!;
   expect(validate({ ...event, data: { ...data, total_amount: '10100000', period } }), JSON.stringify(validate.errors)).toBe(true);
+});
+
+it('still validates an order event stored before one-time payments carried the network fee', () => {
+  for (const type of ['order.paid', 'order.duplicate_payment'] as const) {
+    const envelope = JSON.parse(
+      JSON.stringify(spec.webhooks[type].post.requestBody.content['application/json'].schema).replaceAll('"#/components', '"doc#/components'),
+    );
+    const validate = ajv.compile(strict(envelope) as object);
+    const event = sampleEvent(type);
+    const { network_fee_amount: _fee, ...data } = event.data;
+    expect(validate({ ...event, data: { ...data, total_amount: '10100000' } }), JSON.stringify(validate.errors)).toBe(true);
+  }
 });

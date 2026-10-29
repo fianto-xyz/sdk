@@ -18,6 +18,8 @@ export async function narrowsTheVerifiedEvent(): Promise<void> {
   switch (event.type) {
     case 'order.paid':
       expectTypeOf(event.data.order_id).toEqualTypeOf<string>();
+      // Absent on events created before one-time payments carried the network fee (October 2026): optional.
+      expectTypeOf(event.data.network_fee_amount).toEqualTypeOf<string | undefined>();
       expectTypeOf(event.id).toEqualTypeOf<string>();
       break;
     case 'subscription.renewed':

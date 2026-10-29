@@ -287,6 +287,10 @@
             ],
             "type": "string"
           },
+          "network_fee_amount": {
+            "description": "The payer's flat network fee, base units: \"0\" on orders from before it (October 2026).",
+            "type": "string"
+          },
           "object": {
             "const": "order",
             "type": "string"
@@ -332,6 +336,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "amount + fee_amount + network_fee_amount: what the payer pays.",
             "type": "string"
           }
         },
@@ -344,6 +349,7 @@
           "description",
           "amount",
           "fee_amount",
+          "network_fee_amount",
           "total_amount",
           "list_amount",
           "discount_amount",
@@ -1932,6 +1938,10 @@
             },
             "type": "object"
           },
+          "network_fee_amount": {
+            "description": "Absent on events created before one-time payments carried the network fee (October 2026).",
+            "type": "string"
+          },
           "object": {
             "const": "order",
             "type": "string"
@@ -1977,6 +1987,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "amount + fee_amount + network_fee_amount: what the payer pays.",
             "type": "string"
           }
         },
@@ -2122,6 +2133,10 @@
             },
             "type": "object"
           },
+          "network_fee_amount": {
+            "description": "Absent on events created before one-time payments carried the network fee (October 2026).",
+            "type": "string"
+          },
           "object": {
             "const": "order",
             "type": "string"
@@ -2167,6 +2182,7 @@
             "type": "string"
           },
           "total_amount": {
+            "description": "amount + fee_amount + network_fee_amount: what the payer pays.",
             "type": "string"
           }
         },
