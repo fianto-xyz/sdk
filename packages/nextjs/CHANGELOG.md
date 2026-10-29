@@ -1,5 +1,12 @@
 # @fianto/nextjs
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [c2e0d4d]
+  - @fianto/sdk@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
