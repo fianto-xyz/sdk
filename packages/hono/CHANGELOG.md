@@ -1,5 +1,12 @@
 # @fianto/hono
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [999b0bf]
+  - @fianto/sdk@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes
