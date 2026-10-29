@@ -1,5 +1,11 @@
 # @fianto/react
 
+## 0.5.0
+
+### Patch Changes
+
+- @fianto/js@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes
