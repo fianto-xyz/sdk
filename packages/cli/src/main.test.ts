@@ -55,6 +55,65 @@ describe('main', () => {
     expect(errors.join('\n')).toContain('req_abcdefgh');
   });
 
+  describe('the network the app secret is for (real client, as bin.ts builds it)', () => {
+    async function realClient(env: Record<string, string>, argv: string[]) {
+      const { Fianto } = await import('@fianto/sdk');
+      const urls: string[] = [];
+      const fetchSpy = vi.fn(async (url: string | URL | Request) => {
+        urls.push(String(url));
+        return new Response(JSON.stringify({ app_id: 'fian_app_1', name: 'Shop', merchant: { name: 'Acme' }, webhook: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      const { d, errors } = deps({
+        env,
+        makeClient: (c) =>
+          new Fianto({
+            appId: c.appId,
+            appSecret: c.appSecret,
+            fetch: fetchSpy as never,
+            ...(c.baseUrl ? { baseUrl: c.baseUrl } : {}),
+            ...(c.network ? { network: c.network } : {}),
+          }),
+      });
+      const code = await main(argv, d);
+      return { code, urls, errors };
+    }
+
+    it('sends a test key to the devnet API when no network is set', async () => {
+      const { code, urls } = await realClient({ FIANTO_APP_ID: 'fian_app_1', FIANTO_APP_SECRET: 'fian_sk_test_SECRETVALUE' }, ['whoami']);
+      expect(code).toBe(0);
+      expect(urls[0]).toMatch(/^https:\/\/devnet-api\.fianto\.xyz\/v1\/application/);
+    });
+
+    it('sends a live key to the mainnet API when no network is set (unchanged)', async () => {
+      const { code, urls } = await realClient({ FIANTO_APP_ID: 'fian_app_1', FIANTO_APP_SECRET: 'fian_sk_live_SECRETVALUE' }, ['whoami']);
+      expect(code).toBe(0);
+      expect(urls[0]).toMatch(/^https:\/\/api\.fianto\.xyz\/v1\/application/);
+    });
+
+    it('refuses a test key with --network mainnet before any request, without printing the secret', async () => {
+      const { code, urls, errors } = await realClient(
+        { FIANTO_APP_ID: 'fian_app_1', FIANTO_APP_SECRET: 'fian_sk_test_SECRETVALUE' },
+        ['whoami', '--network', 'mainnet'],
+      );
+      expect(code).toBe(1);
+      expect(urls).toEqual([]);
+      expect(errors.join('\n')).toContain('appSecret is a test key (fian_sk_test_) but network is "mainnet"');
+      expect(errors.join('\n')).not.toContain('SECRETVALUE');
+    });
+
+    it('refuses a live key with FIANTO_NETWORK=devnet', async () => {
+      const { code, errors } = await realClient(
+        { FIANTO_APP_ID: 'fian_app_1', FIANTO_APP_SECRET: 'fian_sk_live_SECRETVALUE', FIANTO_NETWORK: 'devnet' },
+        ['whoami'],
+      );
+      expect(code).toBe(1);
+      expect(errors.join('\n')).toContain('appSecret is a live key (fian_sk_live_) but network is "devnet"');
+    });
+  });
+
   it('prints usage and exits 0 for --help without touching credentials', async () => {
     const { d, lines, errors } = deps({ env: {} });
     expect(await main(['--help'], d)).toBe(0);

@@ -11,7 +11,7 @@ export interface CliCredentials {
   appSecret: string;
   /** Undefined when neither `--base-url` nor `FIANTO_BASE_URL` is set: the SDK's own default applies. */
   baseUrl: string | undefined;
-  /** Undefined when neither `--network` nor `FIANTO_NETWORK` is set: the SDK's own default (mainnet) applies. */
+  /** Undefined when neither `--network` nor `FIANTO_NETWORK` is set: the SDK picks it from the app secret's prefix. */
   network: Network | undefined;
 }
 

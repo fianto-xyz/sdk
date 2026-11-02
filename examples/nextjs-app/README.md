@@ -25,8 +25,8 @@ cp .env.example .env.local
 
 | Env var | Meaning |
 |---|---|
-| `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials, from **Dashboard → Developers → Applications**. Server-side only. |
-| `FIANTO_BASE_URL` | Optional. The fianto deployment these credentials belong to; defaults to the production API (`https://api.fianto.xyz`). Point it at a local backend (e.g. `http://localhost:3000`) instead — there's no separate "devnet" API host. |
+| `FIANTO_APP_ID` / `FIANTO_APP_SECRET` | Your app's credentials, from **Dashboard → Developers → Applications**. Server-side only. A live key (`fian_sk_live_`) uses the production API; a test key (`fian_sk_test_`) uses the devnet sandbox (`https://devnet-api.fianto.xyz`). Neither works on the other network. |
+| `FIANTO_BASE_URL` | Optional. The fianto deployment these credentials belong to; defaults to the API of the key's network. Point it at a local backend (e.g. `http://localhost:3000`) instead. |
 | `FIANTO_WEBHOOK_SECRET` | The signing secret for the endpoint you register at `/api/webhooks/fianto`. |
 | `FIANTO_PRICE_PRO` | The id of the recurring Price backing the "pro" plan. |
 | `SITE_URL` | Optional. This app's own public origin, used to build `success_url`/`cancel_url` (`app/api/checkout/route.ts`). Required (`https://`) once deployed — falls back to the incoming request's own origin otherwise, which only works for local development. **The production API refuses `http://` success_url/cancel_url outright (`400 url_insecure`)** — running this example against `https://api.fianto.xyz` from `http://localhost:3000` needs an `https` `SITE_URL` (e.g. a tunnel such as ngrok or Cloudflare Tunnel); otherwise, point `FIANTO_BASE_URL` at a local backend with `CHECKOUT_ALLOW_INSECURE_URLS` set. |

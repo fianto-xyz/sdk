@@ -23,7 +23,8 @@ export interface CheckoutHandlerOptions<Context = unknown> {
   fianto?: Fianto;
   /**
    * `'mainnet'` or `'devnet'` (the sandbox) for the client this handler creates itself; the same
-   * as `new Fianto({ network })`. Ignored when you pass `fianto`. Default: FIANTO_NETWORK, else mainnet.
+   * as `new Fianto({ network })`. Ignored when you pass `fianto`. Default: FIANTO_NETWORK, else the
+   * app secret's network (devnet for a `fian_sk_test_` key, otherwise mainnet).
    */
   network?: Network;
   /**

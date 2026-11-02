@@ -47,8 +47,8 @@ Commands:
 Global flags:
   --app-id <id>          overrides FIANTO_APP_ID
   --app-secret <secret>  overrides FIANTO_APP_SECRET
-  --base-url <url>       overrides FIANTO_BASE_URL (default https://api.fianto.xyz)
-  --network <mainnet|devnet>  overrides FIANTO_NETWORK (default mainnet; devnet = test USDC sandbox)
+  --base-url <url>       overrides FIANTO_BASE_URL (default: the network's API)
+  --network <mainnet|devnet>  overrides FIANTO_NETWORK (default: the app secret's; devnet = test USDC sandbox)
   --version, -v          print the CLI version
   --help                 show this help`;
 

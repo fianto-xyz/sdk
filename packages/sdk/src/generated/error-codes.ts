@@ -7,6 +7,7 @@ export const ErrorCode = {
   AmountNotAllowed: 'amount_not_allowed',
   AmountOrPriceRequired: 'amount_or_price_required',
   AmountOutOfRange: 'amount_out_of_range',
+  ApiKeyWrongNetwork: 'api_key_wrong_network',
   BodyTooDeep: 'body_too_deep',
   BuildLimitReached: 'build_limit_reached',
   CancelAtInvalid: 'cancel_at_invalid',

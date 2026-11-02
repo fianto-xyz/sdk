@@ -1,9 +1,9 @@
 import { FiantoError } from './errors.js';
 
-/** The production fianto API, used when none of `baseUrl`, `FIANTO_BASE_URL` or a devnet `network` is set. */
+/** The production fianto API, used when none of `baseUrl`, `FIANTO_BASE_URL` or a devnet `network` (or test key) is set. */
 export const DEFAULT_BASE_URL = 'https://api.fianto.xyz';
 
-/** The sandbox API (test USDC on Solana devnet). It takes the same application secret keys as production. */
+/** The sandbox API (test USDC on Solana devnet). It takes only test secret keys (`fian_sk_test_`), never live ones. */
 export const DEVNET_BASE_URL = 'https://devnet-api.fianto.xyz';
 
 /** `mainnet` is production (real USDC); `devnet` is the sandbox. */
@@ -17,12 +17,15 @@ export interface ClientOptions {
   /**
    * Default: FIANTO_BASE_URL, else the API of `network`. Override for a self-hosted or local
    * backend. It wins over `network` for where requests go, except that the other network's own host
-   * (api.fianto.xyz for devnet, devnet-api.fianto.xyz for mainnet) with an explicit `network` throws.
+   * (api.fianto.xyz for devnet, devnet-api.fianto.xyz for mainnet) with an explicit `network` throws,
+   * as does api.fianto.xyz with a test key and no `network`.
    */
   baseUrl?: string;
   /**
-   * `'mainnet'` (production, real USDC) or `'devnet'` (the sandbox at https://devnet-api.fianto.xyz,
-   * test USDC; same application secret keys). Default: FIANTO_NETWORK, else `'mainnet'`.
+   * `'mainnet'` (production, real USDC; takes a live secret key, `fian_sk_live_`) or `'devnet'` (the
+   * sandbox at https://devnet-api.fianto.xyz, test USDC; takes a test secret key, `fian_sk_test_`).
+   * Default: FIANTO_NETWORK, else the key's network: `'devnet'` for a `fian_sk_test_` key, otherwise
+   * `'mainnet'`. A network that contradicts the key's prefix throws.
    */
   network?: Network;
   /** Per attempt. Default 30 000. */
@@ -89,11 +92,31 @@ function normaliseBaseUrl(raw: string): string {
   return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
-function resolveNetwork(value: string | undefined): Network {
-  if (value === undefined) return 'mainnet';
+function resolveNetwork(value: string | undefined): Network | undefined {
+  if (value === undefined) return undefined;
   if (value !== 'mainnet' && value !== 'devnet') throw new FiantoError('Invalid network: expected "mainnet" or "devnet".');
   return value;
 }
+
+const KEY_PREFIXES: Record<Network, string> = { mainnet: 'fian_sk_live_', devnet: 'fian_sk_test_' };
+
+/** The network an app secret is for, read from its prefix; undefined for any other shape. */
+function keyNetwork(appSecret: string): Network | undefined {
+  if (appSecret.startsWith(KEY_PREFIXES.mainnet)) return 'mainnet';
+  if (appSecret.startsWith(KEY_PREFIXES.devnet)) return 'devnet';
+  return undefined;
+}
+
+/** PLACEHOLDER wording (owner rule): every new key/network message, for owner approval. */
+const KEY_NETWORK_COPY = {
+  keyMismatch: (key: Network, network: Network): string => {
+    const [kind, other] = key === 'mainnet' ? ['live', 'test'] : ['test', 'live'];
+    return `appSecret is a ${kind} key (${KEY_PREFIXES[key]}) but network is "${network}". Use a ${other} key, or change network.`;
+  },
+  testKeyOnMainnetUrl: (baseUrl: string): string =>
+    `appSecret is a test key (${KEY_PREFIXES.devnet}), so network is "devnet", but the base URL is ${baseUrl}, the mainnet API. ` +
+    `Remove FIANTO_BASE_URL / baseUrl, or use a live key.`,
+} as const;
 
 export function resolveConfig(options: ClientOptions): ResolvedConfig {
   const g = globalThis as { window?: unknown; document?: unknown; importScripts?: unknown };
@@ -109,10 +132,17 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
   }
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new FiantoError('No fetch implementation: pass options.fetch (Node ≥ 20 has one built in).');
-  const network = resolveNetwork(options.network ?? env('FIANTO_NETWORK'));
+  const explicitNetwork = resolveNetwork(options.network ?? env('FIANTO_NETWORK'));
   // Credentials first: a missing one is reported before an unparseable base URL, as it always was.
   const appId = required(options.appId ?? env('FIANTO_APP_ID'), 'appId', 'FIANTO_APP_ID');
   const appSecret = required(options.appSecret ?? env('FIANTO_APP_SECRET'), 'appSecret', 'FIANTO_APP_SECRET');
+  // A live key works only on mainnet and a test key only on devnet: the API would refuse the other
+  // with 401 api_key_wrong_network, so say so here. A key with neither prefix is left to the API.
+  const fromKey = keyNetwork(appSecret);
+  if (explicitNetwork !== undefined && fromKey !== undefined && explicitNetwork !== fromKey) {
+    throw new FiantoError(KEY_NETWORK_COPY.keyMismatch(fromKey, explicitNetwork));
+  }
+  const network: Network = explicitNetwork ?? fromKey ?? 'mainnet';
   const baseUrl = normaliseBaseUrl(
     options.baseUrl ?? env('FIANTO_BASE_URL') ?? (network === 'devnet' ? DEVNET_BASE_URL : DEFAULT_BASE_URL),
   );
@@ -127,6 +157,9 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
           `Remove FIANTO_BASE_URL / baseUrl, or change network.`,
       );
     }
+  } else if (explicitNetwork === undefined && fromKey === 'devnet' && baseUrl === DEFAULT_BASE_URL) {
+    // The network came from a test key: the production host would refuse it.
+    throw new FiantoError(KEY_NETWORK_COPY.testKeyOnMainnetUrl(baseUrl));
   }
   return {
     appId,

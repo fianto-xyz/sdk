@@ -326,16 +326,39 @@ it.each([
 describe('network', () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-  it("builds its client for the devnet API with network: 'devnet'", async () => {
-    vi.stubEnv('FIANTO_APP_ID', 'fian_app_1');
-    vi.stubEnv('FIANTO_APP_SECRET', 'fian_sk_live_2');
+  function recordFetch(): string[] {
     const urls: string[] = [];
     vi.stubGlobal('fetch', async (url: string) => {
       urls.push(url);
       return new Response(JSON.stringify({ id: 'fian_cs_1', url: 'https://pay.test/c/t1' }), { status: 201 });
     });
+    return urls;
+  }
+
+  it("builds its client for the devnet API with network: 'devnet'", async () => {
+    vi.stubEnv('FIANTO_APP_ID', 'fian_app_1');
+    vi.stubEnv('FIANTO_APP_SECRET', 'fian_sk_test_2');
+    const urls = recordFetch();
     const response = await createCheckoutHandler({ network: 'devnet', createSession: async () => params })(sameOrigin());
     expect(response.status).toBe(200);
     expect(urls[0]).toBe('https://devnet-api.fianto.xyz/v1/checkout-sessions');
+  });
+
+  it('builds its client for the devnet API from a test key alone', async () => {
+    vi.stubEnv('FIANTO_APP_ID', 'fian_app_1');
+    vi.stubEnv('FIANTO_APP_SECRET', 'fian_sk_test_2');
+    const urls = recordFetch();
+    const response = await createCheckoutHandler({ createSession: async () => params })(sameOrigin());
+    expect(response.status).toBe(200);
+    expect(urls[0]).toBe('https://devnet-api.fianto.xyz/v1/checkout-sessions');
+  });
+
+  it("never calls the API with a live key and network: 'devnet'", async () => {
+    vi.stubEnv('FIANTO_APP_ID', 'fian_app_1');
+    vi.stubEnv('FIANTO_APP_SECRET', 'fian_sk_live_2');
+    const urls = recordFetch();
+    const response = await createCheckoutHandler({ network: 'devnet', createSession: async () => params })(sameOrigin());
+    expect(response.status).toBe(500);
+    expect(urls).toEqual([]);
   });
 });

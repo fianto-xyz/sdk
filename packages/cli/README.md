@@ -24,16 +24,19 @@ flags (**flags win**). Get them from **Dashboard → Developers → Applications
 |---|---|---|
 | `--app-id <id>` | `FIANTO_APP_ID` | — (required) |
 | `--app-secret <secret>` | `FIANTO_APP_SECRET` | — (required) |
-| `--base-url <url>` | `FIANTO_BASE_URL` | `https://api.fianto.xyz` |
-| `--network <mainnet\|devnet>` | `FIANTO_NETWORK` | `mainnet` |
+| `--base-url <url>` | `FIANTO_BASE_URL` | the network's API |
+| `--network <mainnet\|devnet>` | `FIANTO_NETWORK` | the app secret's network |
 
 A missing `--app-id`/`--app-secret` (or their env vars) exits `2` and names exactly which flag or
-env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the production API,
-or point it at your own self-hosted deployment or a backend running locally.
+env var to set. `--base-url`/`FIANTO_BASE_URL` is optional — omit it to use the network's API (the
+production API for a live key), or point it at your own self-hosted deployment or a backend running locally.
 `--network devnet` (or `FIANTO_NETWORK=devnet`) targets the devnet sandbox at
-`https://devnet-api.fianto.xyz` with the same application secret keys, for every command that calls the API, including
-`events tail`. The default is `mainnet`; any other value exits `2`. An explicit `--base-url` still
-wins over the network's URL.
+`https://devnet-api.fianto.xyz`, for every command that calls the API, including `events tail`.
+Each network takes its own key: mainnet a live key (`fian_sk_live_…`), devnet a test key
+(`fian_sk_test_…`). With no `--network`, the key picks it: a test key means `devnet`, any other key
+`mainnet`. A network that contradicts the key's prefix exits `1` before any request; any value
+other than `mainnet`/`devnet` exits `2`. An explicit `--base-url` still wins over the network's
+URL, except that a test key with no network refuses the production API.
 
 Commands that sign or verify webhooks instead take a **webhook** secret. Set it once as
 `FIANTO_WEBHOOK_SECRET` in your shell/CI env — the safest place for it — or override it per
@@ -134,7 +137,7 @@ split](#safety-split) below.
 **Any** known event type (including `test.event`) **with** `--forward-to`: signs a realistic
 local sample (`sampleEvent(type)`) and `POST`s it to that URL only. No API call, no app
 credentials needed — only the webhook secret. The sample's `network` is `--network`, else
-`FIANTO_NETWORK`, else `mainnet`, so `--network devnet` produces events a `network: 'devnet'`
+`FIANTO_NETWORK`, else `mainnet` (the app secret is not read here), so `--network devnet` produces events a `network: 'devnet'`
 handler accepts (a bad value exits `2`).
 
 ```
@@ -238,8 +241,11 @@ webhook endpoint.
 
 - **`Missing --app-id: pass --app-id or set FIANTO_APP_ID.`** (or `--app-secret`) — set the named
   flag or env var. `trigger --forward-to` and `sign` don't need any of these. `--base-url` is
-  never required: it defaults to the production API. `--network` is optional too (`mainnet` or
-  `devnet`).
+  never required: it defaults to the API of the key's network. `--network` is optional too
+  (`mainnet` or `devnet`; unset, the key picks it).
+- **`appSecret is a test key (fian_sk_test_) but network is "mainnet". …`** (or a live key with
+  `devnet`) — each key works on one network only. Use the other key, or change `--network` /
+  `FIANTO_NETWORK`. From the API, the same mistake answers `api_key_wrong_network`.
 - **`Missing --secret: pass --secret, --secret-file <path>, or set FIANTO_WEBHOOK_SECRET.`** —
   needed by `events tail`, `trigger --forward-to` and `sign`; use the signing secret for the
   endpoint you registered.

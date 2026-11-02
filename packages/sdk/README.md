@@ -50,7 +50,7 @@ new Fianto({
   appId, // default: process.env.FIANTO_APP_ID
   appSecret, // default: process.env.FIANTO_APP_SECRET — server-side only
   baseUrl, // default: process.env.FIANTO_BASE_URL, else the API of `network`
-  network, // 'mainnet' | 'devnet'; default: process.env.FIANTO_NETWORK, else 'mainnet'
+  network, // 'mainnet' | 'devnet'; default: process.env.FIANTO_NETWORK, else the appSecret's network
   timeoutMs: 30_000,
   maxRetries: 2,
   fetch, // optional custom fetch
@@ -63,21 +63,29 @@ new Fianto({
 | `appId` | `FIANTO_APP_ID` | — (required) | |
 | `appSecret` | `FIANTO_APP_SECRET` | — (required) | Never send to a browser. |
 | `baseUrl` | `FIANTO_BASE_URL` | the API of `network` | Override it to point at your own self-hosted deployment or a backend running locally, e.g. `http://localhost:3000`. It wins over `network`. Must be `https://`; `http://` is only accepted for `localhost`, `127.0.0.1` and `[::1]`. |
-| `network` | `FIANTO_NETWORK` | `'mainnet'` | `'mainnet'` is production (`https://api.fianto.xyz`, real USDC). `'devnet'` is the sandbox (`https://devnet-api.fianto.xyz`, exported as `DEVNET_BASE_URL`, test USDC). The same application secret keys work on both. Anything else throws a `FiantoError`. |
+| `network` | `FIANTO_NETWORK` | the `appSecret`'s network | `'mainnet'` is production (`https://api.fianto.xyz`, real USDC) and takes only a live secret key (`fian_sk_live_`). `'devnet'` is the sandbox (`https://devnet-api.fianto.xyz`, exported as `DEVNET_BASE_URL`, test USDC) and takes only a test secret key (`fian_sk_test_`). Unset, a `fian_sk_test_` key picks `'devnet'` and any other key `'mainnet'`. A network that contradicts the key's prefix, or anything other than these two values, throws a `FiantoError`. |
 | `timeoutMs` | — | `30_000` | Per attempt, not per call. |
 | `maxRetries` | — | `2` | Retries after the first attempt, 0–10. |
 | `fetch` | — | the global `fetch` | Override for custom networking or testing. |
 | `dangerouslyAllowBrowser` | — | `false` | Constructing `Fianto` in a browser page (`window`/`document` exist) or a browser Web Worker (`importScripts` exists) throws unless this is `true`. There is no publishable/browser-safe key: the merchant's server always creates checkout sessions (see [Checkout route](#checkout-route)). |
 
 A missing `appId` or `appSecret` throws a `FiantoError` at construction, naming the option and
-the env var to set. `baseUrl` and `network` need neither: they fall back to the production API.
+the env var to set. `baseUrl` and `network` need neither: they fall back to the API of the key's
+network, the production API for a live key.
 
-To try things out on the sandbox, pick the devnet network. Responses and webhook events carry a
+Each application has two secret keys: a live key (`fian_sk_live_…`) for mainnet and a test key
+(`fian_sk_test_…`) for devnet. Neither works on the other network: the API answers 401
+`api_key_wrong_network`. The client reads the network from the key's prefix, so a live key throws
+a `FiantoError` at construction with `network: 'devnet'` (or `FIANTO_NETWORK=devnet`), and a test
+key does with `network: 'mainnet'`. A test key with no network set, but `baseUrl` (or
+`FIANTO_BASE_URL`) at the production API, throws too.
+
+To try things out on the sandbox, use the test key: the devnet network follows from it. Responses and webhook events carry a
 `network` field (`"mainnet"` or `"devnet"`), and `verifyWebhook` takes an optional `network` to
 refuse an event from the other one:
 
 ```ts no-check
-const fianto = new Fianto({ network: 'devnet' }); // or FIANTO_NETWORK=devnet
+const fianto = new Fianto(); // FIANTO_APP_SECRET=fian_sk_test_…, so devnet (FIANTO_NETWORK=devnet says the same)
 const event = await verifyWebhook(rawBody, headers, { network: 'devnet' }); // throws 'network_mismatch' otherwise
 ```
 
@@ -89,7 +97,7 @@ A devnet call may answer 503 `service_busy` with `Retry-After` when the sandbox 
 identity source; retry it.
 
 Get `appId`/`appSecret` from **Dashboard → Developers → Applications**: your app, then "Reveal"
-the secret.
+the secret (the live key for mainnet, the test key for devnet).
 
 ## Resources
 
@@ -663,13 +671,17 @@ you cannot see from there whether a transaction is still confirming on-chain.
   the named env var isn't set and no option was passed.
 - **`401` / `code: 'invalid_api_credentials'`** — wrong `appId`/`appSecret` pair, or credentials
   for the wrong deployment (see the next point).
+- **`401` / `code: 'api_key_wrong_network'`** — a real key sent to the other network's API: a
+  test key (`fian_sk_test_`) to mainnet, or a live key (`fian_sk_live_`) to devnet. Use the key for
+  that network. The client catches this before any request when it can tell from `network`;
+  you see it from the API when `baseUrl` points at the other network's host.
 - **Webhook signature verification fails intermittently or always** — almost always a re-encoded
   body: a body parser (`express.json()`, a proxy that decompresses/re-serialises, a framework
   that string-decodes non-UTF-8 bytes) ran before your handler and handed you bytes that differ
   from what fianto signed. Read the raw body yourself, before any parser touches it (see the
   Express adapter's README for the concrete fix).
-- **Requests succeed against the wrong environment** — `baseUrl` defaults to the production API
-  (`https://api.fianto.xyz`), so a self-hosted or local backend needs an explicit
+- **Requests succeed against the wrong environment** — `baseUrl` defaults to the API of the key's
+  network (the production API, `https://api.fianto.xyz`, for a live key), so a self-hosted or local backend needs an explicit
   `FIANTO_BASE_URL` (or the `baseUrl` option), e.g. `http://localhost:3000` while running the
   backend yourself. Double check it (and `FIANTO_APP_ID`/`FIANTO_APP_SECRET`) match the
   deployment you intend.

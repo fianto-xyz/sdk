@@ -1434,6 +1434,7 @@
                   "amount_not_allowed",
                   "amount_or_price_required",
                   "amount_out_of_range",
+                  "api_key_wrong_network",
                   "body_too_deep",
                   "build_limit_reached",
                   "cancel_at_invalid",

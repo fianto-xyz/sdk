@@ -183,6 +183,83 @@ describe('network', () => {
     });
   });
 
+  describe('the network the app secret is for', () => {
+    const live = { appId: 'a', appSecret: 'fian_sk_live_abc' };
+    const test = { appId: 'a', appSecret: 'fian_sk_test_abc' };
+
+    it('live key, no network: mainnet on the production API (unchanged)', () => {
+      expect(resolveConfig(live)).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+    });
+
+    it('test key, no network: devnet on the devnet API', () => {
+      expect(resolveConfig(test)).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+    });
+
+    it('test key from FIANTO_APP_SECRET, no network: devnet', () => {
+      vi.stubEnv('FIANTO_APP_SECRET', 'fian_sk_test_env');
+      expect(resolveConfig({ appId: 'a' })).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+    });
+
+    it('an empty FIANTO_NETWORK still lets a test key pick devnet', () => {
+      vi.stubEnv('FIANTO_NETWORK', '');
+      expect(resolveConfig(test)).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+    });
+
+    it('a key with neither prefix keeps the old default and is not checked', () => {
+      expect(resolveConfig({ appId: 'a', appSecret: 'fian_sk_other' })).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+      expect(resolveConfig({ appId: 'a', appSecret: 's', network: 'devnet' })).toMatchObject({ network: 'devnet' });
+      expect(resolveConfig({ appId: 'a', appSecret: 's', network: 'mainnet' })).toMatchObject({ network: 'mainnet' });
+    });
+
+    it('accepts an explicit network that matches the key', () => {
+      expect(resolveConfig({ ...live, network: 'mainnet' })).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+      expect(resolveConfig({ ...test, network: 'devnet' })).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+    });
+
+    it("refuses a live key with network: 'devnet'", () => {
+      expect(() => resolveConfig({ ...live, network: 'devnet' })).toThrow(FiantoError);
+      expect(() => resolveConfig({ ...live, network: 'devnet' })).toThrow(
+        'appSecret is a live key (fian_sk_live_) but network is "devnet". Use a test key, or change network.',
+      );
+    });
+
+    it("refuses a test key with network: 'mainnet'", () => {
+      expect(() => resolveConfig({ ...test, network: 'mainnet' })).toThrow(FiantoError);
+      expect(() => resolveConfig({ ...test, network: 'mainnet' })).toThrow(
+        'appSecret is a test key (fian_sk_test_) but network is "mainnet". Use a live key, or change network.',
+      );
+    });
+
+    it('refuses a key that FIANTO_NETWORK contradicts', () => {
+      vi.stubEnv('FIANTO_NETWORK', 'mainnet');
+      expect(() => resolveConfig(test)).toThrow(/test key.*"mainnet"/);
+      vi.stubEnv('FIANTO_NETWORK', 'devnet');
+      expect(() => resolveConfig(live)).toThrow(/live key.*"devnet"/);
+    });
+
+    it('refuses a mismatch even when baseUrl points somewhere else', () => {
+      expect(() => resolveConfig({ ...test, network: 'mainnet', baseUrl: 'http://localhost:3000' })).toThrow(FiantoError);
+    });
+
+    it('refuses a test key whose base URL is the production API, naming both', () => {
+      vi.stubEnv('FIANTO_BASE_URL', 'https://api.fianto.xyz/');
+      const attempt = () => resolveConfig(test);
+      expect(attempt).toThrow(FiantoError);
+      expect(attempt).toThrow(/devnet/);
+      expect(attempt).toThrow(/https:\/\/api\.fianto\.xyz/);
+      vi.unstubAllEnvs();
+      expect(() => resolveConfig({ ...test, baseUrl: DEFAULT_BASE_URL })).toThrow(FiantoError);
+    });
+
+    it('lets a test key use a custom or local base URL', () => {
+      expect(resolveConfig({ ...test, baseUrl: 'http://localhost:3000' })).toMatchObject({ network: 'devnet', baseUrl: 'http://localhost:3000' });
+    });
+
+    it('still reports a missing appId before checking the key', () => {
+      expect(() => resolveConfig({ appSecret: 'fian_sk_test_abc', network: 'mainnet' })).toThrow(/FIANTO_APP_ID/);
+    });
+  });
+
   it('rejects an unknown network, from the option or the environment', () => {
     const message = 'Invalid network: expected "mainnet" or "devnet".';
     expect(() => resolveConfig({ ...creds, network: 'testnet' as never })).toThrow(message);
