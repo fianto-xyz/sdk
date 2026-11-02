@@ -18,7 +18,8 @@ export interface ClientOptions {
    * Default: FIANTO_BASE_URL, else the API of `network`. Override for a self-hosted or local
    * backend. It wins over `network` for where requests go, except that the other network's own host
    * (api.fianto.xyz for devnet, devnet-api.fianto.xyz for mainnet) with an explicit `network` throws,
-   * as does api.fianto.xyz with a test key and no `network`.
+   * and so does either host with the other network's key (a test key on api.fianto.xyz, a live key
+   * on devnet-api.fianto.xyz), however the network was set. Other hosts are not checked.
    */
   baseUrl?: string;
   /**
@@ -113,9 +114,13 @@ const KEY_NETWORK_COPY = {
     const [kind, other] = key === 'mainnet' ? ['live', 'test'] : ['test', 'live'];
     return `appSecret is a ${kind} key (${KEY_PREFIXES[key]}) but network is "${network}". Use a ${other} key, or change network.`;
   },
-  testKeyOnMainnetUrl: (baseUrl: string): string =>
-    `appSecret is a test key (${KEY_PREFIXES.devnet}), so network is "devnet", but the base URL is ${baseUrl}, the mainnet API. ` +
-    `Remove FIANTO_BASE_URL / baseUrl, or use a live key.`,
+  keyOnOtherHost: (key: Network, baseUrl: string): string => {
+    const [kind, other, host] = key === 'mainnet' ? ['live', 'test', 'devnet'] : ['test', 'live', 'mainnet'];
+    return (
+      `appSecret is a ${kind} key (${KEY_PREFIXES[key]}), for ${key}, but the base URL is ${baseUrl}, the ${host} API. ` +
+      `Remove FIANTO_BASE_URL / baseUrl, or use a ${other} key.`
+    );
+  },
 } as const;
 
 export function resolveConfig(options: ClientOptions): ResolvedConfig {
@@ -157,9 +162,12 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
           `Remove FIANTO_BASE_URL / baseUrl, or change network.`,
       );
     }
-  } else if (explicitNetwork === undefined && fromKey === 'devnet' && baseUrl === DEFAULT_BASE_URL) {
-    // The network came from a test key: the production host would refuse it.
-    throw new FiantoError(KEY_NETWORK_COPY.testKeyOnMainnetUrl(baseUrl));
+  }
+  // However the network or base URL was set, a known key prefix must match a known fianto host:
+  // that host would refuse the key (401 api_key_wrong_network). Any other host is not checked.
+  const hostNetwork: Network | undefined = baseUrl === DEFAULT_BASE_URL ? 'mainnet' : baseUrl === DEVNET_BASE_URL ? 'devnet' : undefined;
+  if (fromKey !== undefined && hostNetwork !== undefined && hostNetwork !== fromKey) {
+    throw new FiantoError(KEY_NETWORK_COPY.keyOnOtherHost(fromKey, baseUrl));
   }
   return {
     appId,

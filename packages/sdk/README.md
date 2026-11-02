@@ -77,8 +77,9 @@ Each application has two secret keys: a live key (`fian_sk_live_…`) for mainne
 (`fian_sk_test_…`) for devnet. Neither works on the other network: the API answers 401
 `api_key_wrong_network`. The client reads the network from the key's prefix, so a live key throws
 a `FiantoError` at construction with `network: 'devnet'` (or `FIANTO_NETWORK=devnet`), and a test
-key does with `network: 'mainnet'`. A test key with no network set, but `baseUrl` (or
-`FIANTO_BASE_URL`) at the production API, throws too.
+key does with `network: 'mainnet'`. A key whose `baseUrl` (or `FIANTO_BASE_URL`) is the other
+network's API throws too, however the network was set: a test key with `https://api.fianto.xyz`, a
+live key with `https://devnet-api.fianto.xyz`. Any other base URL is not checked.
 
 To try things out on the sandbox, use the test key: the devnet network follows from it. Responses and webhook events carry a
 `network` field (`"mainnet"` or `"devnet"`), and `verifyWebhook` takes an optional `network` to
@@ -673,8 +674,9 @@ you cannot see from there whether a transaction is still confirming on-chain.
   for the wrong deployment (see the next point).
 - **`401` / `code: 'api_key_wrong_network'`** — a real key sent to the other network's API: a
   test key (`fian_sk_test_`) to mainnet, or a live key (`fian_sk_live_`) to devnet. Use the key for
-  that network. The client catches this before any request when it can tell from `network`;
-  you see it from the API when `baseUrl` points at the other network's host.
+  that network. The client catches this before any request when the key has a known prefix and
+  the network or base URL is fianto's; you see it from the API otherwise (for example through a
+  proxy or a custom `baseUrl`).
 - **Webhook signature verification fails intermittently or always** — almost always a re-encoded
   body: a body parser (`express.json()`, a proxy that decompresses/re-serialises, a framework
   that string-decodes non-UTF-8 bytes) ran before your handler and handed you bytes that differ

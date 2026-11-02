@@ -36,7 +36,7 @@ Each network takes its own key: mainnet a live key (`fian_sk_live_…`), devnet 
 (`fian_sk_test_…`). With no `--network`, the key picks it: a test key means `devnet`, any other key
 `mainnet`. A network that contradicts the key's prefix exits `1` before any request; any value
 other than `mainnet`/`devnet` exits `2`. An explicit `--base-url` still wins over the network's
-URL, except that a test key with no network refuses the production API.
+URL, except that a test key refuses the production API and a live key the devnet API (exit `1`).
 
 Commands that sign or verify webhooks instead take a **webhook** secret. Set it once as
 `FIANTO_WEBHOOK_SECRET` in your shell/CI env — the safest place for it — or override it per

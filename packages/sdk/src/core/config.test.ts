@@ -251,6 +251,44 @@ describe('network', () => {
       expect(() => resolveConfig({ ...test, baseUrl: DEFAULT_BASE_URL })).toThrow(FiantoError);
     });
 
+    it('refuses a live key whose base URL is the devnet API, with no network set', () => {
+      expect(() => resolveConfig({ ...live, baseUrl: DEVNET_BASE_URL })).toThrow(FiantoError);
+      expect(() => resolveConfig({ ...live, baseUrl: DEVNET_BASE_URL })).toThrow(
+        `appSecret is a live key (fian_sk_live_), for mainnet, but the base URL is ${DEVNET_BASE_URL}, the devnet API.`,
+      );
+      vi.stubEnv('FIANTO_BASE_URL', `${DEVNET_BASE_URL}/`);
+      expect(() => resolveConfig(live)).toThrow(/live key.*devnet API/);
+    });
+
+    it('refuses a test key on the production API with FIANTO_NETWORK=devnet', () => {
+      vi.stubEnv('FIANTO_NETWORK', 'devnet');
+      vi.stubEnv('FIANTO_BASE_URL', DEFAULT_BASE_URL);
+      expect(() => resolveConfig(test)).toThrow(FiantoError);
+      expect(() => resolveConfig(test)).toThrow(/test key.*mainnet API/);
+    });
+
+    it('refuses a key on the other host even with a matching explicit network', () => {
+      expect(() => resolveConfig({ ...live, network: 'mainnet', baseUrl: DEVNET_BASE_URL })).toThrow(FiantoError);
+      expect(() => resolveConfig({ ...test, network: 'devnet', baseUrl: DEFAULT_BASE_URL })).toThrow(FiantoError);
+    });
+
+    it('accepts each key on its own host, however it was set', () => {
+      expect(resolveConfig({ ...live, baseUrl: DEFAULT_BASE_URL })).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+      expect(resolveConfig({ ...test, baseUrl: DEVNET_BASE_URL })).toMatchObject({ network: 'devnet', baseUrl: DEVNET_BASE_URL });
+      vi.stubEnv('FIANTO_BASE_URL', DEFAULT_BASE_URL);
+      expect(resolveConfig(live)).toMatchObject({ network: 'mainnet', baseUrl: DEFAULT_BASE_URL });
+    });
+
+    it('keeps the explicit-network host message for a key with no known prefix', () => {
+      expect(() => resolveConfig({ appId: 'a', appSecret: 's', network: 'devnet', baseUrl: DEFAULT_BASE_URL })).toThrow(
+        `network is "devnet" but the base URL is ${DEFAULT_BASE_URL}, the mainnet API.`,
+      );
+    });
+
+    it('lets a live key use a custom or local base URL', () => {
+      expect(resolveConfig({ ...live, baseUrl: 'http://localhost:3000' })).toMatchObject({ network: 'mainnet', baseUrl: 'http://localhost:3000' });
+    });
+
     it('lets a test key use a custom or local base URL', () => {
       expect(resolveConfig({ ...test, baseUrl: 'http://localhost:3000' })).toMatchObject({ network: 'devnet', baseUrl: 'http://localhost:3000' });
     });
