@@ -1,22 +1,120 @@
 import type { Network } from '../core/config.js';
 import type { components } from '../generated/api.js';
+import type { CardPayment, CryptoPayment, PaymentCard } from '../types.js';
 
 type S = components['schemas'];
+type PaymentStatus = S['ApiPaymentResponse']['status'];
+
+/**
+ * A paid payment as an event names it. `gateway` and `method` are absent on an event stored
+ * before card payments (November 2026); such a payment is crypto, so the crypto branch leaves
+ * them optional and `method !== 'card'` (or `method === undefined`) still narrows to it.
+ */
+type EventPaidPayment =
+  | { id: string; signature: string; gateway?: 'solana'; method?: 'crypto' }
+  | { id: string; signature: null; gateway: 'stripe'; method: 'card' };
+
+/** No payment yet: every key null (`gateway`/`method` absent on an event stored before card payments). */
+type EventUnpaidPayment = { id: null; signature: null; gateway?: null; method?: null };
+
+/**
+ * An order event's `payment`. Check `method` before reading `signature`: it is the Solana
+ * signature on crypto and null on `card`. Every key is null while nothing pays the order.
+ */
+type OrderEventPayment = EventPaidPayment | EventUnpaidPayment;
+
+/**
+ * A `checkout.session.*` event's `payment`: an order event payment plus its `status` (absent on
+ * events stored before 2026-09-28). Unlike the v1 session (`payment: null`), the event keeps the
+ * all-null object while there is no payment.
+ */
+type SessionEventPayment = (EventPaidPayment & { status?: PaymentStatus }) | (EventUnpaidPayment & { status?: null });
+
+/** `checkout.session.*`. `currency` is "USD" when the session is card-only or a card paid it. */
+type SessionEvent = Omit<S['SessionEventPayload'], 'payment'> & { payment: SessionEventPayment };
+
+/** `order.paid` / `order.expired`. */
+type OrderEvent = Omit<S['OrderEventPayload'], 'payment'> & { payment: OrderEventPayment };
+
+/**
+ * `order.duplicate_payment`. `duplicate` is the payment nobody asked for: a crypto transfer has
+ * its `signature` and no `gateway`; a card charge has `gateway: 'stripe'` and `signature` null,
+ * and fianto refunds it in full automatically.
+ */
+type OrderDuplicatePaymentEvent = Omit<S['OrderDuplicatePaymentPayload'], 'payment' | 'duplicate'> & {
+  payment: OrderEventPayment;
+  duplicate: { signature: string; amount: string; gateway?: never } | { signature: null; amount: string; gateway: 'stripe' };
+};
+
+type SubscriptionEventCommon = Omit<S['SubscriptionEventPayload'], 'gateway' | 'method' | 'card' | 'currency' | 'customer'>;
+type SubscriptionEventCustomer = S['SubscriptionEventPayload']['customer'];
+
+/**
+ * A `subscription.*` event, discriminated by `method`. `gateway`, `method` and `card` are absent
+ * on an event stored before card subscriptions (November 2026); such a subscription is crypto.
+ * A card subscription reads `currency` "USD", fees "0", `plan_id` null and `customer.wallet` null.
+ */
+type SubscriptionEvent =
+  | (SubscriptionEventCommon & {
+      gateway?: 'solana';
+      method?: 'crypto';
+      card?: null;
+      currency: 'USDC';
+      customer: SubscriptionEventCustomer & { wallet: string };
+    })
+  | (SubscriptionEventCommon & {
+      gateway: 'stripe';
+      method: 'card';
+      card: PaymentCard | null;
+      currency: 'USD';
+      customer: SubscriptionEventCustomer & { wallet: null };
+    });
+
+/** A payment inside an event: the v1 `Payment`, without `network` (the event envelope carries it). */
+type EventPayment = Omit<CryptoPayment, 'network'> | Omit<CardPayment, 'network'>;
+
+/**
+ * `payment.refunded`: the payment right after its refunded figure moved, and what moved it.
+ *
+ * An event is published only when `payment.refunded_amount` moved, and every move publishes
+ * one. `refund.status` says which way: `succeeded` and `dispute_lost` add `refund.applied_amount`
+ * (always more than 0); `failed` and `reversed` take it away. A refund that succeeds or fails
+ * while a lost dispute covers the payment publishes nothing, and one card refund can be two
+ * `succeeded` events with the same `refund.id`.
+ *
+ * To follow the figure, add `refundDelta(event.data)` once per EVENT id (never pair or dedupe
+ * events by `refund.id`, and never sum `refund.amount`), on a total seeded from
+ * `GET /v1/payments/{id}` (`refunded_amount`). Events arrive late, twice or out of order, so the
+ * last one delivered is not always the newest; a seeded total is exact only when none of the
+ * payment's events was in flight while the seed was read, so compare it with
+ * `GET /v1/payments/{id}`, which always has the current figure.
+ */
+export type PaymentRefundedEvent = { payment: EventPayment; refund: S['PaymentRefundedPayload']['refund'] };
+
+/** `payment.disputed`: a card payment and its dispute, on a new dispute and on each change of its status. */
+export type PaymentDisputedEvent = { payment: Omit<CardPayment, 'network'>; dispute: S['PaymentDisputedPayload']['dispute'] };
 
 export interface WebhookEventMap {
-  'checkout.session.completed': S['SessionEventPayload'];
-  'checkout.session.expired': S['SessionEventPayload'];
-  'checkout.session.canceled': S['SessionEventPayload'];
-  'order.paid': S['OrderEventPayload'];
-  'order.expired': S['OrderEventPayload'];
-  'order.duplicate_payment': S['OrderDuplicatePaymentPayload'];
-  'subscription.created': S['SubscriptionEventPayload'];
-  'subscription.renewed': S['SubscriptionEventPayload'];
-  'subscription.past_due': S['SubscriptionEventPayload'];
-  'subscription.payment_failed': S['SubscriptionEventPayload'];
-  'subscription.ended': S['SubscriptionEventPayload'];
-  'subscription.cancel_scheduled': S['SubscriptionEventPayload'];
-  'subscription.cancel_withdrawn': S['SubscriptionEventPayload'];
+  'checkout.session.completed': SessionEvent;
+  'checkout.session.expired': SessionEvent;
+  'checkout.session.canceled': SessionEvent;
+  'order.paid': OrderEvent;
+  'order.expired': OrderEvent;
+  'order.duplicate_payment': OrderDuplicatePaymentEvent;
+  'payment.refunded': PaymentRefundedEvent;
+  'payment.disputed': PaymentDisputedEvent;
+  'subscription.created': SubscriptionEvent;
+  'subscription.renewed': SubscriptionEvent;
+  'subscription.past_due': SubscriptionEvent;
+  'subscription.payment_failed': SubscriptionEvent;
+  'subscription.ended': SubscriptionEvent;
+  'subscription.cancel_scheduled': SubscriptionEvent;
+  'subscription.cancel_withdrawn': SubscriptionEvent;
+  'invoice.issued': S['InvoiceEventPayload'];
+  'invoice.paid': S['InvoiceEventPayload'];
+  'invoice.voided': S['InvoiceEventPayload'];
+  'invoice.payment_recorded': S['InvoicePaymentRecordedPayload'];
+  'credit_note.issued': S['InvoiceEventPayload'];
   'test.event': S['TestEventPayload'];
 }
 
@@ -75,8 +173,10 @@ export interface UnknownWebhookEvent {
 export const WEBHOOK_EVENT_TYPES = [
   'checkout.session.completed', 'checkout.session.expired', 'checkout.session.canceled',
   'order.paid', 'order.expired', 'order.duplicate_payment',
+  'payment.refunded', 'payment.disputed',
   'subscription.created', 'subscription.renewed', 'subscription.past_due', 'subscription.payment_failed',
   'subscription.ended', 'subscription.cancel_scheduled', 'subscription.cancel_withdrawn',
+  'invoice.issued', 'invoice.paid', 'invoice.voided', 'invoice.payment_recorded', 'credit_note.issued',
   'test.event',
 ] as const satisfies readonly WebhookEventType[];
 

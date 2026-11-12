@@ -237,6 +237,32 @@ describe('main: events tail, trigger, sign usage errors', () => {
     expect(lines).toEqual(['→ 200 order.paid (local sample)']);
   });
 
+  it('exits 2 with a usage line for --method paypal', async () => {
+    const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+    const { d, errors } = deps({ env: {}, fetch: fetch as never });
+    expect(await main(['trigger', 'order.paid', '--forward-to', 'http://localhost:3000/wh', '--secret', SECRET, '--method', 'paypal'], d)).toBe(2);
+    expect(errors[0]).toBe('Invalid --method (paypal): expected crypto or card.');
+    expect(errors.join('\n')).toContain('Usage: fianto <command> [options]');
+    expect(errors.join('\n')).toContain('[--method crypto|card]');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('runs trigger --method card end to end through main', async () => {
+    const fetch = vi.fn(async () => new Response('ok', { status: 200 }));
+    const { d, lines } = deps({ env: {}, fetch: fetch as never });
+    expect(await main(['trigger', 'subscription.renewed', '--forward-to', 'http://localhost:3000/wh', '--secret', SECRET, '--method', 'card'], d)).toBe(0);
+    const [, init] = fetch.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).data).toMatchObject({ method: 'card', currency: 'USD' });
+    expect(lines).toEqual(['→ 200 subscription.renewed (local card sample)']);
+  });
+
+  it('exits 2 for trigger test.event --method card and never calls the API', async () => {
+    const { d, errors, client } = deps();
+    expect(await main(['trigger', 'test.event', '--method', 'card'], d)).toBe(2);
+    expect(errors.join('\n')).toMatch(/--method/);
+    expect(client.webhookEndpoint.sendTestEvent).not.toHaveBeenCalled();
+  });
+
   it('rejects a trigger --forward-to that is not http(s), like events tail does', async () => {
     const { d, errors } = deps({ env: {} });
     expect(await main(['trigger', 'order.paid', '--forward-to', 'ftp://x', '--secret', SECRET], d)).toBe(2);

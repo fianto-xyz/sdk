@@ -1,4 +1,4 @@
-import type { Fianto, Network } from '@fianto/sdk';
+import { isFiantoError, type Fianto, type Network, type PaymentMethod } from '@fianto/sdk';
 import { isKnownEventType, sampleEvent, signWebhook, WEBHOOK_EVENT_TYPES } from '@fianto/sdk/webhooks';
 import { UsageError } from '../config.js';
 import { isLoopbackUrl } from '../loopback.js';
@@ -18,13 +18,16 @@ export interface TriggerOptions {
   allowRemote?: boolean;
   /** Network stamped on the local sample (the resolved `--network`/`FIANTO_NETWORK`); default mainnet. */
   network?: Network;
+  /** `--method`: which rail the local sample is for (`card` or `crypto`); default the type's own. */
+  method?: PaymentMethod;
 }
 
 /**
  * `test.event` with no `--forward-to`: asks fianto to deliver a signed `test.event` to the
  * application's registered webhook endpoint (shares the dashboard's 10/hour budget).
  * Any known type with `--forward-to`: signs a local, realistic sample and POSTs it there —
- * fianto never sends a business-event sample itself (spec §8's safety split).
+ * fianto never sends a business-event sample itself (spec §8's safety split). `--method card`
+ * makes it the card form (see `sampleEvent`); a type with no such form is a usage error.
  *
  * `getClient` is called only on the `test.event`-via-API path: a `--forward-to` run makes no
  * API request at all, so it must not require `FIANTO_APP_ID`/`FIANTO_APP_SECRET`/`FIANTO_BASE_URL`
@@ -45,6 +48,20 @@ export async function trigger(
     throw new UsageError(`Unknown event type: ${type}. Known types: ${WEBHOOK_EVENT_TYPES.join(', ')}`);
   }
 
+  // Built first, before any request: a --method the type has no sample for (test.event, an
+  // invoice event, order.expired by card, payment.disputed by crypto) is a usage error on every
+  // path, the API one included.
+  let event: ReturnType<typeof sampleEvent>;
+  try {
+    event = sampleEvent(type, { id: freshEventId(), network: options.network ?? 'mainnet', method: options.method });
+  } catch (error) {
+    if (!isFiantoError(error)) throw error;
+    throw new UsageError(`--method ${options.method}: ${error.message}`);
+  }
+  if (options.method !== undefined && !options.forwardTo) {
+    throw new UsageError('--method only applies to a local sample: pass --forward-to <url>.');
+  }
+
   if (options.forwardTo) {
     if (!/^https?:\/\//.test(options.forwardTo)) {
       throw new UsageError(`--forward-to must be an http:// or https:// URL, got: ${options.forwardTo}`);
@@ -62,13 +79,13 @@ export async function trigger(
     // A fresh id per trigger: `sampleEvent` alone always returns the same evt_000…1 id (it's
     // deterministic on purpose, for the SDK's own tests), so a handler that dedupes on event.id
     // would treat every trigger after the first as a repeat delivery and silently ignore it.
-    const { body, headers } = await signWebhook({ event: sampleEvent(type, { id: freshEventId(), network: options.network ?? 'mainnet' }), secret: options.secret });
+    const { body, headers } = await signWebhook({ event, secret: options.secret });
     // redirect: 'manual' — a loopback endpoint answering 307/308 must not carry the signed
     // sample off-host to wherever Location points; that would defeat the loopback check above.
     // fetch turns any redirect response into an opaque one (status 0) instead of following it,
     // which `!response.ok` below already treats as a failure.
     const response = await deps.fetch(options.forwardTo, { method: 'POST', headers, body, redirect: 'manual' });
-    deps.output.out(`→ ${response.status} ${type} (local sample)`);
+    deps.output.out(`→ ${response.status} ${type} (local ${options.method === 'card' ? 'card ' : ''}sample)`);
     if (!response.ok) {
       throw new Error(`${options.forwardTo} answered ${response.status} to the local sample.`);
     }

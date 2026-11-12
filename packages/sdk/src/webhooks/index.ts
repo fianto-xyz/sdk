@@ -4,7 +4,8 @@ export { isWebhookVerificationError, WebhookVerificationError, type WebhookVerif
 export type { HeadersLike } from './headers.js';
 export {
   WEBHOOK_EVENT_TYPES, isEventType, isKnownEventType,
-  type EndpointVerificationEvent, type FiantoWebhookEvent, type UnknownWebhookEvent, type WebhookEvent,
-  type WebhookEventMap, type WebhookEventOf, type WebhookEventType,
+  type EndpointVerificationEvent, type FiantoWebhookEvent, type PaymentDisputedEvent, type PaymentRefundedEvent,
+  type UnknownWebhookEvent, type WebhookEvent, type WebhookEventMap, type WebhookEventOf, type WebhookEventType,
 } from './events.js';
-export { sampleEvent, sampleVerificationEvent } from './samples.js';
+export { refundDelta } from './refund-delta.js';
+export { sampleEvent, sampleVerificationEvent, type SampleMethod } from './samples.js';

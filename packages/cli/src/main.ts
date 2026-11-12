@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { isAPIError, isFiantoError, type Fianto } from '@fianto/sdk';
+import { isAPIError, isFiantoError, type Fianto, type PaymentMethod } from '@fianto/sdk';
 import { eventsGet } from './commands/events-get.js';
 import { eventsList } from './commands/events-list.js';
 import { eventsTail } from './commands/events-tail.js';
@@ -36,10 +36,10 @@ Commands:
   events tail --forward-to <url> [--secret <whsec_>|--secret-file <path>] [--since <duration>] [--type <type>] [--interval <ms>]
                                                forward live events to a local URL (since default 5m,
                                                interval default 2000ms, Ctrl-C to stop)
-  trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote]
+  trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote] [--method crypto|card]
                                                send test.event via fianto, or POST a signed local
                                                sample of <type> to --forward-to (loopback only
-                                               unless --allow-remote)
+                                               unless --allow-remote; --method card = the card form)
   sign --payload <file> [--secret <whsec_>|--secret-file <path>] [--id <id>] [--timestamp <unix>]
                                                print signed webhook headers and a curl command for a payload
   help                                        show this help
@@ -70,6 +70,7 @@ const OPTIONS = {
   payload: { type: 'string' },
   id: { type: 'string' },
   timestamp: { type: 'string' },
+  method: { type: 'string' },
 } as const;
 
 type Flags = { [K in keyof typeof OPTIONS]?: (typeof OPTIONS)[K]['type'] extends 'boolean' ? boolean : string };
@@ -120,6 +121,7 @@ export async function main(argv: string[], deps: Deps): Promise<number> {
             allowRemote: values['allow-remote'],
             // Only a --forward-to run builds a sample, so only it validates the network here.
             network: forwardTo ? networkFrom(values.network, deps.env.FIANTO_NETWORK) : undefined,
+            method: parseMethod(values.method),
           },
           getClient,
           deps,
@@ -168,6 +170,11 @@ async function dispatchEvents(rest: string[], values: Flags, deps: Deps): Promis
     return 0;
   }
   throw new UsageError(`Unknown command: events ${sub ?? ''}`.trimEnd());
+}
+
+function parseMethod(raw: string | undefined): PaymentMethod | undefined {
+  if (raw === undefined || raw === 'crypto' || raw === 'card') return raw;
+  throw new UsageError(`Invalid --method (${raw}): expected crypto or card.`);
 }
 
 function parseLimit(raw: string | undefined): number {

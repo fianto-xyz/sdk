@@ -61,6 +61,38 @@ it('passes unknown event types to onEvent only', async () => {
   expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'invoice.created' }));
 });
 
+it('calls each new callback for its event', async () => {
+  const cases = [
+    ['payment.refunded', 'onPaymentRefunded'],
+    ['payment.disputed', 'onPaymentDisputed'],
+    ['invoice.issued', 'onInvoiceIssued'],
+    ['invoice.paid', 'onInvoicePaid'],
+    ['invoice.voided', 'onInvoiceVoided'],
+    ['invoice.payment_recorded', 'onInvoicePaymentRecorded'],
+    ['credit_note.issued', 'onCreditNoteIssued'],
+  ] as const;
+  for (const [type, name] of cases) {
+    const callback = vi.fn();
+    const onEvent = vi.fn();
+    const event = sampleEvent(type);
+    const response = await createWebhookHandler({ secret, [name]: callback, onEvent })(await post(event));
+    expect(response.status, type).toBe(200);
+    expect(callback, type).toHaveBeenCalledTimes(1);
+    expect(callback, type).toHaveBeenCalledWith(event);
+    expect(onEvent, type).toHaveBeenCalledWith(event);
+  }
+});
+
+it('still passes an unknown future event to onEvent', async () => {
+  const onEvent = vi.fn();
+  const onPaymentRefunded = vi.fn();
+  const event = { id: `evt_${'a'.repeat(32)}`, type: 'payout.paid', timestamp: '2026-11-13T00:00:00.000Z', network: 'mainnet', data: { id: 'fian_po_1' } };
+  const response = await createWebhookHandler({ secret, onEvent, onPaymentRefunded })(await post(event));
+  expect(response.status).toBe(200);
+  expect(onEvent).toHaveBeenCalledWith(event);
+  expect(onPaymentRefunded).not.toHaveBeenCalled();
+});
+
 it('refuses other methods', async () => {
   const response = await createWebhookHandler({ secret })(new Request('https://shop.test/x', { method: 'GET' }));
   expect(response.status).toBe(405);
@@ -72,15 +104,18 @@ it('maps every event type to exactly one callback', async () => {
   const callbacks = Object.fromEntries(
     [
       'onCheckoutSessionCompleted', 'onCheckoutSessionExpired', 'onCheckoutSessionCanceled', 'onOrderPaid',
-      'onOrderExpired', 'onOrderDuplicatePayment', 'onSubscriptionCreated', 'onSubscriptionRenewed',
+      'onOrderExpired', 'onOrderDuplicatePayment', 'onPaymentRefunded', 'onPaymentDisputed',
+      'onSubscriptionCreated', 'onSubscriptionRenewed',
       'onSubscriptionPastDue', 'onSubscriptionPaymentFailed', 'onSubscriptionEnded',
-      'onSubscriptionCancelScheduled', 'onSubscriptionCancelWithdrawn', 'onTestEvent',
+      'onSubscriptionCancelScheduled', 'onSubscriptionCancelWithdrawn', 'onInvoiceIssued', 'onInvoicePaid',
+      'onInvoiceVoided', 'onInvoicePaymentRecorded', 'onCreditNoteIssued', 'onTestEvent',
     ].map((name) => [name, () => { seen.push(name); }]),
   );
   const handler = createWebhookHandler({ secret, ...callbacks });
   const { WEBHOOK_EVENT_TYPES } = await import('../webhooks/events.js');
   for (const type of WEBHOOK_EVENT_TYPES) await handler(await post(sampleEvent(type)));
-  expect(new Set(seen).size).toBe(14);
+  expect(new Set(seen).size).toBe(21);
+  expect(seen).toHaveLength(21);
 });
 
 it('reports a throwing callback or onEvent to onError with the event', async () => {

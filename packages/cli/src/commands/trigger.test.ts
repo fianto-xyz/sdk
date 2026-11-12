@@ -77,6 +77,62 @@ describe('trigger', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  describe('--method', () => {
+    it('signs a card sample with --method card', async () => {
+      const { verifyWebhook } = await import('@fianto/sdk/webhooks');
+      const { output, fetch, lines } = fakeDeps();
+      await trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret, method: 'card' }, noClient, { fetch: fetch as never, output });
+      const [, init] = fetch.mock.calls[0]! as unknown as [string, RequestInit];
+      const event = await verifyWebhook(init.body as string, init.headers as Record<string, string>, { secret });
+      expect(event.type).toBe('order.paid');
+      if (event.type !== 'order.paid') return;
+      expect(event.data.payment).toMatchObject({ method: 'card', gateway: 'stripe', signature: null });
+      expect(event.data.currency).toBe('USD');
+      expect(lines).toEqual(['→ 200 order.paid (local card sample)']);
+    });
+
+    it('signs a crypto sample with --method crypto, the same as no --method', async () => {
+      const { output, fetch, lines } = fakeDeps();
+      await trigger('order.paid', { forwardTo: 'http://localhost:3000/wh', secret, method: 'crypto' }, noClient, { fetch: fetch as never, output });
+      const [, init] = fetch.mock.calls[0]! as unknown as [string, RequestInit];
+      expect(JSON.parse(init.body as string).data.payment).toMatchObject({ method: 'crypto', gateway: 'solana' });
+      expect(lines).toEqual(['→ 200 order.paid (local sample)']);
+    });
+
+    it('refuses --method on test.event, with or without --forward-to, and calls nothing', async () => {
+      const client = { webhookEndpoint: { sendTestEvent: vi.fn() } };
+      for (const forwardTo of [undefined, 'http://localhost:3000/wh']) {
+        const { output, fetch } = fakeDeps();
+        await expect(
+          trigger('test.event', { forwardTo, secret, method: 'card' }, () => client as never, { fetch: fetch as never, output }),
+        ).rejects.toThrow(/--method/);
+        await expect(
+          trigger('test.event', { forwardTo, secret, method: 'card' }, () => client as never, { fetch: fetch as never, output }),
+        ).rejects.toThrow(UsageError);
+        expect(fetch).not.toHaveBeenCalled();
+      }
+      expect(client.webhookEndpoint.sendTestEvent).not.toHaveBeenCalled();
+    });
+
+    it('refuses a method the event has no sample for, naming the type', async () => {
+      for (const [type, method] of [['payment.disputed', 'crypto'], ['order.expired', 'card'], ['invoice.paid', 'card']] as const) {
+        const { output, fetch } = fakeDeps();
+        await expect(
+          trigger(type, { forwardTo: 'http://localhost:3000/wh', secret, method }, noClient, { fetch: fetch as never, output }),
+          type,
+        ).rejects.toThrow(UsageError);
+        expect(fetch).not.toHaveBeenCalled();
+      }
+    });
+
+    it('signs a payment.disputed sample with no --method (a dispute is card only)', async () => {
+      const { output, fetch, lines } = fakeDeps();
+      await trigger('payment.disputed', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(lines).toEqual(['→ 200 payment.disputed (local sample)']);
+    });
+  });
+
   // C5
   describe('loopback restriction', () => {
     it('rejects a non-loopback --forward-to by default, and never calls fetch', async () => {

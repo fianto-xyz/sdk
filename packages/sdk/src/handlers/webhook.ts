@@ -14,6 +14,9 @@ export interface WebhookCallbacks {
   onOrderPaid?: Callback<'order.paid'>;
   onOrderExpired?: Callback<'order.expired'>;
   onOrderDuplicatePayment?: Callback<'order.duplicate_payment'>;
+  /** Follow the refunded figure with `refundDelta(event.data)`, once per `event.id`; see `PaymentRefundedEvent`. */
+  onPaymentRefunded?: Callback<'payment.refunded'>;
+  onPaymentDisputed?: Callback<'payment.disputed'>;
   onSubscriptionCreated?: Callback<'subscription.created'>;
   onSubscriptionRenewed?: Callback<'subscription.renewed'>;
   onSubscriptionPastDue?: Callback<'subscription.past_due'>;
@@ -21,6 +24,11 @@ export interface WebhookCallbacks {
   onSubscriptionEnded?: Callback<'subscription.ended'>;
   onSubscriptionCancelScheduled?: Callback<'subscription.cancel_scheduled'>;
   onSubscriptionCancelWithdrawn?: Callback<'subscription.cancel_withdrawn'>;
+  onInvoiceIssued?: Callback<'invoice.issued'>;
+  onInvoicePaid?: Callback<'invoice.paid'>;
+  onInvoiceVoided?: Callback<'invoice.voided'>;
+  onInvoicePaymentRecorded?: Callback<'invoice.payment_recorded'>;
+  onCreditNoteIssued?: Callback<'credit_note.issued'>;
   onTestEvent?: Callback<'test.event'>;
 }
 
@@ -68,6 +76,8 @@ const CALLBACKS: { [K in WebhookEventType]: keyof WebhookCallbacks } = {
   'order.paid': 'onOrderPaid',
   'order.expired': 'onOrderExpired',
   'order.duplicate_payment': 'onOrderDuplicatePayment',
+  'payment.refunded': 'onPaymentRefunded',
+  'payment.disputed': 'onPaymentDisputed',
   'subscription.created': 'onSubscriptionCreated',
   'subscription.renewed': 'onSubscriptionRenewed',
   'subscription.past_due': 'onSubscriptionPastDue',
@@ -75,6 +85,11 @@ const CALLBACKS: { [K in WebhookEventType]: keyof WebhookCallbacks } = {
   'subscription.ended': 'onSubscriptionEnded',
   'subscription.cancel_scheduled': 'onSubscriptionCancelScheduled',
   'subscription.cancel_withdrawn': 'onSubscriptionCancelWithdrawn',
+  'invoice.issued': 'onInvoiceIssued',
+  'invoice.paid': 'onInvoicePaid',
+  'invoice.voided': 'onInvoiceVoided',
+  'invoice.payment_recorded': 'onInvoicePaymentRecorded',
+  'credit_note.issued': 'onCreditNoteIssued',
   'test.event': 'onTestEvent',
 };
 

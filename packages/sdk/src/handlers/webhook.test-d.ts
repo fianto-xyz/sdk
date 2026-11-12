@@ -4,7 +4,8 @@
 // F1/F2: `onEvent` and `onError` receive business events only (the handler answers the URL
 // probe itself), so `switch (event.type)` narrows `event.data` and `event.id` is a string.
 import { expectTypeOf } from 'vitest';
-import type { FiantoWebhookEvent } from '../webhooks/events.js';
+import type { FiantoWebhookEvent, PaymentDisputedEvent, PaymentRefundedEvent } from '../webhooks/events.js';
+import { refundDelta } from '../webhooks/refund-delta.js';
 import { createWebhookHandler } from './webhook.js';
 
 createWebhookHandler({
@@ -31,5 +32,26 @@ createWebhookHandler({
     if (event.type === 'subscription.past_due') {
       expectTypeOf(event.data.status).toEqualTypeOf<'ACTIVE' | 'PAST_DUE' | 'ENDED'>();
     }
+  },
+});
+
+// The callbacks for the card-payment and invoice events, each typed with its own payload.
+createWebhookHandler({
+  onPaymentRefunded: (event) => {
+    expectTypeOf(event.type).toEqualTypeOf<'payment.refunded'>();
+    expectTypeOf(event.data).toEqualTypeOf<PaymentRefundedEvent>();
+    expectTypeOf(refundDelta(event.data)).toEqualTypeOf<bigint>();
+  },
+  onPaymentDisputed: (event) => {
+    expectTypeOf(event.data).toEqualTypeOf<PaymentDisputedEvent>();
+    expectTypeOf(event.data.dispute.due_by).toEqualTypeOf<string | null>();
+  },
+  onInvoiceIssued: (event) => { expectTypeOf(event.data.status).toEqualTypeOf<'draft' | 'open' | 'paid' | 'void' | 'issued'>(); },
+  onInvoicePaid: (event) => { expectTypeOf(event.type).toEqualTypeOf<'invoice.paid'>(); },
+  onInvoiceVoided: (event) => { expectTypeOf(event.type).toEqualTypeOf<'invoice.voided'>(); },
+  onInvoicePaymentRecorded: (event) => { expectTypeOf(event.data.amount_due).toEqualTypeOf<string>(); },
+  onCreditNoteIssued: (event) => { expectTypeOf(event.data.credits).toEqualTypeOf<string | null>(); },
+  onOrderPaid: (event) => {
+    if (event.data.payment.method === 'card') expectTypeOf(event.data.payment.signature).toEqualTypeOf<null>();
   },
 });
