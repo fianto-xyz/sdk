@@ -363,9 +363,10 @@ price, what reaches the merchant), `fee_amount` (Fianto's fee), `network_fee_amo
   a Fianto setting (currently 0.01 USDC, `'10000'`).
 - On a subscription it is fixed per plan when the plan is created and never changes for that plan;
   a subscription from a plan created before the fee existed carries `'0'`.
-- On a one-time payment it is fixed on the order (and its `mode: 'payment'` session and payment)
-  when the checkout is created; an order whose checkout was opened before 29 October 2026, when
-  one-time payments started carrying it, carries `'0'`.
+- On a one-time crypto payment it is fixed on the order and its `mode: 'payment'` session when
+  the checkout is created, and the payment copies its session's. It is `'0'` when the one-time fee
+  was off, as on every checkout opened before 29 October 2026, when one-time payments started
+  carrying it. A card payment always reads `'0'`.
 - On a subscription, `total_amount` is what every charge takes (the cap the payer signed). In a
   webhook's `period`, `network_fee_due` is that period's share, next to `amount_due` and
   `fee_due`.

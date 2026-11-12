@@ -1711,7 +1711,7 @@ export interface components {
              * @enum {string}
              */
             network: "devnet" | "mainnet";
-            /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+            /** @description The flat network fee the payer paid on top of `amount`: a subscription charge's, or a one-time crypto payment's (copied from its checkout session; "0" when the one-time fee was off, as on every one before 2026-10-29). "0" for a card payment. */
             network_fee_amount: string;
             /** @constant */
             object: "payment";
@@ -1837,7 +1837,7 @@ export interface components {
              * @enum {string}
              */
             network: "devnet" | "mainnet";
-            /** @description SUBSCRIPTION mode: the plan's flat network fee, part of every charge; "0" for a payment. */
+            /** @description The flat network fee the payer pays on top of `amount`: in SUBSCRIPTION mode the plan's, part of every charge; in PAYMENT mode the one-time fee ("0" when the session was created with it off, as every session before 2026-10-29 was). "0" for a session charged by card (card-only, or paid by card). */
             network_fee_amount: string;
             /** @constant */
             object: "checkout_session";
@@ -2367,7 +2367,7 @@ export interface components {
                  * @enum {string}
                  */
                 method: "crypto" | "card";
-                /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+                /** @description The flat network fee the payer paid on top of `amount`: a subscription charge's, or a one-time crypto payment's (copied from its checkout session; "0" when the one-time fee was off, as on every one before 2026-10-29). "0" for a card payment. */
                 network_fee_amount: string;
                 /** @constant */
                 object: "payment";
@@ -2429,7 +2429,7 @@ export interface components {
                  * @enum {string}
                  */
                 method: "crypto" | "card";
-                /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+                /** @description The flat network fee the payer paid on top of `amount`: a subscription charge's, or a one-time crypto payment's (copied from its checkout session; "0" when the one-time fee was off, as on every one before 2026-10-29). "0" for a card payment. */
                 network_fee_amount: string;
                 /** @constant */
                 object: "payment";
