@@ -596,7 +596,7 @@ const dispute = sampleEvent('payment.disputed'); // card: only a card payment ca
 ```
 
 `method: 'card'` builds the card form of a session, order, payment or subscription event: US
-dollars, no fee, no signature, no wallet, a Visa ending 4242. A type with no such form refuses it
+dollars, no Fianto fee (fees `'0'`), no signature, no wallet, a Visa ending 4242. A type with no such form refuses it
 (a type error, and a `FiantoError` at runtime): `order.expired` (an expired order was never paid),
 `payment.disputed` by crypto, the invoice events and `test.event`.
 
@@ -718,21 +718,25 @@ import { Fianto, isFiantoError } from '@fianto/sdk';
 
 const fianto = new Fianto();
 
+const terms = {
+  mode: 'payment',
+  amount: '10.00', // decimal USD price (USDC 1:1 for crypto, USD for card)
+  description: 'Order order_1001',
+  success_url: 'https://shop.example/thank-you',
+  cancel_url: 'https://shop.example/cart',
+} as const;
+
 try {
-  await fianto.checkoutSessions.create({
-    mode: 'payment',
-    order_id: 'order_1001',
-    amount: '10.00', // decimal USD price (USDC 1:1 for crypto, USD for card)
-    description: 'Order order_1001',
-    payment_methods: ['card'], // omit to offer every method the merchant has enabled
-    success_url: 'https://shop.example/thank-you',
-    cancel_url: 'https://shop.example/cart',
-  });
+  // omit payment_methods to offer every method the merchant has enabled
+  await fianto.checkoutSessions.create({ ...terms, order_id: 'order_1001', payment_methods: ['card'] });
 } catch (err) {
   if (isFiantoError(err, 'payment_method_unavailable')) {
-    // No card can be offered for this checkout (err.method === 'card'): offer crypto instead.
+    // No card can be offered for this checkout (err.method === 'card'): offer crypto instead,
+    // under a new order_id (an order's methods are part of its terms, see below).
+    await fianto.checkoutSessions.create({ ...terms, order_id: 'order_1001-crypto', payment_methods: ['crypto'] });
+  } else {
+    throw err;
   }
-  throw err;
 }
 ```
 
@@ -814,9 +818,10 @@ gateway: 'stripe' }`.
 then. Its `refund.status` says which way it moved, by `refund.applied_amount` (always more than
 0):
 
-- `succeeded` (a refund) and `dispute_lost` (a card dispute was lost) move it up;
-- `failed` (a refund that had succeeded failed later) and `reversed` (a lost dispute was won late)
-  move it down.
+- `succeeded` (a refund) and `dispute_lost` (a card dispute was lost, or a lost dispute's amount
+  went up) move it up;
+- `failed` (a refund that had succeeded failed later) and `reversed` (a lost dispute was won late,
+  or a lost dispute's amount went down) move it down.
 
 A refund never changes a payment's `status`: a refunded payment stays `SUCCEEDED`, with
 `refund_status` `partial` or `full`.
@@ -851,7 +856,9 @@ export const POST = createWebhookHandler({
   `applied_amount` (`refundDelta`), once per event id. Crypto refunds recorded before
   `payment.refunded` existed moved that figure with no event, which is why you seed. A seed is
   exact only when none of that payment's events was in flight while you read it, so compare your
-  total with `GET /v1/payments/{id}` to be sure. Events can arrive late, twice or out of order,
+  total with `GET /v1/payments/{id}` to be sure. If your total differs from `refunded_amount`
+  while none of that payment's events is in flight, re-seed it from `GET /v1/payments/{id}`.
+  Events can arrive late, twice or out of order,
   so the last one delivered is not always the newest; the sum does not depend on the order.
   Never line events up by their `timestamp`: it is when fianto wrote the event, before the
   change committed, so it cannot line one up against your seed.

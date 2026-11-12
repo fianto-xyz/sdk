@@ -22,7 +22,9 @@ const POSITIVE = /^[1-9]\d*$/;
  *
  * The sum does not depend on the order the events arrive in. It is exact only when none of the
  * payment's events was in flight while the seed was read, so compare it with
- * `GET /v1/payments/{id}`, which always has the current figure.
+ * `GET /v1/payments/{id}`, which always has the current figure. If your total differs from
+ * `refunded_amount` while none of that payment's events is in flight, re-seed it from
+ * `GET /v1/payments/{id}`.
  *
  * Throws `AmountError` (`invalid_amount`) when `applied_amount` is not a positive base-unit
  * integer, and `RefundStatusError` (`unknown_refund_status`) when `refund.status` is a value this

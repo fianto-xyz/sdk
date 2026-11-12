@@ -36,6 +36,39 @@ function section(markdown: string, heading: string): string {
   return markdown.slice(start, end === -1 ? undefined : end);
 }
 
+/**
+ * Claims the facts register forbids, matched over the text with every run of whitespace (line
+ * breaks included) collapsed to one space, since the READMEs are hard-wrapped.
+ */
+const FORBIDDEN = [
+  /instant payouts?/i,
+  // Not a way to pay through fianto (no R3 row): forbidden in any wording; see ALLOWED.
+  /(apple|google)\s+pay/i,
+  /always works/i,
+  /capped at 10%/i,
+  /no chargebacks?/i,
+  /pays nothing(?! to Fianto)/i,
+  // Stripe does charge a fee on a card payment: say "no Fianto fee".
+  /\bno fee\b/i,
+  /=== 'crypto'/,
+];
+
+/** The exact sentences allowed to match FORBIDDEN, each with its file and reason. */
+const ALLOWED = [
+  {
+    path: 'packages/js/README.md',
+    // Other brands' own buttons, named for why fianto's button is locked; not a way to pay.
+    text: 'Like PayPal, Apple Pay, Google Pay and Shop Pay lock their own buttons',
+  },
+];
+
+/** The forbidden claims in one README's text, after the allowed sentences are taken out. */
+function forbiddenIn(path: string, markdown: string): string[] {
+  let text = markdown.replace(/\s+/g, ' ');
+  for (const allowed of ALLOWED) if (allowed.path === path) text = text.replace(allowed.text, '');
+  return FORBIDDEN.filter((pattern) => pattern.test(text)).map(String);
+}
+
 const callbackOf = (type: string) => `on${type.split(/[._]/).map((word) => word[0]!.toUpperCase() + word.slice(1)).join('')}`;
 
 describe('every README', () => {
@@ -53,19 +86,18 @@ describe('every README', () => {
   });
 
   it('never states a claim the facts register forbids', () => {
-    const forbidden = [
-      /instant payouts?/i,
-      // Named only as other brands' buttons (js README), never as a way to pay through fianto.
-      /(accept|support|offer|pay with|pay by)[^.\n]*(apple|google) pay/i,
-      /always works/i,
-      /capped at 10%/i,
-      /no chargebacks?/i,
-      /pays nothing(?! to Fianto)/i,
-      /=== 'crypto'/,
-    ];
-    for (const path of readmes()) {
-      for (const pattern of forbidden) expect(read(path), `${path}: ${pattern}`).not.toMatch(pattern);
-    }
+    for (const path of readmes()) expect(forbiddenIn(path, read(path)), path).toEqual([]);
+  });
+
+  it('catches a forbidden claim across a line break, and allows only the exact allowed sentence', () => {
+    expect(forbiddenIn('packages/sdk/README.md', 'Checkout can accept cards and\nApple Pay.')).toEqual(['/(apple|google)\\s+pay/i']);
+    expect(forbiddenIn('packages/sdk/README.md', 'Payers can use Google\n  Pay too.')).toEqual(['/(apple|google)\\s+pay/i']);
+    expect(forbiddenIn('packages/sdk/README.md', 'A card sample has no\nfee.')).toEqual(['/\\bno fee\\b/i']);
+    // The allowed sentence is allowed in its own file only, and nothing else in that file is.
+    const js = 'Like PayPal, Apple Pay, Google Pay and Shop Pay lock their own buttons, `<fianto-button>` locks';
+    expect(forbiddenIn('packages/js/README.md', js)).toEqual([]);
+    expect(forbiddenIn('packages/react/README.md', js)).toEqual(['/(apple|google)\\s+pay/i']);
+    expect(forbiddenIn('packages/js/README.md', `${js}. Pay by Apple Pay.`)).toEqual(['/(apple|google)\\s+pay/i']);
   });
 });
 
@@ -114,7 +146,26 @@ describe('@fianto/sdk README', () => {
       expect(text).toMatch(/never undo[^.]*`dispute_lost`/i);
       expect(text).toMatch(/never sum `refund\.amount`/i);
       // The envelope timestamp is the app's insert clock: it may only appear in a "never" sentence.
-      for (const line of text.split('\n').filter((l) => /timestamp/i.test(l))) expect(line).toMatch(/never|not/i);
+      for (const line of text.split('\n').filter((l) => /timestamp/i.test(l))) expect(line).toMatch(/\b(never|not)\b/i);
+    });
+
+    it('says when to re-seed, in the same words as refundDelta', () => {
+      const sentence = 'If your total differs from `refunded_amount` while none of that payment\'s events is in flight, re-seed it from `GET /v1/payments/{id}`.';
+      expect(card().replace(/\s+/g, ' ')).toContain(sentence);
+      const jsdoc = read('packages/sdk/src/webhooks/refund-delta.ts').replace(/\n\s*\* ?/g, ' ').replace(/\s+/g, ' ');
+      expect(jsdoc).toContain(sentence);
+    });
+
+    it('gives every meaning of dispute_lost and reversed', () => {
+      const text = card().replace(/\s+/g, ' ');
+      expect(text).toMatch(/`dispute_lost` \(a card dispute was lost, or a lost dispute's amount went up\)/);
+      expect(text).toMatch(/`reversed` \(a lost dispute was won late, or a lost dispute's amount went down\)/);
+    });
+
+    it('falls back to crypto when no card can be offered, and rethrows anything else', () => {
+      const text = card();
+      const branch = text.slice(text.indexOf("if (isFiantoError(err, 'payment_method_unavailable'))"));
+      expect(branch.slice(0, branch.indexOf('```'))).toMatch(/payment_methods: \['crypto'\][\s\S]*\} else \{\s*throw err;/);
     });
 
     it('links every Stripe fact it states to docs.stripe.com', () => {
@@ -129,8 +180,19 @@ describe('@fianto/sdk README', () => {
 });
 
 describe('the changeset', () => {
+  const changeset = () => read('.changeset/card-payments.md');
+
   it('bumps @fianto/sdk minor (the fixed group bumps every package with it)', () => {
-    const changeset = read('.changeset/card-payments.md');
-    expect(changeset).toMatch(/^---\n"@fianto\/sdk": minor\n---\n/);
+    expect(changeset()).toMatch(/^---\n"@fianto\/sdk": minor\n---\n/);
+  });
+
+  it('says event payments need gateway and method only on the card branch', () => {
+    const text = changeset().replace(/\s+/g, ' ');
+    expect(text).not.toContain("or an event's `payment` now need");
+    expect(text).toContain("An event's `payment` needs them only on the card branch");
+  });
+
+  it('counts the webhook payloads in the currency widening', () => {
+    expect(changeset().replace(/\s+/g, ' ')).toMatch(/`currency` widens[^.]*and their webhook payloads/);
   });
 });

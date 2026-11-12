@@ -263,7 +263,7 @@ const DATA: { [K in WebhookEventType]: (context: Context) => WebhookEventMap[K] 
  * Deterministic: no random ids, no clock.
  *
  * `method: 'card'` builds the card form of a payment, order, session or subscription event (US
- * dollars, no fee, no signature, no wallet, a Visa ending 4242); the default is crypto, except
+ * dollars, no Fianto fee (fees "0"), no signature, no wallet, a Visa ending 4242); the default is crypto, except
  * for `payment.disputed`, which only a card payment can be. A type with no such form
  * (`order.expired` by card, `payment.disputed` by crypto, invoice events, `test.event`) refuses
  * it: a type error in TypeScript, and a `FiantoError` at runtime.

@@ -14,10 +14,10 @@ Card payments: a payer can pay by card, through the merchant's own Stripe accoun
 
 Breaking at the type level (why minor):
 
-- `currency` widens from `'USDC'` to `'USDC' | 'USD'` on sessions, orders, payments, subscriptions and prices. Prices are never USD: `Price.currency` follows the spec, and only a card payment, an order or session charged by card, and a card subscription read `'USD'`.
+- `currency` widens from `'USDC'` to `'USDC' | 'USD'` on sessions, orders, payments, subscriptions and prices, and their webhook payloads (a subscription's is narrowed per branch: `'USDC'` on crypto, `'USD'` on card). Prices are never USD: `Price.currency` follows the spec, and only a card payment, an order or session charged by card, and a card subscription read `'USD'`.
 - `Payment` and `Subscription` are unions: `interface X extends Payment` no longer compiles; use `type X = Payment & { … }`.
 - `Subscription['customer']['wallet']` (and a subscription event's) was `string`; it is `null` for a card subscription.
-- Object literals typed as `Order['payment']`, `CheckoutSession['payment']` or an event's `payment` now need `gateway` and `method` (a paid crypto one keeps a string `signature`; a card one has `signature: null`).
+- Object literals typed as v1 `Order['payment']` or `CheckoutSession['payment']` now need `gateway` and `method`. An event's `payment` needs them only on the card branch (`gateway: 'stripe', method: 'card', signature: null`): on the crypto and all-null branches they stay optional, because events stored before card payments lack them. A paid crypto payment, v1 or event, keeps a string `signature`.
 - `order.duplicate_payment`'s `duplicate.signature` is `string | null`, narrowed by `duplicate.gateway`.
 - The exported `MismatchedField` union gains `'payment_methods'`.
 - `FiantoWebhookEvent`, `WebhookEvent`, `FiantoEvent` and `WEBHOOK_EVENT_TYPES` gain the 7 new events, so an exhaustive `switch (event.type)` needs their cases (or a `default:` branch).

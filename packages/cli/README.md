@@ -146,7 +146,8 @@ $ fianto trigger order.paid --forward-to http://localhost:3000/api/webhooks/fian
 ```
 
 **`--method crypto|card`** picks which rail the sample is for (`sampleEvent(type, { method })`).
-`card` builds the card form: US dollars, no fee, no signature, no wallet, a Visa ending 4242.
+`card` builds the card form: US dollars, no Fianto fee (fees `'0'`), no signature, no wallet, a Visa
+ending 4242.
 The default is crypto, except `payment.disputed`, which is always card (only a card payment can
 be disputed). The status line says when the sample is a card one:
 
