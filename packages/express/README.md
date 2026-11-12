@@ -18,7 +18,7 @@ import { checkout, webhooks } from '@fianto/express';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/express.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 const app = express();
 
@@ -43,7 +43,7 @@ app.post(
       return {
         mode: 'payment',
         order_id: cart.orderId,
-        amount: cart.totalUsdc,
+        amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
         description: cart.description, // required alongside amount
         success_url: 'https://shop.example/thank-you',
         cancel_url: 'https://shop.example/cart',

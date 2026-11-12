@@ -1,8 +1,8 @@
 # fianto
 
-The developer SDK for [fianto](https://fianto.xyz): accept Solana USDC payments with a hosted
-checkout page, verify webhooks, and read back orders, payments and subscriptions from your own
-server. There is no publishable/browser key — the browser only ever talks to a checkout session
+The developer SDK for [fianto](https://fianto.xyz): accept Solana USDC payments, and card payments
+through the merchant's own Stripe account, with a hosted checkout page; verify webhooks; and read
+back orders, payments and subscriptions from your own server. There is no publishable/browser key — the browser only ever talks to a checkout session
 your server already created.
 
 ## Packages
@@ -40,7 +40,7 @@ import { Checkout } from '@fianto/nextjs';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/nextjs.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 export const POST = Checkout({
   createSession: async (request) => {
@@ -48,7 +48,7 @@ export const POST = Checkout({
     return {
       mode: 'payment',
       order_id: cart.orderId,
-      amount: cart.totalUsdc, // decimal USDC string, e.g. "10.00"
+      amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
       description: cart.description, // required alongside amount
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
@@ -87,7 +87,8 @@ import { Webhooks } from '@fianto/nextjs';
 export const POST = Webhooks({
   secret: process.env.FIANTO_WEBHOOK_SECRET,
   onOrderPaid: async (event) => {
-    // dedupe on event.id in the same DB transaction as this write — see @fianto/sdk's README
+    // dedupe on event.id in the same DB transaction as this write — see @fianto/sdk's README.
+    // One handler for both rails: event.data.payment.method is 'card', or crypto otherwise.
   },
 });
 ```
@@ -146,7 +147,10 @@ an unverified request) claims it did. **Fulfil an order only from a verified `or
 `checkout.session.completed`) **webhook, or an explicit server-side
 `fianto.orders.retrieve(id)` / `fianto.checkoutSessions.retrieve(id)` call that shows a paid
 status.** Never tell a customer "nothing was charged" from the browser's view alone — a
-transaction can still be confirming on-chain when a popup closes or a page reports `closed`. See
+transaction can still be confirming on-chain, or a card payment still settling, when a popup
+closes or a page reports `closed`. A paid order can also be refunded or, for a card, disputed
+later: follow `payment.refunded` and `payment.disputed` (see
+[`@fianto/sdk`'s "Card payments"](packages/sdk/README.md#card-payments)). See
 [`@fianto/sdk`'s "Money safety"](packages/sdk/README.md#money-safety) and
 [`@fianto/js`'s "Money safety"](packages/js/README.md#money-safety) for the full detail behind
 every status the browser SDK can report.

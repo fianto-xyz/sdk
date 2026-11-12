@@ -1,8 +1,9 @@
 # @fianto/sdk
 
 The server-side SDK for [fianto](https://fianto.xyz): a typed API client, Standard Webhooks
-verification, and framework-agnostic route handlers for Solana USDC payments (hosted checkout,
-one-time payments, subscriptions).
+verification, and framework-agnostic route handlers for Solana USDC payments, and card payments
+through the merchant's own Stripe account (hosted checkout, one-time payments, subscriptions; see
+[Card payments](#card-payments)).
 
 ```bash
 pnpm add @fianto/sdk
@@ -27,7 +28,7 @@ export async function createCheckoutSession(): Promise<Response | undefined> {
     mode: 'payment',
     order_id: 'order_1001', // your own id — stable per order: reuse it for the same cart/order,
     // change it only when the terms change (e.g. include a cart version)
-    amount: '10.00', // USDC, decimal string
+    amount: '10.00', // decimal USD price (USDC 1:1 for crypto, USD for card)
     description: 'Order order_1001', // required alongside amount — omit only with price_id
     success_url: 'https://shop.example/thank-you',
     cancel_url: 'https://shop.example/cart',
@@ -262,7 +263,7 @@ FiantoError
 ├─ APIError { status, code, message, field?, details?, method?, requestId, headers }
 │  ├─ AuthenticationError     401
 │  ├─ PermissionDeniedError   403
-│  ├─ InvalidRequestError     400, 422
+│  ├─ InvalidRequestError     400, 422 (incl. 422 payment_method_unavailable, with method)
 │  ├─ NotFoundError           404
 │  ├─ ConflictError           409
 │  ├─ RateLimitError          429 (retryAfterSeconds?)
@@ -271,8 +272,12 @@ FiantoError
 ├─ ConnectionError   the request never got a response (incl. a redirect: see below)
 ├─ TimeoutError      the request didn't finish within timeoutMs — code: 'timeout'
 ├─ AbortError        options.signal was aborted — code: 'aborted'
-└─ AmountError       thrown by `usd.*` / `money.format` (see Amounts below) — code: 'invalid_amount'
-   └─ UsdcError      thrown by `usdc.*` — code: 'invalid_usdc_amount'
+├─ AmountError       thrown by `usd.*` / `money.format` (see Amounts below), and by `refundDelta`
+│  │                 for a bad applied_amount — code: 'invalid_amount'
+│  └─ UsdcError      thrown by `usdc.*` — code: 'invalid_usdc_amount'
+├─ RefundStatusError thrown by `refundDelta` for a refund status this SDK version does not know
+│                    (upgrade @fianto/sdk) — code: 'unknown_refund_status', refundStatus
+└─ WebhookVerificationError  thrown by `verifyWebhook` — reason (see Webhooks below)
 ```
 
 `code` is a stable machine-readable string (see `ErrorCode`); `message` is for humans. A
@@ -316,27 +321,43 @@ Every `APIError` carries `requestId` (from the body's `request_id`, falling back
 `checkoutSessions.create` takes an optional `payment_methods` (`'crypto'`, `'card'`, or both;
 absent = every method the merchant has enabled). `['card']` that no card gateway can offer
 throws `422 payment_method_unavailable` with `err.method === 'card'`; an empty list
-(`payment_methods: []`) type-checks but the API answers `400 validation_failed`.
+(`payment_methods: []`) type-checks but the API answers `400 validation_failed`. See
+[Card payments](#card-payments) for when a card can be offered.
 
 ## Amounts
 
 The API takes amounts as decimal strings (`"12.5"`) and returns them as base-unit integer
-strings (`"12500000"`; USDC has 6 decimals). `usdc` works in strings and `bigint` only —
-**never use floats for money.**
+strings (`"12500000"`): 6 decimals, for USDC (crypto) and US dollars (card) alike. A payload's
+`currency` says which: `"USDC"` or `"USD"`. `usdc`, `usd` and `money` work in strings and
+`bigint` only — **never use floats for money.**
 
 ```ts
-import { usdc } from '@fianto/sdk';
+import { money, usd, usdc } from '@fianto/sdk';
 
 usdc.toBaseUnits('12.5'); // '12500000' — throws on more than 6 decimals, negatives, or junk
 usdc.fromBaseUnits('12500000'); // '12.5'
 usdc.format('12500000'); // '12.50 USDC'
 usdc.format('12500000', { symbol: false }); // '12.50'
+
+usd.toBaseUnits('25.00'); // '25000000' — at most 2 decimals: a dollar price is whole cents
+usd.format('25000000'); // '$25.00'
+
+money.format('25000000', 'USD'); // '$25.00'
+money.format('25000000', 'USDC'); // '25.00 USDC'
 ```
+
+To show an amount, `money.format(base, currency)` takes a `Currency`: `'USDC' | 'USD'`, or any
+string, such as one read back from your own database. Pass it the payload's own `currency` field.
+It throws an `AmountError` for a currency it does not know, and also takes `{ symbol: false }`.
 
 **What a total is made of.** Checkout sessions, orders, payments and subscriptions carry `amount` (the
 price, what reaches the merchant), `fee_amount` (Fianto's fee), `network_fee_amount` and
 `total_amount`, which is always `amount + fee_amount + network_fee_amount`:
 
+- **A card payment carries no Fianto fee:** a card payment, an order or session charged by card
+  and a card subscription read `fee_amount` and `network_fee_amount` `"0"`, and `total_amount`
+  equals `amount`. Stripe's own fees are charged in the merchant's Stripe account. The rest of
+  this list is about crypto.
 - `network_fee_amount` is a flat fee that the **payer** pays on every subscription charge, the
   first one included, and on every one-time payment. It goes to Fianto with the fee. Its amount is
   a Fianto setting (currently 0.01 USDC, `'10000'`).
@@ -354,12 +375,12 @@ price, what reaches the merchant), `fee_amount` (Fianto's fee), `network_fee_amo
   as they were stored. Treat a missing value as `'0'`:
 
 ```ts
-import { usdc } from '@fianto/sdk';
+import { money } from '@fianto/sdk';
 import type { WebhookEventOf } from '@fianto/sdk/webhooks';
 
 declare const event: WebhookEventOf<'subscription.renewed'>;
 const networkFee = event.data.network_fee_amount ?? '0';
-console.log(usdc.format(event.data.total_amount), usdc.format(networkFee));
+console.log(money.format(event.data.total_amount, event.data.currency), money.format(networkFee, event.data.currency));
 ```
 
 ## Webhooks
@@ -386,9 +407,11 @@ plain record. Verification hashes the exact bytes you pass — reading the body 
 
 **Event types:** `checkout.session.completed`, `checkout.session.expired`,
 `checkout.session.canceled`, `order.paid`, `order.expired`, `order.duplicate_payment`,
+`payment.refunded`, `payment.disputed`,
 `subscription.created`, `subscription.renewed`, `subscription.past_due`,
 `subscription.payment_failed`, `subscription.ended`, `subscription.cancel_scheduled`,
-`subscription.cancel_withdrawn`, `test.event`, plus `endpoint.verification` (answered
+`subscription.cancel_withdrawn`, `invoice.issued`, `invoice.paid`, `invoice.voided`,
+`invoice.payment_recorded`, `credit_note.issued`, `test.event`, plus `endpoint.verification` (answered
 automatically by `createWebhookHandler`, see below). `verifyWebhook`'s return type (`WebhookEvent`)
 is a closed union of exactly these, so `switch (event.type)` narrows `event.data` with no cast —
 but fianto may add event types after this SDK version ships, and a newer one still arrives at
@@ -450,6 +473,21 @@ export const POST = createWebhookHandler({
   },
 });
 ```
+
+One callback per event type, each typed with that event:
+
+| Callback | Event |
+|---|---|
+| `onCheckoutSessionCompleted` / `onCheckoutSessionExpired` / `onCheckoutSessionCanceled` | `checkout.session.completed` / `.expired` / `.canceled` |
+| `onOrderPaid` / `onOrderExpired` / `onOrderDuplicatePayment` | `order.paid` / `order.expired` / `order.duplicate_payment` |
+| `onPaymentRefunded` / `onPaymentDisputed` | `payment.refunded` / `payment.disputed` (see [Card payments](#card-payments)) |
+| `onSubscriptionCreated` / `onSubscriptionRenewed` / `onSubscriptionPastDue` / `onSubscriptionPaymentFailed` | `subscription.created` / `.renewed` / `.past_due` / `.payment_failed` |
+| `onSubscriptionEnded` / `onSubscriptionCancelScheduled` / `onSubscriptionCancelWithdrawn` | `subscription.ended` / `.cancel_scheduled` / `.cancel_withdrawn` |
+| `onInvoiceIssued` / `onInvoicePaid` / `onInvoiceVoided` / `onInvoicePaymentRecorded` | `invoice.issued` / `.paid` / `.voided` / `.payment_recorded` |
+| `onCreditNoteIssued` | `credit_note.issued` |
+| `onTestEvent` | `test.event` |
+
+A type this SDK version does not know reaches `onEvent` only.
 
 It reads the body itself, bounded by `maxBodyBytes` (default `1_048_576`, 1 MiB — fianto's own
 webhook payloads are well under this; a request whose declared `content-length` or actual bytes
@@ -543,9 +581,24 @@ const { body, headers } = await signWebhook({ event: sampleEvent('order.paid'), 
 // POST body/headers at your own handler in a test
 ```
 
-`sampleEvent(type, overrides?)` returns a realistic, schema-valid fixture for every event type
-(`sampleVerificationEvent(challenge?)` for the `endpoint.verification` probe, which has no
-`data` in the same map since it carries no `id`).
+`sampleEvent(type, overrides?)` returns a realistic, schema-valid fixture for every event type,
+with every field today's backend sends (`sampleVerificationEvent(challenge?)` for the
+`endpoint.verification` probe, which has no `data` in the same map since it carries no `id`).
+`overrides` takes `id`, `timestamp`, `network`, `data` (merged over the sample's) and `method`:
+
+```ts
+import { sampleEvent } from '@fianto/sdk/webhooks';
+
+const card = sampleEvent('order.paid', { method: 'card' });
+// card.data: currency 'USD', fees '0', payment { gateway: 'stripe', method: 'card', signature: null }
+const crypto = sampleEvent('order.paid'); // the default: crypto
+const dispute = sampleEvent('payment.disputed'); // card: only a card payment can be disputed
+```
+
+`method: 'card'` builds the card form of a session, order, payment or subscription event: US
+dollars, no fee, no signature, no wallet, a Visa ending 4242. A type with no such form refuses it
+(a type error, and a `FiantoError` at runtime): `order.expired` (an expired order was never paid),
+`payment.disputed` by crypto, the invoice events and `test.event`.
 
 ## Checkout route
 
@@ -555,7 +608,7 @@ import { createCheckoutHandler } from '@fianto/sdk/handlers';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/sdk.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 export const POST = createCheckoutHandler({
   createSession: async (request) => {
@@ -566,7 +619,7 @@ export const POST = createCheckoutHandler({
     return {
       mode: 'payment',
       order_id: cart.orderId,
-      amount: cart.totalUsdc,
+      amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
       description: cart.description, // required alongside amount — omit both with price_id instead
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',
@@ -647,6 +700,223 @@ other on your server: check the caller is who they claim to be (a session, a sig
 whatever your app already uses) and rate-limit it the same way you would any other POST route
 that starts a real side effect, on top of relying on fianto's own `429 rate_limited`.
 
+## Card payments
+
+A payer can pay by card as well as in crypto, when the merchant has connected their own Stripe
+account and turned card payments on in the dashboard. The card money goes to the merchant's
+Stripe account. The merchant pays nothing to Fianto on a card payment: its `fee_amount` and
+`network_fee_amount` read `"0"` and `total_amount` equals `amount`. Stripe charges its own fees in
+the merchant's Stripe account.
+
+### One create call for both rails
+
+`payment_methods` is optional. Leave it out to offer every method the merchant has enabled; pass
+`['card']` for card only, or `['crypto']` for crypto only.
+
+```ts
+import { Fianto, isFiantoError } from '@fianto/sdk';
+
+const fianto = new Fianto();
+
+try {
+  await fianto.checkoutSessions.create({
+    mode: 'payment',
+    order_id: 'order_1001',
+    amount: '10.00', // decimal USD price (USDC 1:1 for crypto, USD for card)
+    description: 'Order order_1001',
+    payment_methods: ['card'], // omit to offer every method the merchant has enabled
+    success_url: 'https://shop.example/thank-you',
+    cancel_url: 'https://shop.example/cart',
+  });
+} catch (err) {
+  if (isFiantoError(err, 'payment_method_unavailable')) {
+    // No card can be offered for this checkout (err.method === 'card'): offer crypto instead.
+  }
+  throw err;
+}
+```
+
+- **When a card can be offered.** The amount is whole cents, from $0.50 to $999,999.99 (fianto's
+  own card limit), and the merchant's Stripe connection is active with card payments on. A
+  subscription session also needs card subscriptions, which are switched on separately; until
+  they are, a subscription is paid in crypto.
+- **Otherwise,** `['card']` throws at create: `isFiantoError(err, 'payment_method_unavailable')`,
+  with `err.method === 'card'`. `['crypto', 'card']` (or no `payment_methods`) is never refused for
+  card: the checkout page then offers crypto only.
+- **Stripe's own minimum can be higher.** "The minimum amount you can charge depends on the payout
+  bank account settlement currency", so a $0.50 card charge can be refused for a merchant who
+  settles in another currency; fianto checks only the 50 cents
+  (https://docs.stripe.com/currencies.md#minimum-and-maximum-charge-amounts).
+- **A card session reads `currency: "USD"`** when it is card-only or a card paid it, with fees
+  `"0"`. Otherwise it reads `"USDC"`. Show amounts with `money.format(amount, currency)`.
+- **Changing the methods of an order needs a new `order_id`.** The checkout handler catches a
+  switch to or from `['card']` (`409 order_session_mismatch`, `fields: ['payment_methods']`), but an
+  open session does not echo its `payment_methods`, so `['crypto']` and `['crypto', 'card']` cannot
+  be told apart: use a new `order_id` (see [Checkout route](#checkout-route)).
+
+### One webhook handler for both rails
+
+`order.paid` fires for both. Its `payment` says how it was paid: `gateway` `'solana'` or
+`'stripe'`, `method` `'crypto'` or `'card'`. A card payment has no chain transaction, so its
+`signature` is null.
+
+```ts
+import { money } from '@fianto/sdk';
+import { createWebhookHandler } from '@fianto/sdk/handlers';
+
+// Your own fulfilment — a stand-in so this example type-checks; not part of @fianto/sdk.
+declare function fulfil(orderId: string, note: string): Promise<void>;
+
+export const POST = createWebhookHandler({
+  onOrderPaid: async (event) => {
+    const { order_id, total_amount, currency } = event.data;
+    if (event.data.payment.method === 'card') {
+      await fulfil(order_id, `${money.format(total_amount, currency)} by card`);
+    } else {
+      // Crypto. An event stored before card payments has no `method` key at all, so this
+      // `else` is the crypto branch: never compare `method` with 'crypto' instead.
+      await fulfil(order_id, `${money.format(total_amount, currency)}, Solana ${event.data.payment.signature}`);
+    }
+  },
+});
+```
+
+Branch as `method === 'card'`, then `else`, everywhere (orders, sessions, subscriptions,
+`fianto.events`): events created before card payments have no `method` key, and they are crypto.
+The types follow this: after `method === 'card'` the `signature` is `null`, and in the `else` of a
+paid payment it is a `string`.
+
+On the v1 API, `Payment`, `Order['payment']`, `CheckoutSession['payment']` and `Subscription` are
+unions on `method` too:
+
+```ts
+import { Fianto } from '@fianto/sdk';
+
+declare const paymentId: string;
+const fianto = new Fianto();
+
+const payment = await fianto.payments.retrieve(paymentId);
+if (payment.method === 'card') {
+  console.log(payment.card?.brand, payment.card?.last4); // either half can be null
+} else {
+  console.log(payment.signature); // the Solana signature
+}
+```
+
+A card payment's `customer.wallet` is always null, and every key of its `customer` is null when
+checkout collected no email. A card charge on an already-paid order is refunded in full
+automatically: `order.duplicate_payment` then carries `duplicate: { signature: null, amount,
+gateway: 'stripe' }`.
+
+### Refunds
+
+`payment.refunded` fires for both rails, whenever a payment's `refunded_amount` moves, and only
+then. Its `refund.status` says which way it moved, by `refund.applied_amount` (always more than
+0):
+
+- `succeeded` (a refund) and `dispute_lost` (a card dispute was lost) move it up;
+- `failed` (a refund that had succeeded failed later) and `reversed` (a lost dispute was won late)
+  move it down.
+
+A refund never changes a payment's `status`: a refunded payment stays `SUCCEEDED`, with
+`refund_status` `partial` or `full`.
+
+To keep a running total, add `refundDelta(event.data)` once per event id, in the same transaction
+as your own write (the same dedupe as [any other event](#dedupe-in-the-same-transaction-as-the-side-effect)):
+
+```ts
+import { createWebhookHandler } from '@fianto/sdk/handlers';
+import { refundDelta } from '@fianto/sdk/webhooks';
+
+// Your own storage — a stand-in so this example type-checks; not part of @fianto/sdk.
+declare const db: {
+  transaction: (fn: (tx: {
+    firstTime: (eventId: string) => Promise<boolean>;
+    addRefunded: (paymentId: string, delta: bigint) => Promise<void>;
+  }) => Promise<void>) => Promise<void>;
+};
+
+export const POST = createWebhookHandler({
+  onPaymentRefunded: async (event) => {
+    await db.transaction(async (tx) => {
+      if (!(await tx.firstTime(event.id))) return; // once per event id
+      await tx.addRefunded(event.data.payment.id, refundDelta(event.data)); // + or −
+    });
+  },
+});
+```
+
+- **The current figure is `GET /v1/payments/{id}`** (`fianto.payments.retrieve(id)`,
+  `refunded_amount`). Seed a running total once from it, then add each event's signed
+  `applied_amount` (`refundDelta`), once per event id. Crypto refunds recorded before
+  `payment.refunded` existed moved that figure with no event, which is why you seed. A seed is
+  exact only when none of that payment's events was in flight while you read it, so compare your
+  total with `GET /v1/payments/{id}` to be sure. Events can arrive late, twice or out of order,
+  so the last one delivered is not always the newest; the sum does not depend on the order.
+  Never line events up by their `timestamp`: it is when fianto wrote the event, before the
+  change committed, so it cannot line one up against your seed.
+- **Never pair or dedupe events by `refund.id`.** One card refund can be two `succeeded` events
+  with the same `refund.id`; count both.
+- **Never undo the `dispute_lost` when its `reversed` arrives.** A refund that succeeds or fails
+  while a lost dispute already covers that money publishes nothing, and the dispute's later
+  `reversed` carries it, so a `reversed` need not equal the `dispute_lost`. Lost 25, then a 10
+  refund absorbed, then `reversed` 15: the figure ends at 10, which the sum of deltas gives.
+- **Never sum `refund.amount`.** On `succeeded` and `dispute_lost` it is the refund's (or the
+  dispute's) own amount, which can be more than the figure moved. `applied_amount` is the move.
+- `refundDelta` throws an `AmountError` for an `applied_amount` that is not a positive base-unit
+  amount, and a `RefundStatusError` (`unknown_refund_status`) for a status this SDK version does
+  not know. Thrown from a callback, either answers 500, so fianto retries the delivery: upgrade
+  @fianto/sdk rather than skip it.
+
+Refunds are made in the dashboard. Stripe keeps its fee on a card refund: "Stripe's processing
+fees from the original transaction aren't returned" (https://docs.stripe.com/refunds.md).
+
+When the merchant's Stripe balance is short, Stripe holds the refund as pending: "If your
+available balance doesn't cover the amount of the refund, Stripe holds the refund as pending for
+card transactions" (https://docs.stripe.com/refunds.md). A pending refund does not raise
+`refunded_amount` until it succeeds.
+
+### Disputes
+
+A cardholder can dispute a card payment. `payment.disputed` (`onPaymentDisputed`) carries the
+payment and `dispute: { id, status, amount, due_by }`, and fires when a dispute opens and each
+time its `status` changes: `needs_response`, `under_review`, `won`, `lost`, `accepted` (the
+merchant accepted it, so it counts as lost) or `closed`. Disputes are answered in the dashboard.
+
+A lost dispute raises `refunded_amount` (`payment.refunded`, `dispute_lost`), and a late win lowers
+it again (`reversed`). No refund can be made while the dispute is open: "You can't issue a refund
+outside the dispute process while the dispute is open"
+(https://docs.stripe.com/disputes/how-disputes-work.md).
+
+### Card subscriptions
+
+Card subscriptions are switched on separately from card payments. Until the merchant can offer
+them, every subscription is crypto. A card subscription sends the same `subscription.*` events.
+Its `method` is `'card'`, `currency` `"USD"`, fees `"0"`, `plan_id` null, `customer.wallet` null,
+and `card` is the saved card (`{ brand, last4 }`, either half nullable). Its charge's
+`payment.signature` is null. A failed charge's `failure.reason` can also be `CARD_DECLINED`,
+`CARD_EXPIRED`, `CARD_UNUSABLE`, `AUTHENTICATION_REQUIRED`, `GATEWAY_ERROR` or
+`GATEWAY_UNAVAILABLE`. Branch on `data.method === 'card'`, then `else`, as above.
+
+### Test mode
+
+A test key (`fian_sk_test_…`) uses the devnet sandbox, and card payments there use Stripe test
+mode. Nothing is set per rail. The merchant connects Stripe test keys on the devnet dashboard,
+separately from the live keys on mainnet. Pay with the test card `4242 4242 4242 4242`: "Use a
+valid future date, such as 12/34" and "Use any three-digit CVC (four digits for American Express
+cards)" (https://docs.stripe.com/testing.md).
+
+To try a handler without a payment, `fianto trigger order.paid --forward-to <url> --method card`
+(see `@fianto/cli`)
+or `sampleEvent('order.paid', { method: 'card' })` (see [Testing](#testing)) builds the card form
+of an event.
+
+### What is not in the API
+
+Refunds, disputes, Stripe balances and payouts are dashboard only: the v1 API has no route for
+them. Your server reads their effect through `payment.refunded`, `payment.disputed` and each
+payment's `refunded_amount` / `refund_status`.
+
 ## Security
 
 - `appSecret` is server-side only. `new Fianto()` throws if constructed where `window` exists
@@ -672,7 +942,9 @@ payment** — it only means the customer's browser believes the checkout finishe
 only on a verified `order.paid` (or `checkout.session.completed`) webhook, or an explicit
 server-side `fianto.orders.retrieve(id)` / `fianto.checkoutSessions.retrieve(id)` call that shows
 a paid status. Never tell a customer "nothing was charged" based on the browser's view alone —
-you cannot see from there whether a transaction is still confirming on-chain.
+you cannot see from there whether a transaction is still confirming on-chain, or a card payment
+still settling. A paid order is not final either: it can be refunded, and a card payment can be
+disputed (see [Card payments](#card-payments)).
 
 ## Troubleshooting
 

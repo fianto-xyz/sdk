@@ -43,7 +43,7 @@ import { Checkout } from '@fianto/nextjs';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/nextjs.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 export const POST = Checkout({
   createSession: async (request) => {
@@ -52,7 +52,7 @@ export const POST = Checkout({
     return {
       mode: 'payment',
       order_id: cart.orderId,
-      amount: cart.totalUsdc,
+      amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
       description: cart.description, // required alongside amount
       success_url: 'https://shop.example/thank-you',
       cancel_url: 'https://shop.example/cart',

@@ -19,7 +19,7 @@ import { checkout, webhooks } from '@fianto/hono';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/hono.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 const app = new Hono();
 
@@ -43,7 +43,7 @@ app.post(
       return {
         mode: 'payment',
         order_id: cart.orderId,
-        amount: cart.totalUsdc,
+        amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
         description: cart.description, // required alongside amount
         success_url: 'https://shop.example/thank-you',
         cancel_url: 'https://shop.example/cart',
@@ -99,7 +99,7 @@ import { checkout } from '@fianto/hono';
 // Your own cart lookup — a stand-in so this example type-checks; not part of @fianto/hono.
 declare function loadCartForSession(
   request: Request,
-): Promise<{ orderId: string; totalUsdc: string; description: string }>;
+): Promise<{ orderId: string; total: string; description: string }>;
 
 interface Bindings {
   FIANTO_APP_ID: string;
@@ -117,7 +117,7 @@ app.post('/api/checkout', (c) =>
       return {
         mode: 'payment',
         order_id: cart.orderId,
-        amount: cart.totalUsdc,
+        amount: cart.total, // decimal USD price, e.g. "10.00" (USDC 1:1 for crypto, USD for card)
         description: cart.description, // required alongside amount
         success_url: 'https://shop.example/thank-you',
         cancel_url: 'https://shop.example/cart',

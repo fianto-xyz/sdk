@@ -129,7 +129,7 @@ Forwarding events from the last 5m to http://localhost:3000/api/webhooks/fianto 
   — nothing else already gathered for that poll's batch goes out afterward, and no new poll
   starts. A second Ctrl-C stops immediately instead of waiting even for that.
 
-### `fianto trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote]`
+### `fianto trigger <type> [--forward-to <url>] [--secret <whsec_>|--secret-file <path>] [--allow-remote] [--method crypto|card]`
 
 Two different things depending on the type and `--forward-to` — see [Safety
 split](#safety-split) below.
@@ -144,6 +144,21 @@ handler accepts (a bad value exits `2`).
 $ fianto trigger order.paid --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_...
 → 200 order.paid (local sample)
 ```
+
+**`--method crypto|card`** picks which rail the sample is for (`sampleEvent(type, { method })`).
+`card` builds the card form: US dollars, no fee, no signature, no wallet, a Visa ending 4242.
+The default is crypto, except `payment.disputed`, which is always card (only a card payment can
+be disputed). The status line says when the sample is a card one:
+
+```
+$ fianto trigger order.paid --forward-to http://localhost:3000/api/webhooks/fianto --secret whsec_... --method card
+→ 200 order.paid (local card sample)
+```
+
+A type with no such form is a usage error (exit `2`): `--method card` on `order.expired`, the
+invoice events or `test.event`, and `--method crypto` on `payment.disputed`. So is any value other
+than `crypto` or `card`, and `--method` without `--forward-to` (fianto itself only ever sends
+`test.event`, which has no payment method).
 
 - **`--forward-to` only accepts a loopback URL** — `localhost`, an address in `127.0.0.0/8`, or
   `[::1]` — **unless `--allow-remote` is passed.** A signed sample is indistinguishable from a
