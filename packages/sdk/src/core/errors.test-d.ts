@@ -11,6 +11,7 @@ import { expectTypeOf } from 'vitest';
 import {
   AbortError, APIError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError, isFiantoError,
 } from './errors.js';
+import type { AmountError, UsdcError } from '../amounts.js';
 
 declare const unknownError: unknown;
 
@@ -52,4 +53,24 @@ if (isFiantoError(unknownError, 'payment_in_progress')) {
 
 if (isFiantoError(unknownError, 'some_unrecognised_string')) {
   expectTypeOf(unknownError).toEqualTypeOf<FiantoError & { code: 'some_unrecognised_string' }>();
+}
+
+// The amount helpers' own codes narrow to their own classes (amounts.ts), not a bare FiantoError.
+if (isFiantoError(unknownError, 'invalid_usdc_amount')) {
+  expectTypeOf(unknownError).toEqualTypeOf<UsdcError>();
+}
+
+if (isFiantoError(unknownError, 'invalid_amount')) {
+  expectTypeOf(unknownError).toEqualTypeOf<AmountError & { code: 'invalid_amount' }>();
+}
+
+// A UsdcError is an AmountError, so one `instanceof AmountError` catches both helpers' refusals.
+expectTypeOf<UsdcError>().toExtend<AmountError>();
+expectTypeOf<UsdcError['code']>().toEqualTypeOf<'invalid_usdc_amount'>();
+expectTypeOf<AmountError['code']>().toEqualTypeOf<'invalid_amount' | 'invalid_usdc_amount'>();
+
+// payment_method_unavailable is an ordinary APIError: its `method` names the refused method.
+if (isFiantoError(unknownError, 'payment_method_unavailable')) {
+  expectTypeOf(unknownError).toEqualTypeOf<APIError & { code: 'payment_method_unavailable' }>();
+  expectTypeOf(unknownError.method).toEqualTypeOf<string | undefined>();
 }

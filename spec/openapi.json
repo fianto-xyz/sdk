@@ -145,6 +145,224 @@
         ],
         "type": "object"
       },
+      "ApiInvoiceResponse": {
+        "description": "A document (invoice, payment receipt, payment request or credit note) on `GET v1/invoices` and `GET v1/invoices/{id}`, for payments made through this application: written invoices and payment requests created in the console are not available through the API in this release. It is the same object the invoice webhooks carry as `data`, plus `issued_at`, the issue instant the list is ordered by and `created_gte`/`created_lte` bound. Money in base units (6 decimals, as strings); enums lower case. Never the buyer's company name, address, tax ID or company number (they are on the PDF). `status` is the stored state; the list's `status` filter also takes the derived ones (`overdue`, `part_paid`, `credited`, `part_credited`).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credited_amount": {
+            "type": "string"
+          },
+          "credits": {
+            "description": "A credit note's: the public id of the document it credits, or null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "const": "USD",
+            "description": "The document's currency; USDC is the means of payment at 1.00 USD.",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "description": "As given at checkout, unverified.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "description": "The paying customer's public id (fian_cus_…), or null.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "description": "The merchant's own reference for the customer.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "document_type": {
+            "enum": [
+              "invoice",
+              "receipt",
+              "payment_request"
+            ],
+            "type": "string"
+          },
+          "due_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "The document's public id (fian_inv_…).",
+            "type": "string"
+          },
+          "issue_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issued_at": {
+            "description": "When the document was issued (a written invoice: finalized). Every document v1 shows has one.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "invoice",
+              "credit_note"
+            ],
+            "type": "string"
+          },
+          "network": {
+            "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+            "enum": [
+              "devnet",
+              "mainnet"
+            ],
+            "type": "string"
+          },
+          "number": {
+            "description": "INV-0001, REQ-0001, CN-0001; null for a payment receipt (shown by its payment's PAY- number).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object": {
+            "enum": [
+              "invoice",
+              "credit_note"
+            ],
+            "type": "string"
+          },
+          "order_id": {
+            "description": "The merchant's own order id (`Order.merchantOrderId`), as in every other event (ruling 18). Null when there is none, and for a written invoice: its Pay order is Fianto's internal `inv_…` order, not the merchant's.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "replaces": {
+            "description": "The public id of the document this one replaces, or null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "checkout",
+              "subscription",
+              "manual",
+              "external"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "The stored state. v1 never shows a draft.",
+            "enum": [
+              "open",
+              "paid",
+              "void",
+              "issued"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subtotal": {
+            "description": "total less tax_amount.",
+            "type": "string"
+          },
+          "tax_amount": {
+            "type": "string"
+          },
+          "total": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "credited_amount",
+          "credits",
+          "currency",
+          "customer",
+          "document_type",
+          "due_date",
+          "id",
+          "issue_date",
+          "issued_at",
+          "kind",
+          "network",
+          "number",
+          "object",
+          "order_id",
+          "payment",
+          "replaces",
+          "source",
+          "status",
+          "subscription_id",
+          "subtotal",
+          "tax_amount",
+          "total"
+        ],
+        "type": "object"
+      },
       "ApiOrderResponse": {
         "properties": {
           "amount": {
@@ -168,7 +386,10 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
@@ -306,11 +527,42 @@
             ]
           },
           "payment": {
+            "description": "The order's live payment: `gateway`/`method` say how it was paid (\"solana\"/\"crypto\" or \"stripe\"/\"card\"); a card payment has no signature. All null while nothing pays the order.",
             "properties": {
+              "gateway": {
+                "anyOf": [
+                  {
+                    "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                    "enum": [
+                      "solana",
+                      "stripe"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "id": {
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "method": {
+                "anyOf": [
+                  {
+                    "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                    "enum": [
+                      "crypto",
+                      "card"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
               "signature": {
@@ -322,9 +574,24 @@
             },
             "required": [
               "id",
-              "signature"
+              "signature",
+              "gateway",
+              "method"
             ],
             "type": "object"
+          },
+          "refund_status": {
+            "description": "How much of the order's payment was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. The order stays `PAID`. `none` while nothing has paid it.",
+            "enum": [
+              "none",
+              "partial",
+              "full"
+            ],
+            "type": "string"
+          },
+          "refunded_amount": {
+            "description": "What was refunded of the order's payment, 6-decimal base units of `currency`; \"0\" when nothing was.",
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -355,6 +622,8 @@
           "discount_amount",
           "discount",
           "currency",
+          "refund_status",
+          "refunded_amount",
           "customer",
           "payment",
           "metadata",
@@ -379,6 +648,35 @@
               "null"
             ]
           },
+          "card": {
+            "anyOf": [
+              {
+                "properties": {
+                  "brand": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "last4": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "brand",
+                  "last4"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A card payment's card; null for crypto, and for a card payment whose card details are not recorded."
+          },
           "checkout_session_id": {
             "type": [
               "string",
@@ -390,10 +688,15 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "description": "\"USDC\" for crypto, \"USD\" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
+            "description": "`wallet` is null for a card payer (a card customer has no wallet).",
             "properties": {
               "email": {
                 "type": [
@@ -431,7 +734,23 @@
           "fee_amount": {
             "type": "string"
           },
+          "gateway": {
+            "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+            "enum": [
+              "solana",
+              "stripe"
+            ],
+            "type": "string"
+          },
           "id": {
+            "type": "string"
+          },
+          "method": {
+            "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+            "enum": [
+              "crypto",
+              "card"
+            ],
             "type": "string"
           },
           "network": {
@@ -456,7 +775,21 @@
               "null"
             ]
           },
+          "refund_status": {
+            "description": "How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.",
+            "enum": [
+              "none",
+              "partial",
+              "full"
+            ],
+            "type": "string"
+          },
+          "refunded_amount": {
+            "description": "What was refunded of `amount`, 6-decimal base units of `currency`; \"0\" when nothing was.",
+            "type": "string"
+          },
           "signature": {
+            "description": "The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`.",
             "type": [
               "string",
               "null"
@@ -493,12 +826,17 @@
           "id",
           "object",
           "status",
+          "gateway",
+          "method",
+          "card",
           "order_id",
           "checkout_session_id",
           "amount",
           "fee_amount",
           "network_fee_amount",
           "total_amount",
+          "refund_status",
+          "refunded_amount",
           "currency",
           "customer",
           "signature",
@@ -521,7 +859,10 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "ended_at": {
@@ -686,7 +1027,11 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "description": "\"USD\" when the session is card-only, or once a card has paid it (then `payment.gateway` is \"stripe\", status SUCCEEDED, signature null, and the fees read \"0\"); otherwise \"USDC\". While a card try is in progress the session has no payment yet. Charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units either way.",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
@@ -779,6 +1124,7 @@
             "type": "string"
           },
           "fee_amount": {
+            "description": "\"0\" for a session charged by card (card-only, or paid by card): fianto takes no fee on card.",
             "type": "string"
           },
           "id": {
@@ -865,7 +1211,23 @@
             "anyOf": [
               {
                 "properties": {
+                  "gateway": {
+                    "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                    "enum": [
+                      "solana",
+                      "stripe"
+                    ],
+                    "type": "string"
+                  },
                   "id": {
+                    "type": "string"
+                  },
+                  "method": {
+                    "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                    "enum": [
+                      "crypto",
+                      "card"
+                    ],
                     "type": "string"
                   },
                   "signature": {
@@ -887,14 +1249,17 @@
                 "required": [
                   "id",
                   "status",
-                  "signature"
+                  "signature",
+                  "gateway",
+                  "method"
                 ],
                 "type": "object"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The live payment (null while there is none): `gateway` / `method` say how it was paid, \"solana\" / \"crypto\" or \"stripe\" / \"card\". `signature` is null for a card payment (no chain transaction)."
           },
           "status": {
             "enum": [
@@ -936,7 +1301,7 @@
             "type": "string"
           },
           "total_amount": {
-            "description": "amount + fee_amount + network_fee_amount: what the payer is charged now.",
+            "description": "amount + fee_amount + network_fee_amount: what the payer is charged now (`amount` for a session charged by card).",
             "type": "string"
           },
           "ui_mode": {
@@ -1019,12 +1384,45 @@
             ],
             "description": "WHO scheduled the cancellation `cancel_at` dates: `PAYER_CANCELED` (in their own wallet) or `MERCHANT_CANCELED` — the values `end_reason` takes once it ends. Null whenever `cancel_at` is null (nothing scheduled, or ENDED), and ALSO null for a scheduled cancel that recorded no reason (the ALERTed `no_reason` state — see `cancelReasonOf`), where `cancel_at` is non-null. Additive (final review parked #10; m5)."
           },
+          "card": {
+            "anyOf": [
+              {
+                "description": "The card on a v1 / webhook subscription object (spec §13): either half null when Stripe did not report it.",
+                "properties": {
+                  "brand": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "last4": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "brand",
+                  "last4"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A card subscription's card (its newest saved card); null for crypto, and for a card subscription with no saved card recorded. Never a card number."
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "current_period_end": {
@@ -1039,6 +1437,7 @@
             "type": "string"
           },
           "customer": {
+            "description": "`wallet` is null for a card (Stripe) subscriber with no wallet.",
             "properties": {
               "email": {
                 "type": [
@@ -1059,7 +1458,10 @@
                 ]
               },
               "wallet": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -1137,6 +1539,14 @@
           "fee_amount": {
             "type": "string"
           },
+          "gateway": {
+            "description": "Who charges it: \"solana\" (on chain) or \"stripe\" (the merchant's Stripe). Plan 7, additive.",
+            "enum": [
+              "solana",
+              "stripe"
+            ],
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -1196,6 +1606,14 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "method": {
+            "description": "How the payer pays: \"crypto\" or \"card\". A card subscription is in `currency` \"USD\" with `fee_amount` and `network_fee_amount` \"0\" (fianto takes no fee on card), `plan_id` null and `customer.wallet` null.",
+            "enum": [
+              "crypto",
+              "card"
+            ],
+            "type": "string"
           },
           "network": {
             "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
@@ -1280,6 +1698,9 @@
           "created_at",
           "latest_payment",
           "metadata",
+          "gateway",
+          "method",
+          "card",
           "network"
         ],
         "type": "object"
@@ -1386,6 +1807,19 @@
             "minLength": 1,
             "type": "string"
           },
+          "payment_methods": {
+            "items": {
+              "enum": [
+                "crypto",
+                "card"
+              ],
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
           "price_id": {
             "maxLength": 100,
             "minLength": 1,
@@ -1447,10 +1881,13 @@
                   "checkout_session_not_found",
                   "checkout_unavailable",
                   "client_ip_invalid",
+                  "cursor_invalid",
                   "customer_not_found",
+                  "discount_not_allowed_for_document",
                   "discount_unavailable",
                   "event_not_found",
                   "expires_at_out_of_range",
+                  "gateway_not_offered",
                   "idempotency_key_invalid",
                   "idempotency_key_required",
                   "idempotency_key_reused",
@@ -1461,6 +1898,7 @@
                   "internal_error",
                   "invalid_api_credentials",
                   "invalid_json",
+                  "invoice_not_found",
                   "merchant_token_account_missing",
                   "mode_not_supported",
                   "not_found",
@@ -1472,6 +1910,7 @@
                   "payer_token_account_missing",
                   "payload_too_large",
                   "payment_in_progress",
+                  "payment_method_unavailable",
                   "payment_not_found",
                   "plan_limit_reached",
                   "price_ended",
@@ -1527,6 +1966,13 @@
           "message": {
             "type": "string"
           },
+          "method": {
+            "description": "Set on `payment_method_unavailable`: the requested payment method this session cannot offer.",
+            "enum": [
+              "card"
+            ],
+            "type": "string"
+          },
           "request_id": {
             "type": "string"
           },
@@ -1553,6 +1999,268 @@
         },
         "required": [
           "order_id"
+        ],
+        "type": "object"
+      },
+      "InvoiceEventPayload": {
+        "description": "The `data` of `invoice.issued`, `invoice.paid`, `invoice.voided` and `credit_note.issued` (spec §6.8). Money is in base units (6 decimals, as strings); enums are lower case, as the payer and public views send them (ruling 20; the v1 invoice routes use the same lower-case values). Never the buyer's company name, address, tax ID or company number.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credited_amount": {
+            "type": "string"
+          },
+          "credits": {
+            "description": "A credit note's: the public id of the document it credits, or null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "const": "USD",
+            "description": "The document's currency; USDC is the means of payment at 1.00 USD.",
+            "type": "string"
+          },
+          "customer": {
+            "properties": {
+              "email": {
+                "description": "As given at checkout, unverified.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "description": "The paying customer's public id (fian_cus_…), or null.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reference": {
+                "description": "The merchant's own reference for the customer.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wallet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "wallet",
+              "email",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "document_type": {
+            "enum": [
+              "invoice",
+              "receipt",
+              "payment_request"
+            ],
+            "type": "string"
+          },
+          "due_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "The document's public id (fian_inv_…).",
+            "type": "string"
+          },
+          "issue_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "invoice",
+              "credit_note"
+            ],
+            "type": "string"
+          },
+          "network": {
+            "description": "The network name the public API and webhooks speak: a merchant sees two, never `localnet`.",
+            "enum": [
+              "mainnet",
+              "devnet"
+            ],
+            "type": "string"
+          },
+          "number": {
+            "description": "INV-0001, REQ-0001, CN-0001; null for a payment receipt (shown by its payment's PAY- number).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object": {
+            "enum": [
+              "invoice",
+              "credit_note"
+            ],
+            "type": "string"
+          },
+          "order_id": {
+            "description": "The merchant's own order id (`Order.merchantOrderId`), as in every other event (ruling 18). Null when there is none, and for a written invoice: its Pay order is Fianto's internal `inv_…` order, not the merchant's.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "signature"
+            ],
+            "type": "object"
+          },
+          "replaces": {
+            "description": "The public id of the document this one replaces, or null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "checkout",
+              "subscription",
+              "manual",
+              "external"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "open",
+              "paid",
+              "void",
+              "issued"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subtotal": {
+            "description": "total less tax_amount.",
+            "type": "string"
+          },
+          "tax_amount": {
+            "type": "string"
+          },
+          "total": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "number",
+          "kind",
+          "document_type",
+          "status",
+          "source",
+          "issue_date",
+          "due_date",
+          "currency",
+          "subtotal",
+          "tax_amount",
+          "total",
+          "credited_amount",
+          "customer",
+          "payment",
+          "order_id",
+          "subscription_id",
+          "replaces",
+          "credits",
+          "created_at",
+          "network"
+        ],
+        "type": "object"
+      },
+      "InvoicePaymentRecordedPayload": {
+        "description": "`invoice.payment_recorded`: a recorded transfer was applied to an invoice or payment request (base-unit strings). Sent before `invoice.paid` when the transfer makes the document PAID.",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "amount_due": {
+            "type": "string"
+          },
+          "amount_paid": {
+            "type": "string"
+          },
+          "external_payment_id": {
+            "description": "The recorded transfer's public id (`fian_xpay_…`).",
+            "type": "string"
+          },
+          "id": {
+            "description": "The document's public id.",
+            "type": "string"
+          },
+          "network": {
+            "description": "The network name the public API and webhooks speak: a merchant sees two, never `localnet`.",
+            "enum": [
+              "mainnet",
+              "devnet"
+            ],
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "external_payment_id",
+          "amount",
+          "amount_paid",
+          "amount_due",
+          "signature",
+          "network"
         ],
         "type": "object"
       },
@@ -1595,6 +2303,66 @@
           "type": {
             "maxLength": 64,
             "pattern": "^[a-z][a-z_.]*$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListApiInvoicesQueryDto": {
+        "properties": {
+          "created_gte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "created_lte": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              }
+            ]
+          },
+          "cursor": {
+            "pattern": "^[A-Za-z0-9_]{1,64}$",
+            "type": "string"
+          },
+          "document_type": {
+            "enum": [
+              "invoice",
+              "receipt",
+              "payment_request"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "overdue",
+              "part_paid",
+              "paid",
+              "credited",
+              "part_credited",
+              "void",
+              "issued"
+            ],
             "type": "string"
           }
         },
@@ -1819,7 +2587,10 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
@@ -1902,12 +2673,20 @@
             "type": "string"
           },
           "duplicate": {
+            "description": "The payment nobody asked for. A crypto transfer: its `signature`, no `gateway`. A card charge (`gateway: 'stripe'`): `signature` null; fianto refunds it in full automatically.",
             "properties": {
               "amount": {
                 "type": "string"
               },
-              "signature": {
+              "gateway": {
+                "const": "stripe",
                 "type": "string"
+              },
+              "signature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -1958,12 +2737,45 @@
             ]
           },
           "payment": {
+            "description": "The order's live payment: `gateway`/`method` say how it was paid (\"solana\"/\"crypto\" or \"stripe\"/\"card\"); a card payment has no signature. All null while nothing pays the order.",
             "properties": {
+              "gateway": {
+                "anyOf": [
+                  {
+                    "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                    "enum": [
+                      "solana",
+                      "stripe"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); such a payment is \"solana\" / \"crypto\"."
+              },
               "id": {
                 "type": [
                   "string",
                   "null"
                 ]
+              },
+              "method": {
+                "anyOf": [
+                  {
+                    "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                    "enum": [
+                      "crypto",
+                      "card"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); such a payment is \"solana\" / \"crypto\"."
               },
               "signature": {
                 "type": [
@@ -1977,6 +2789,19 @@
               "signature"
             ],
             "type": "object"
+          },
+          "refund_status": {
+            "description": "Absent on events created before refunds were published (November 2026); such an order reads \"none\" / \"0\".",
+            "enum": [
+              "none",
+              "partial",
+              "full"
+            ],
+            "type": "string"
+          },
+          "refunded_amount": {
+            "description": "Absent on events created before refunds were published (November 2026); such an order reads \"none\" / \"0\".",
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -2029,7 +2854,10 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
@@ -2153,12 +2981,45 @@
             ]
           },
           "payment": {
+            "description": "The order's live payment: `gateway`/`method` say how it was paid (\"solana\"/\"crypto\" or \"stripe\"/\"card\"); a card payment has no signature. All null while nothing pays the order.",
             "properties": {
+              "gateway": {
+                "anyOf": [
+                  {
+                    "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                    "enum": [
+                      "solana",
+                      "stripe"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); such a payment is \"solana\" / \"crypto\"."
+              },
               "id": {
                 "type": [
                   "string",
                   "null"
                 ]
+              },
+              "method": {
+                "anyOf": [
+                  {
+                    "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                    "enum": [
+                      "crypto",
+                      "card"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); such a payment is \"solana\" / \"crypto\"."
               },
               "signature": {
                 "type": [
@@ -2172,6 +3033,19 @@
               "signature"
             ],
             "type": "object"
+          },
+          "refund_status": {
+            "description": "Absent on events created before refunds were published (November 2026); such an order reads \"none\" / \"0\".",
+            "enum": [
+              "none",
+              "partial",
+              "full"
+            ],
+            "type": "string"
+          },
+          "refunded_amount": {
+            "description": "Absent on events created before refunds were published (November 2026); such an order reads \"none\" / \"0\".",
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -2206,6 +3080,516 @@
         ],
         "type": "object"
       },
+      "PaymentDisputedPayload": {
+        "description": "`payment.disputed` (Plan 4 Task 4a): the card payment and its dispute.",
+        "properties": {
+          "dispute": {
+            "properties": {
+              "amount": {
+                "description": "What the cardholder disputes, 6-decimal base units of the payment's `currency` (USD).",
+                "type": "string"
+              },
+              "due_by": {
+                "description": "When evidence is due; null when Stripe allows no response.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "description": "`fian_dsp_…`.",
+                "type": "string"
+              },
+              "status": {
+                "description": "A payment's dispute as the merchant lists show it (`dispute: { status, dueBy } | null`). Read from `StripeDispute` through the reading domain's own query (rule 7). The status words are the Disputes page's (Plan 4 Task 4a, `stripe/utils/dispute-status.ts` is the stripe domain's own copy and must agree case for case): Stripe's D1 statuses mapped to `needs_response`, `under_review`, `won`, `lost`, `accepted` (lost and accepted by the merchant) and `closed` (`warning_closed`, `prevented`); an unknown status reads `under_review`.",
+                "enum": [
+                  "needs_response",
+                  "under_review",
+                  "won",
+                  "lost",
+                  "accepted",
+                  "closed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "amount",
+              "due_by"
+            ],
+            "type": "object"
+          },
+          "payment": {
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "block_time": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "card": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "brand": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "last4": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "brand",
+                      "last4"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A card payment's card; null for crypto, and for a card payment whose card details are not recorded."
+              },
+              "checkout_session_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "currency": {
+                "description": "\"USDC\" for crypto, \"USD\" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).",
+                "enum": [
+                  "USDC",
+                  "USD"
+                ],
+                "type": "string"
+              },
+              "customer": {
+                "description": "`wallet` is null for a card payer (a card customer has no wallet).",
+                "properties": {
+                  "email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "wallet": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "wallet",
+                  "email"
+                ],
+                "type": "object"
+              },
+              "failed_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fee_amount": {
+                "type": "string"
+              },
+              "gateway": {
+                "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                "enum": [
+                  "solana",
+                  "stripe"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "method": {
+                "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                "enum": [
+                  "crypto",
+                  "card"
+                ],
+                "type": "string"
+              },
+              "network_fee_amount": {
+                "description": "A subscription charge's flat network fee; \"0\" for a one-off payment.",
+                "type": "string"
+              },
+              "object": {
+                "const": "payment",
+                "type": "string"
+              },
+              "order_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "refund_status": {
+                "description": "How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.",
+                "enum": [
+                  "none",
+                  "partial",
+                  "full"
+                ],
+                "type": "string"
+              },
+              "refunded_amount": {
+                "description": "What was refunded of `amount`, 6-decimal base units of `currency`; \"0\" when nothing was.",
+                "type": "string"
+              },
+              "signature": {
+                "description": "The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "slot": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "PROCESSING",
+                  "CONFIRMED",
+                  "SUCCEEDED",
+                  "FAILED"
+                ],
+                "type": "string"
+              },
+              "succeeded_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "total_amount": {
+                "description": "What the customer paid: amount + fee_amount + network_fee_amount.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "object",
+              "status",
+              "gateway",
+              "method",
+              "card",
+              "order_id",
+              "checkout_session_id",
+              "amount",
+              "fee_amount",
+              "network_fee_amount",
+              "total_amount",
+              "refund_status",
+              "refunded_amount",
+              "currency",
+              "customer",
+              "signature",
+              "slot",
+              "block_time",
+              "created_at",
+              "succeeded_at",
+              "failed_at"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "payment",
+          "dispute"
+        ],
+        "type": "object"
+      },
+      "PaymentRefundedPayload": {
+        "description": "`payment.refunded`: the payment as v1 reads it right after the change (its `refund_status`, `refunded_amount`), and what moved it. An event is published only when `payment.refunded_amount` moved, and every move publishes one. Events can arrive late, twice or out of order, so the last one delivered is not always the newest: for the current figure, read `GET /v1/payments/{id}`. Over all of a payment's events, the sum of the signed `refund.applied_amount`, counted once per event id, is its `refunded_amount` minus what it was before its first event. That is 0 except for crypto refunds recorded before this event existed, which moved `refunded_amount` with no event. A running total kept from events therefore starts from a seed read from `GET /v1/payments`, and is exact only when none of the payment's events was in flight while the seed was read; to be sure, compare it with `GET /v1/payments/{id}`.",
+        "properties": {
+          "payment": {
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "block_time": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "card": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "brand": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "last4": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "brand",
+                      "last4"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A card payment's card; null for crypto, and for a card payment whose card details are not recorded."
+              },
+              "checkout_session_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "currency": {
+                "description": "\"USDC\" for crypto, \"USD\" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).",
+                "enum": [
+                  "USDC",
+                  "USD"
+                ],
+                "type": "string"
+              },
+              "customer": {
+                "description": "`wallet` is null for a card payer (a card customer has no wallet).",
+                "properties": {
+                  "email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "wallet": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "wallet",
+                  "email"
+                ],
+                "type": "object"
+              },
+              "failed_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fee_amount": {
+                "type": "string"
+              },
+              "gateway": {
+                "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                "enum": [
+                  "solana",
+                  "stripe"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "method": {
+                "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                "enum": [
+                  "crypto",
+                  "card"
+                ],
+                "type": "string"
+              },
+              "network_fee_amount": {
+                "description": "A subscription charge's flat network fee; \"0\" for a one-off payment.",
+                "type": "string"
+              },
+              "object": {
+                "const": "payment",
+                "type": "string"
+              },
+              "order_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "refund_status": {
+                "description": "How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.",
+                "enum": [
+                  "none",
+                  "partial",
+                  "full"
+                ],
+                "type": "string"
+              },
+              "refunded_amount": {
+                "description": "What was refunded of `amount`, 6-decimal base units of `currency`; \"0\" when nothing was.",
+                "type": "string"
+              },
+              "signature": {
+                "description": "The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "slot": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "PROCESSING",
+                  "CONFIRMED",
+                  "SUCCEEDED",
+                  "FAILED"
+                ],
+                "type": "string"
+              },
+              "succeeded_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "total_amount": {
+                "description": "What the customer paid: amount + fee_amount + network_fee_amount.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "object",
+              "status",
+              "gateway",
+              "method",
+              "card",
+              "order_id",
+              "checkout_session_id",
+              "amount",
+              "fee_amount",
+              "network_fee_amount",
+              "total_amount",
+              "refund_status",
+              "refunded_amount",
+              "currency",
+              "customer",
+              "signature",
+              "slot",
+              "block_time",
+              "created_at",
+              "succeeded_at",
+              "failed_at"
+            ],
+            "type": "object"
+          },
+          "refund": {
+            "description": "What moved `payment.refunded_amount` for one `payment.refunded` event (Stripe Plan 4; Plan 6 Task 0c): a refund, a lost dispute, or the undoing of either. Every movement of the figure publishes exactly one event; nothing else publishes one.",
+            "properties": {
+              "amount": {
+                "description": "The refund's (or the dispute's) own amount (`succeeded`, `dispute_lost`), or how much the refunded figure went down (`failed`, `reversed`), base units. It can be MORE than the change of `payment.refunded_amount`: a raise is capped at the payment's amount, and a crypto refund of a document partly paid by recorded transfers counts against the transfers first. Sum `applied_amount`, never this, to follow `refunded_amount`.",
+                "type": "string"
+              },
+              "applied_amount": {
+                "description": "How much `payment.refunded_amount` moved for this event, base units, always more than 0: up for `succeeded` and `dispute_lost`, down for `failed` and `reversed`. One refund can be two `succeeded` events with the same `id`, and a dispute's `reversed` need not match its `dispute_lost`: follow the figure by the signed sum of `applied_amount`, once per event id, never by pairing events by `refund.id`.",
+                "type": "string"
+              },
+              "gateway": {
+                "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                "enum": [
+                  "solana",
+                  "stripe"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "description": "A card refund's `fian_ref_…`; a recorded crypto refund's id (the console's refund id); a dispute's `fian_dsp_…` (`dispute_lost`, `reversed`); for `failed`, the refund that failed.",
+                "type": "string"
+              },
+              "status": {
+                "description": "What moved the figure; an event is published only when it moved. `succeeded`: a refund; the payment's `refunded_amount` went up by `applied_amount` (capped at `amount`). `dispute_lost`: a card dispute was lost, or a dispute already lost now reads a higher amount; the figure went up. `failed`: a refund that had succeeded failed later (a card refund, up to 30 days after) and the figure went down. `reversed`: a lost dispute was a late win (`lost` → `won`), or a dispute still lost now reads a lower amount; the figure went down. A refund that succeeds or fails while a lost dispute already covers that money moves nothing and publishes nothing; the dispute's later `reversed` carries it, so a `reversed` need not match the dispute's `dispute_lost` events.",
+                "enum": [
+                  "succeeded",
+                  "dispute_lost",
+                  "failed",
+                  "reversed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "amount",
+              "applied_amount",
+              "status",
+              "gateway"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "payment",
+          "refund"
+        ],
+        "type": "object"
+      },
       "SessionEventPayload": {
         "description": "The webhook body for the three checkout.session.* events (spec §6.6).",
         "properties": {
@@ -2232,7 +3616,11 @@
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "description": "\"USD\" when the session is card-only, or once a card has paid it (then `payment.gateway` is \"stripe\", status SUCCEEDED, signature null, and the fees read \"0\"); otherwise \"USDC\". While a card try is in progress the session has no payment yet. Charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units either way.",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "customer": {
@@ -2372,12 +3760,45 @@
             "type": "string"
           },
           "payment": {
+            "description": "The live payment; every key null while there is none. `gateway` / `method`: \"solana\" / \"crypto\" or \"stripe\" / \"card\".",
             "properties": {
+              "gateway": {
+                "anyOf": [
+                  {
+                    "description": "Who moved the money, as v1 names it: \"solana\" (a wallet, on chain) or \"stripe\" (the merchant's Stripe).",
+                    "enum": [
+                      "solana",
+                      "stripe"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); on such an event a non-null `payment.id` is a \"solana\" / \"crypto\" payment."
+              },
               "id": {
                 "type": [
                   "string",
                   "null"
                 ]
+              },
+              "method": {
+                "anyOf": [
+                  {
+                    "description": "How the payer paid through the gateway, as v1 names it: \"crypto\" (solana) or \"card\" (stripe).",
+                    "enum": [
+                      "crypto",
+                      "card"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Absent on events created before card payments (November 2026); on such an event a non-null `payment.id` is a \"solana\" / \"crypto\" payment."
               },
               "signature": {
                 "type": [
@@ -2499,12 +3920,45 @@
               }
             ]
           },
+          "card": {
+            "anyOf": [
+              {
+                "description": "The card on a v1 / webhook subscription object (spec §13): either half null when Stripe did not report it.",
+                "properties": {
+                  "brand": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "last4": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "brand",
+                  "last4"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent on events created before card subscriptions (November 2026); such a subscription is \"solana\" / \"crypto\" with no card."
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
           },
           "currency": {
-            "const": "USDC",
+            "enum": [
+              "USDC",
+              "USD"
+            ],
             "type": "string"
           },
           "current_period_end": {
@@ -2519,6 +3973,7 @@
             "type": "string"
           },
           "customer": {
+            "description": "`wallet` is null for a card (Stripe) subscriber with no wallet.",
             "properties": {
               "email": {
                 "type": [
@@ -2539,7 +3994,10 @@
                 ]
               },
               "wallet": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -2638,7 +4096,13 @@
                   "TOO_EARLY",
                   "CHARGING_KEY_UNFUNDED",
                   "PROGRAM_ERROR",
-                  "NETWORK_ERROR"
+                  "NETWORK_ERROR",
+                  "CARD_DECLINED",
+                  "CARD_EXPIRED",
+                  "CARD_UNUSABLE",
+                  "AUTHENTICATION_REQUIRED",
+                  "GATEWAY_ERROR",
+                  "GATEWAY_UNAVAILABLE"
                 ],
                 "type": "string"
               }
@@ -2651,6 +4115,14 @@
             "type": "object"
           },
           "fee_amount": {
+            "type": "string"
+          },
+          "gateway": {
+            "description": "Absent on events created before card subscriptions (November 2026); such a subscription is \"solana\" / \"crypto\" with no card.",
+            "enum": [
+              "solana",
+              "stripe"
+            ],
             "type": "string"
           },
           "id": {
@@ -2677,6 +4149,14 @@
             },
             "type": "object"
           },
+          "method": {
+            "description": "Absent on events created before card subscriptions (November 2026); such a subscription is \"solana\" / \"crypto\" with no card.",
+            "enum": [
+              "crypto",
+              "card"
+            ],
+            "type": "string"
+          },
           "network_fee_amount": {
             "description": "Absent on events created before the renewal network fee (October 2026).",
             "type": "string"
@@ -2689,6 +4169,7 @@
             "type": "string"
           },
           "payment": {
+            "description": "For a card subscription's charge `signature` is null (a card payment has no chain transaction).",
             "properties": {
               "id": {
                 "type": [
@@ -3137,6 +4618,215 @@
           }
         ],
         "summary": "Retrieve an event"
+      }
+    },
+    "/v1/invoices": {
+      "get": {
+        "description": "Documents for payments made through this application. Written invoices and payment requests created in the console are not available through the API in this release.",
+        "operationId": "invoices.list",
+        "parameters": [
+          {
+            "description": "A credit note has the document type of the document it credits. Documents for payments made through this application. Written invoices and payment requests created in the console are not available through the API in this release. `payment_request` is accepted and lists nothing until then.",
+            "in": "query",
+            "name": "document_type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "invoice",
+                "receipt",
+                "payment_request"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "A stored state, or a derived one: `open` includes overdue and part-paid documents, `paid` the credited and part-credited ones; `overdue` is open with a due date before today in the merchant's issue time zone. Each item's `status` is the stored state.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "overdue",
+                "part_paid",
+                "paid",
+                "credited",
+                "part_credited",
+                "void",
+                "issued"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive lower bound on the issue instant (`issued_at`, the order of the list).",
+            "in": "query",
+            "name": "created_gte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Inclusive upper bound on the issue instant (`issued_at`, the order of the list).",
+            "in": "query",
+            "name": "created_lte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "description": "The next_cursor of the previous page (a public id). A malformed value is 400 validation_failed; an id that names none of the records this application can list is 400 cursor_invalid.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_]{1,64}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/ApiInvoiceResponse"
+                      },
+                      "type": "array"
+                    },
+                    "network": {
+                      "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                      "enum": [
+                        "devnet",
+                        "mainnet"
+                      ],
+                      "type": "string"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "network",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "List invoices, receipts, payment requests and credit notes"
+      }
+    },
+    "/v1/invoices/{id}": {
+      "get": {
+        "operationId": "invoices.retrieve",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiInvoiceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Retrieve a document by its public id"
+      }
+    },
+    "/v1/invoices/{id}/pdf": {
+      "get": {
+        "operationId": "invoices.retrievePdf",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Download a document's PDF"
       }
     },
     "/v1/orders": {
@@ -4155,6 +5845,57 @@
         "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
       }
     },
+    "credit_note.issued": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/InvoiceEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "credit_note.issued"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
     "endpoint.verification": {
       "post": {
         "requestBody": {
@@ -4199,6 +5940,210 @@
           }
         },
         "summary": "Answer HTTP 200 with JSON {\"challenge\": <data.challenge>} within 5 s."
+      }
+    },
+    "invoice.issued": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/InvoiceEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "invoice.issued"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "invoice.paid": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/InvoiceEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "invoice.paid"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "invoice.payment_recorded": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/InvoicePaymentRecordedPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "invoice.payment_recorded"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "invoice.voided": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/InvoiceEventPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "invoice.voided"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
       }
     },
     "order.duplicate_payment": {
@@ -4331,6 +6276,108 @@
                   },
                   "type": {
                     "const": "order.paid"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "payment.disputed": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/PaymentDisputedPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "payment.disputed"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "timestamp",
+                  "network",
+                  "data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        },
+        "summary": "Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks)."
+      }
+    },
+    "payment.refunded": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/PaymentRefundedPayload"
+                  },
+                  "id": {
+                    "pattern": "^evt_[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  "network": {
+                    "description": "The network this deployment runs on: `mainnet` or `devnet` (the sandbox).",
+                    "enum": [
+                      "devnet",
+                      "mainnet"
+                    ],
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "payment.refunded"
                   }
                 },
                 "required": [

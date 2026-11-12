@@ -180,6 +180,23 @@ const price = (patch: Record<string, unknown> = {}) => ({
   id: 'fian_price_pro', object: 'price', amount: '20000000', currency: 'USDC', interval: 'MONTH', type: 'RECURRING', status: 'ACTIVE', ...patch,
 });
 
+// A session charged by card (card-only, or paid by card) reads currency USD, while its price
+// stays USDC: both are 6-decimal base units of the same dollar, so it is the same terms.
+it.each([
+  ['USD', 'USDC'],
+  ['USDC', 'USD'],
+])('reissues a price_id session whose currency reads %s against a %s price', async (sessionCurrency, priceCurrency) => {
+  const { fianto, calls } = fakeFianto([
+    { status: 201, body: open({ mode: 'subscription', amount: '20000000', interval: 'MONTH', currency: sessionCurrency }) },
+    { status: 200, body: price({ currency: priceCurrency }) },
+    { status: 200, body: { id: 'fian_cs_1', url: 'https://pay.test/c/t3' } },
+  ]);
+  const response = await createCheckoutHandler({ fianto, createSession: async () => priced })(sameOrigin());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ id: 'fian_cs_1', url: 'https://pay.test/c/t3' });
+  expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/prices/fian_price_pro', '/v1/checkout-sessions/fian_cs_1/link']);
+});
+
 it('checks a price_id session against that price (the session does not echo price_id)', async () => {
   const { fianto, calls } = fakeFianto([
     { status: 201, body: open({ mode: 'subscription', amount: '20000000', interval: 'MONTH' }) },
@@ -221,6 +238,23 @@ it('relays a validation code for the merchant\'s own params with an SDK-written 
   const response = await createCheckoutHandler({ fianto, createSession: async () => params })(sameOrigin());
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ error: { code: 'url_insecure', message: 'success_url and cancel_url must be https URLs.' } });
+});
+
+it("relays payment_method_unavailable with the SDK's own sentence", async () => {
+  const upstream = { code: 'payment_method_unavailable', message: 'upstream text', field: 'payment_methods', method: 'card' };
+  const { fianto } = fakeFianto([{ status: 422, body: upstream }]);
+  const onError = vi.fn();
+  const response = await createCheckoutHandler({
+    fianto, createSession: async () => ({ ...params, payment_methods: ['card' as const] }), onError,
+  })(sameOrigin());
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({
+    error: { code: 'payment_method_unavailable', message: 'Card payment is not available for this checkout.' },
+  });
+  expect(onError).toHaveBeenCalledTimes(1);
+  const error = onError.mock.calls[0]![0];
+  expect(isFiantoError(error, 'payment_method_unavailable')).toBe(true);
+  expect(error).toMatchObject({ status: 422, code: 'payment_method_unavailable', message: 'upstream text', field: 'payment_methods', method: 'card' });
 });
 
 it.each([

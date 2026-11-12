@@ -6,7 +6,10 @@
 // behaviour to assert; the type itself is the thing under test.
 import { expectTypeOf } from 'vitest';
 import type { Fianto } from './client.js';
-import type { CheckoutSession, CheckoutSessionCreateParams, FiantoEvent, Order, Payment, Subscription } from './types.js';
+import type {
+  CardPayment, CardSubscription, CheckoutSession, CheckoutSessionCreateParams, CryptoPayment, CryptoSubscription, FiantoEvent,
+  Order, OrderPayment, PaidSessionPayment, Payment, PaymentCard, PaymentMethod, Subscription,
+} from './types.js';
 import { isEventType } from './webhooks/events.js';
 
 declare const fianto: Fianto;
@@ -104,3 +107,137 @@ expectTypeOf<CheckoutSession['network_fee_amount']>().toEqualTypeOf<string>();
 expectTypeOf<Order['network_fee_amount']>().toEqualTypeOf<string>();
 expectTypeOf<Payment['network_fee_amount']>().toEqualTypeOf<string>();
 expectTypeOf<Subscription['network_fee_amount']>().toEqualTypeOf<string>();
+
+// --- Card payments (Stripe Plan 6): each rail is its own branch, discriminated by `method` -----
+// Only what the spec guarantees per rail is narrowed (Payment_gateway_chain: a crypto payment
+// always has its chain row; a card payment never has one).
+
+declare const payment: Payment;
+declare const order: Order;
+declare const session: CheckoutSession;
+declare const subscription: Subscription;
+
+// "keeps signature a string on the crypto branch"
+if (payment.method === 'crypto') {
+  expectTypeOf(payment).toEqualTypeOf<CryptoPayment>();
+  expectTypeOf(payment.gateway).toEqualTypeOf<'solana'>();
+  expectTypeOf(payment.signature).toEqualTypeOf<string>();
+  expectTypeOf(payment.slot).toEqualTypeOf<string | null>();
+  expectTypeOf(payment.block_time).toEqualTypeOf<string | null>();
+  expectTypeOf(payment.card).toEqualTypeOf<null>();
+  // A crypto payer's wallet stays nullable, as the spec types it (R1 row 3, OQ2).
+  expectTypeOf(payment.customer.wallet).toEqualTypeOf<string | null>();
+}
+// Narrowing on `gateway` works the same way.
+if (payment.gateway === 'solana') expectTypeOf(payment.signature).toEqualTypeOf<string>();
+
+// "makes signature null and card nullable on the card branch"
+if (payment.method === 'card') {
+  expectTypeOf(payment).toEqualTypeOf<CardPayment>();
+  expectTypeOf(payment.gateway).toEqualTypeOf<'stripe'>();
+  expectTypeOf(payment.signature).toEqualTypeOf<null>();
+  expectTypeOf(payment.slot).toEqualTypeOf<null>();
+  expectTypeOf(payment.block_time).toEqualTypeOf<null>();
+  expectTypeOf(payment.card).toEqualTypeOf<PaymentCard | null>();
+  expectTypeOf(payment.card?.last4).toEqualTypeOf<string | null | undefined>();
+  expectTypeOf(payment.card?.brand).toEqualTypeOf<string | null | undefined>();
+}
+// Without a method check, reading the signature as a string no longer compiles (Review Focus 1).
+// @ts-expect-error signature is null on the card branch
+const unnarrowedSignature: string = payment.signature;
+void unnarrowedSignature;
+expectTypeOf(payment.method).toEqualTypeOf<PaymentMethod>();
+
+// "narrows currency per branch"
+expectTypeOf(payment.currency).toEqualTypeOf<'USDC' | 'USD'>();
+if (payment.method === 'crypto') expectTypeOf(payment.currency).toEqualTypeOf<'USDC'>();
+if (payment.method === 'card') expectTypeOf(payment.currency).toEqualTypeOf<'USD'>();
+// The rest of the payment is the spec's own, unchanged on both branches.
+expectTypeOf<CardPayment['refunded_amount']>().toEqualTypeOf<string>();
+expectTypeOf<CryptoPayment['refund_status']>().toEqualTypeOf<'none' | 'partial' | 'full'>();
+// The session and the order keep the spec's union: a session's currency follows how it is
+// charged, not its payment's branch, so the SDK does not claim more than the spec says.
+expectTypeOf(session.currency).toEqualTypeOf<'USDC' | 'USD'>();
+expectTypeOf(order.currency).toEqualTypeOf<'USDC' | 'USD'>();
+
+// "types the subscriber wallet per branch"
+if (subscription.method === 'crypto') {
+  expectTypeOf(subscription).toEqualTypeOf<CryptoSubscription>();
+  expectTypeOf(subscription.customer.wallet).toEqualTypeOf<string>();
+  expectTypeOf(subscription.currency).toEqualTypeOf<'USDC'>();
+  expectTypeOf(subscription.card).toEqualTypeOf<null>();
+  expectTypeOf(subscription.gateway).toEqualTypeOf<'solana'>();
+}
+if (subscription.method === 'card') {
+  expectTypeOf(subscription).toEqualTypeOf<CardSubscription>();
+  expectTypeOf(subscription.customer.wallet).toEqualTypeOf<null>();
+  expectTypeOf(subscription.currency).toEqualTypeOf<'USD'>();
+  expectTypeOf(subscription.card).toEqualTypeOf<PaymentCard | null>();
+  expectTypeOf(subscription.gateway).toEqualTypeOf<'stripe'>();
+}
+expectTypeOf(subscription.customer.email).toEqualTypeOf<string | null>();
+// payment / latest_payment are not narrowed: the top-level `method` says the rail (M3).
+expectTypeOf(subscription.latest_payment).toEqualTypeOf<Subscription['latest_payment']>();
+
+// "makes every order payment key null while unpaid"
+expectTypeOf(order.payment).toEqualTypeOf<OrderPayment>();
+if (order.payment.id === null) {
+  expectTypeOf(order.payment.signature).toEqualTypeOf<null>();
+  expectTypeOf(order.payment.gateway).toEqualTypeOf<null>();
+  expectTypeOf(order.payment.method).toEqualTypeOf<null>();
+} else {
+  expectTypeOf(order.payment.id).toEqualTypeOf<string>();
+  expectTypeOf(order.payment.method).toEqualTypeOf<PaymentMethod>();
+}
+if (order.payment.method === 'crypto') expectTypeOf(order.payment.signature).toEqualTypeOf<string>();
+if (order.payment.method === 'card') {
+  expectTypeOf(order.payment.signature).toEqualTypeOf<null>();
+  expectTypeOf(order.payment.id).toEqualTypeOf<string>();
+}
+// @ts-expect-error a paid order payment never mixes the rails
+const mixedOrderPayment: OrderPayment = { id: 'fian_pay_1', signature: 'sig', gateway: 'stripe', method: 'card' };
+void mixedOrderPayment;
+// @ts-expect-error an unpaid order payment is all null, never half
+const halfUnpaid: OrderPayment = { id: null, signature: null, gateway: 'solana', method: null };
+void halfUnpaid;
+
+// "never gives a v1 session the all-null payment" (M2): v1 sends `payment: null` instead.
+expectTypeOf(session.payment).toEqualTypeOf<PaidSessionPayment | null>();
+// @ts-expect-error the all-null branch exists only in the session EVENT payload (Task 1b)
+const allNullSessionPayment: CheckoutSession['payment'] = { id: null, status: null, signature: null, gateway: null, method: null };
+void allNullSessionPayment;
+if (session.payment?.method === 'card') {
+  expectTypeOf(session.payment.signature).toEqualTypeOf<null>();
+  expectTypeOf(session.payment.gateway).toEqualTypeOf<'stripe'>();
+  expectTypeOf(session.payment.status).toEqualTypeOf<'PROCESSING' | 'CONFIRMED' | 'SUCCEEDED' | 'FAILED'>();
+}
+if (session.payment?.method === 'crypto') expectTypeOf(session.payment.signature).toEqualTypeOf<string>();
+
+// "autocompletes payment_methods"
+expectTypeOf<NonNullable<CheckoutSessionCreateParams['payment_methods']>>().toEqualTypeOf<PaymentMethod[]>();
+const cardOnly: CheckoutSessionCreateParams = { ...amountWithDescription, payment_methods: ['card'] };
+const bothRails: CheckoutSessionCreateParams = { ...amountWithDescription, payment_methods: ['crypto', 'card'] };
+void cardOnly; void bothRails;
+// @ts-expect-error 'paypal' is not a payment method
+const paypal: CheckoutSessionCreateParams = { ...amountWithDescription, payment_methods: ['paypal'] };
+void paypal;
+// Edge: an empty list type-checks (the wire schema's minItems cannot be typed); the backend
+// answers 400 validation_failed for it.
+const noMethods: CheckoutSessionCreateParams = { ...amountWithDescription, payment_methods: [] };
+void noMethods;
+
+// Edge: a card payment from a Checkout that gave no email has an all-null customer (R1 row 3).
+const anonymousCardPayment: CardPayment = {
+  id: 'fian_pay_1', object: 'payment', status: 'SUCCEEDED', gateway: 'stripe', method: 'card', card: null,
+  order_id: 'o-1', checkout_session_id: 'fian_cs_1', amount: '25000000', fee_amount: '0', network_fee_amount: '0',
+  total_amount: '25000000', refund_status: 'none', refunded_amount: '0', currency: 'USD',
+  customer: { id: null, wallet: null, email: null }, signature: null, slot: null, block_time: null,
+  created_at: '2026-11-13T00:00:00.000Z', succeeded_at: '2026-11-13T00:00:00.000Z', failed_at: null, network: 'mainnet',
+};
+void anonymousCardPayment;
+// @ts-expect-error a card payment has no signature
+const cardWithSignature: CardPayment = { ...anonymousCardPayment, signature: 'sig' };
+void cardWithSignature;
+// @ts-expect-error a card subscriber has no wallet
+const cardSubscriberWithWallet: CardSubscription['customer'] = { id: null, wallet: 'W', email: null, reference: null };
+void cardSubscriberWithWallet;

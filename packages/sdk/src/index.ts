@@ -24,6 +24,6 @@ export {
   TimeoutError,
 } from './core/errors.js';
 export { ErrorCode } from './generated/error-codes.js';
-export { usdc, UsdcError } from './amounts.js';
+export { AmountError, money, usd, usdc, UsdcError } from './amounts.js';
 export type * from './types.js';
 export { VERSION } from './version.js';

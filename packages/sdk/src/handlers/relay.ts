@@ -30,6 +30,9 @@ const RELAYED: Readonly<Record<string, string>> = {
   subscriptions_paused: 'New subscriptions are paused right now. Try again later.',
   // The merchant's own setup or checkout params were refused.
   merchant_token_account_missing: "This shop's wallet cannot receive USDC yet.",
+  // `payment_methods: ['card']` and no card gateway can offer this checkout (the error passed
+  // to onError carries `method`). `['crypto', 'card']` is never refused for card.
+  payment_method_unavailable: 'Card payment is not available for this checkout.',
   validation_failed: 'fianto refused the checkout parameters. The error passed to onError names the field.',
   url_insecure: 'success_url and cancel_url must be https URLs.',
   amount_or_price_required: 'Send either price_id, or amount and description.',

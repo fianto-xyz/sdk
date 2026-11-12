@@ -123,6 +123,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List invoices, receipts, payment requests and credit notes
+         * @description Documents for payments made through this application. Written invoices and payment requests created in the console are not available through the API in this release.
+         */
+        get: operations["invoices.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve a document by its public id */
+        get: operations["invoices.retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a document's PDF */
+        get: operations["invoices.retrievePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orders": {
         parameters: {
             query?: never;
@@ -496,6 +550,56 @@ export interface webhooks {
         patch?: never;
         trace?: never;
     };
+    "credit_note.issued": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["InvoiceEventPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "credit_note.issued";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "endpoint.verification": {
         parameters: {
             query?: never;
@@ -531,6 +635,206 @@ export interface webhooks {
             };
             responses: {
                 /** @description Must be exactly HTTP 200 with JSON {"challenge": <data.challenge>} within 5 s; any other status or a redirect fails verification. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoice.issued": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["InvoiceEventPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "invoice.issued";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoice.paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["InvoiceEventPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "invoice.paid";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoice.payment_recorded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["InvoicePaymentRecordedPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "invoice.payment_recorded";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoice.voided": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["InvoiceEventPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "invoice.voided";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -676,6 +980,106 @@ export interface webhooks {
                         timestamp: string;
                         /** @constant */
                         type: "order.paid";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "payment.disputed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PaymentDisputedPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "payment.disputed";
+                    };
+                };
+            };
+            responses: {
+                /** @description Any 2xx acknowledges the delivery. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "payment.refunded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delivered with webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PaymentRefundedPayload"];
+                        id: string;
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        /** Format: date-time */
+                        timestamp: string;
+                        /** @constant */
+                        type: "payment.refunded";
                     };
                 };
             };
@@ -1133,6 +1537,72 @@ export interface components {
             timestamp: string;
             type: string;
         };
+        /** @description A document (invoice, payment receipt, payment request or credit note) on `GET v1/invoices` and `GET v1/invoices/{id}`, for payments made through this application: written invoices and payment requests created in the console are not available through the API in this release. It is the same object the invoice webhooks carry as `data`, plus `issued_at`, the issue instant the list is ordered by and `created_gte`/`created_lte` bound. Money in base units (6 decimals, as strings); enums lower case. Never the buyer's company name, address, tax ID or company number (they are on the PDF). `status` is the stored state; the list's `status` filter also takes the derived ones (`overdue`, `part_paid`, `credited`, `part_credited`). */
+        ApiInvoiceResponse: {
+            /** Format: date-time */
+            created_at: string;
+            credited_amount: string;
+            /** @description A credit note's: the public id of the document it credits, or null. */
+            credits: string | null;
+            /**
+             * @description The document's currency; USDC is the means of payment at 1.00 USD.
+             * @constant
+             */
+            currency: "USD";
+            customer: {
+                /** @description As given at checkout, unverified. */
+                email: string | null;
+                /** @description The paying customer's public id (fian_cus_…), or null. */
+                id: string | null;
+                /** @description The merchant's own reference for the customer. */
+                reference: string | null;
+                wallet: string | null;
+            };
+            /** @enum {string} */
+            document_type: "invoice" | "receipt" | "payment_request";
+            /** Format: date */
+            due_date: string | null;
+            /** @description The document's public id (fian_inv_…). */
+            id: string;
+            /** Format: date */
+            issue_date: string | null;
+            /**
+             * Format: date-time
+             * @description When the document was issued (a written invoice: finalized). Every document v1 shows has one.
+             */
+            issued_at: string;
+            /** @enum {string} */
+            kind: "invoice" | "credit_note";
+            /**
+             * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+             * @enum {string}
+             */
+            network: "devnet" | "mainnet";
+            /** @description INV-0001, REQ-0001, CN-0001; null for a payment receipt (shown by its payment's PAY- number). */
+            number: string | null;
+            /** @enum {string} */
+            object: "invoice" | "credit_note";
+            /** @description The merchant's own order id (`Order.merchantOrderId`), as in every other event (ruling 18). Null when there is none, and for a written invoice: its Pay order is Fianto's internal `inv_…` order, not the merchant's. */
+            order_id: string | null;
+            payment: {
+                id: string | null;
+                signature: string | null;
+            };
+            /** @description The public id of the document this one replaces, or null. */
+            replaces: string | null;
+            /** @enum {string} */
+            source: "checkout" | "subscription" | "manual" | "external";
+            /**
+             * @description The stored state. v1 never shows a draft.
+             * @enum {string}
+             */
+            status: "open" | "paid" | "void" | "issued";
+            subscription_id: string | null;
+            /** @description total less tax_amount. */
+            subtotal: string;
+            tax_amount: string;
+            total: string;
+        };
         ApiOrderResponse: {
             amount: string;
             /** Format: date-time */
@@ -1140,8 +1610,8 @@ export interface components {
             checkout_session_id: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1180,10 +1650,20 @@ export interface components {
             order_id: string;
             /** Format: date-time */
             paid_at: string | null;
+            /** @description The order's live payment: `gateway`/`method` say how it was paid ("solana"/"crypto" or "stripe"/"card"); a card payment has no signature. All null while nothing pays the order. */
             payment: {
+                gateway: ("solana" | "stripe") | null;
                 id: string | null;
+                method: ("crypto" | "card") | null;
                 signature: string | null;
             };
+            /**
+             * @description How much of the order's payment was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. The order stays `PAID`. `none` while nothing has paid it.
+             * @enum {string}
+             */
+            refund_status: "none" | "partial" | "full";
+            /** @description What was refunded of the order's payment, 6-decimal base units of `currency`; "0" when nothing was. */
+            refunded_amount: string;
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
             /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
@@ -1193,11 +1673,20 @@ export interface components {
             amount: string;
             /** Format: date-time */
             block_time: string | null;
+            /** @description A card payment's card; null for crypto, and for a card payment whose card details are not recorded. */
+            card: {
+                brand: string | null;
+                last4: string | null;
+            } | null;
             checkout_session_id: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /**
+             * @description "USDC" for crypto, "USD" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).
+             * @enum {string}
+             */
+            currency: "USDC" | "USD";
+            /** @description `wallet` is null for a card payer (a card customer has no wallet). */
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1206,7 +1695,17 @@ export interface components {
             /** Format: date-time */
             failed_at: string | null;
             fee_amount: string;
+            /**
+             * @description Who moved the money, as v1 names it: "solana" (a wallet, on chain) or "stripe" (the merchant's Stripe).
+             * @enum {string}
+             */
+            gateway: "solana" | "stripe";
             id: string;
+            /**
+             * @description How the payer paid through the gateway, as v1 names it: "crypto" (solana) or "card" (stripe).
+             * @enum {string}
+             */
+            method: "crypto" | "card";
             /**
              * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
              * @enum {string}
@@ -1217,6 +1716,14 @@ export interface components {
             /** @constant */
             object: "payment";
             order_id: string | null;
+            /**
+             * @description How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.
+             * @enum {string}
+             */
+            refund_status: "none" | "partial" | "full";
+            /** @description What was refunded of `amount`, 6-decimal base units of `currency`; "0" when nothing was. */
+            refunded_amount: string;
+            /** @description The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`. */
             signature: string | null;
             slot: string | null;
             /** @enum {string} */
@@ -1230,8 +1737,8 @@ export interface components {
             amount: string;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             /** Format: date-time */
             ended_at: string | null;
             id: string;
@@ -1282,8 +1789,11 @@ export interface components {
             completed_at: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /**
+             * @description "USD" when the session is card-only, or once a card has paid it (then `payment.gateway` is "stripe", status SUCCEEDED, signature null, and the fees read "0"); otherwise "USDC". While a card try is in progress the session has no payment yet. Charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units either way.
+             * @enum {string}
+             */
+            currency: "USDC" | "USD";
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1302,6 +1812,7 @@ export interface components {
             expired_at: string | null;
             /** Format: date-time */
             expires_at: string;
+            /** @description "0" for a session charged by card (card-only, or paid by card): fianto takes no fee on card. */
             fee_amount: string;
             id: string;
             /**
@@ -1336,8 +1847,19 @@ export interface components {
                 status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
             } | null;
             order_id: string;
+            /** @description The live payment (null while there is none): `gateway` / `method` say how it was paid, "solana" / "crypto" or "stripe" / "card". `signature` is null for a card payment (no chain transaction). */
             payment: {
+                /**
+                 * @description Who moved the money, as v1 names it: "solana" (a wallet, on chain) or "stripe" (the merchant's Stripe).
+                 * @enum {string}
+                 */
+                gateway: "solana" | "stripe";
                 id: string;
+                /**
+                 * @description How the payer paid through the gateway, as v1 names it: "crypto" (solana) or "card" (stripe).
+                 * @enum {string}
+                 */
+                method: "crypto" | "card";
                 signature: string | null;
                 /** @enum {string} */
                 status: "PROCESSING" | "CONFIRMED" | "SUCCEEDED" | "FAILED";
@@ -1350,7 +1872,7 @@ export interface components {
                 status: "ACTIVE" | "PAST_DUE" | "ENDED";
             } | null;
             success_url: string;
-            /** @description amount + fee_amount + network_fee_amount: what the payer is charged now. */
+            /** @description amount + fee_amount + network_fee_amount: what the payer is charged now (`amount` for a session charged by card). */
             total_amount: string;
             /** @enum {string} */
             ui_mode: "redirect" | "popup";
@@ -1367,20 +1889,26 @@ export interface components {
             cancel_at_period_end: boolean;
             /** @description WHO scheduled the cancellation `cancel_at` dates: `PAYER_CANCELED` (in their own wallet) or `MERCHANT_CANCELED` — the values `end_reason` takes once it ends. Null whenever `cancel_at` is null (nothing scheduled, or ENDED), and ALSO null for a scheduled cancel that recorded no reason (the ALERTed `no_reason` state — see `cancelReasonOf`), where `cancel_at` is non-null. Additive (final review parked #10; m5). */
             cancel_reason: ("PAYER_CANCELED" | "MERCHANT_CANCELED") | null;
+            /** @description A card subscription's card (its newest saved card); null for crypto, and for a card subscription with no saved card recorded. Never a card number. */
+            card: {
+                brand: string | null;
+                last4: string | null;
+            } | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             /** Format: date-time */
             current_period_end: string;
             current_period_index: number;
             /** Format: date-time */
             current_period_start: string;
+            /** @description `wallet` is null for a card (Stripe) subscriber with no wallet. */
             customer: {
                 email: string | null;
                 id: string | null;
                 reference: string | null;
-                wallet: string;
+                wallet: string | null;
             };
             discount: {
                 code: string;
@@ -1395,6 +1923,11 @@ export interface components {
             /** Format: date-time */
             ended_at: string | null;
             fee_amount: string;
+            /**
+             * @description Who charges it: "solana" (on chain) or "stripe" (the merchant's Stripe). Plan 7, additive.
+             * @enum {string}
+             */
+            gateway: "solana" | "stripe";
             id: string;
             /** @enum {string} */
             interval: "MONTH" | "YEAR";
@@ -1412,6 +1945,11 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /**
+             * @description How the payer pays: "crypto" or "card". A card subscription is in `currency` "USD" with `fee_amount` and `network_fee_amount` "0" (fianto takes no fee on card), `plan_id` null and `customer.wallet` null.
+             * @enum {string}
+             */
+            method: "crypto" | "card";
             /**
              * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
              * @enum {string}
@@ -1461,6 +1999,7 @@ export interface components {
             /** @enum {string} */
             mode: "payment" | "subscription";
             order_id: string;
+            payment_methods?: ("crypto" | "card")[];
             price_id?: string;
             success_url: string;
             /** @enum {string} */
@@ -1472,16 +2011,96 @@ export interface components {
         };
         Error: {
             /** @description Known codes are listed; treat any other string as an unknown error. 503 `checkout_busy` (the /v1/checkout-sessions routes) and 503 `service_busy` (every other route) mean the database was too busy to start the request (this used to be a 500): retry after `Retry-After`. A Solana read the platform has no capacity for stays 409 `checkout_unavailable` with `Retry-After`. `insufficient_sol`: Deprecated: never returned since 2026-10 (Fianto pays network fees). */
-            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "api_key_wrong_network" | "body_too_deep" | "build_limit_reached" | "cancel_at_invalid" | "checkout_amount_changed" | "checkout_busy" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "client_ip_invalid" | "customer_not_found" | "discount_unavailable" | "event_not_found" | "expires_at_out_of_range" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_is_merchant" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_not_found" | "plan_limit_reached" | "price_ended" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_ended" | "product_not_found" | "rate_limited" | "service_busy" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_expired" | "transaction_mismatch" | "transaction_would_fail" | "url_insecure" | "validation_failed" | "wallet_blocked" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
+            code: ("already_subscribed" | "already_subscribed_on_chain" | "amount_not_allowed" | "amount_or_price_required" | "amount_out_of_range" | "api_key_wrong_network" | "body_too_deep" | "build_limit_reached" | "cancel_at_invalid" | "checkout_amount_changed" | "checkout_busy" | "checkout_link_invalid" | "checkout_link_outdated" | "checkout_session_closed" | "checkout_session_expired" | "checkout_session_not_found" | "checkout_unavailable" | "client_ip_invalid" | "cursor_invalid" | "customer_not_found" | "discount_not_allowed_for_document" | "discount_unavailable" | "event_not_found" | "expires_at_out_of_range" | "gateway_not_offered" | "idempotency_key_invalid" | "idempotency_key_required" | "idempotency_key_reused" | "idempotency_request_in_progress" | "idempotency_response_unreadable" | "insufficient_sol" | "insufficient_usdc" | "internal_error" | "invalid_api_credentials" | "invalid_json" | "invoice_not_found" | "merchant_token_account_missing" | "mode_not_supported" | "not_found" | "order_already_paid" | "order_id_in_use" | "order_not_found" | "payer_is_merchant" | "payer_token_account_frozen" | "payer_token_account_missing" | "payload_too_large" | "payment_in_progress" | "payment_method_unavailable" | "payment_not_found" | "plan_limit_reached" | "price_ended" | "price_id_required" | "price_not_found" | "price_not_recurring" | "price_type_mismatch" | "product_ended" | "product_not_found" | "rate_limited" | "service_busy" | "session_not_cancelable" | "session_not_reissuable" | "subscription_already_ended" | "subscription_busy" | "subscription_ended_not_closed" | "subscription_not_found" | "subscription_plan_failed" | "subscription_preparing" | "subscription_winding_down" | "subscriptions_paused" | "too_close_to_expiry" | "too_many_probes" | "transaction_expired" | "transaction_mismatch" | "transaction_would_fail" | "url_insecure" | "validation_failed" | "wallet_blocked" | "wallet_invalid" | "webhook_endpoint_not_active") | string;
             details?: string[];
             error: string;
             field?: string;
             message: string;
+            /**
+             * @description Set on `payment_method_unavailable`: the requested payment method this session cannot offer.
+             * @enum {string}
+             */
+            method?: "card";
             request_id: string;
             statusCode: number;
         };
         FindOrderQueryDto: {
             order_id: string;
+        };
+        /** @description The `data` of `invoice.issued`, `invoice.paid`, `invoice.voided` and `credit_note.issued` (spec §6.8). Money is in base units (6 decimals, as strings); enums are lower case, as the payer and public views send them (ruling 20; the v1 invoice routes use the same lower-case values). Never the buyer's company name, address, tax ID or company number. */
+        InvoiceEventPayload: {
+            /** Format: date-time */
+            created_at: string;
+            credited_amount: string;
+            /** @description A credit note's: the public id of the document it credits, or null. */
+            credits: string | null;
+            /**
+             * @description The document's currency; USDC is the means of payment at 1.00 USD.
+             * @constant
+             */
+            currency: "USD";
+            customer: {
+                /** @description As given at checkout, unverified. */
+                email: string | null;
+                /** @description The paying customer's public id (fian_cus_…), or null. */
+                id: string | null;
+                /** @description The merchant's own reference for the customer. */
+                reference: string | null;
+                wallet: string | null;
+            };
+            /** @enum {string} */
+            document_type: "invoice" | "receipt" | "payment_request";
+            /** Format: date */
+            due_date: string | null;
+            /** @description The document's public id (fian_inv_…). */
+            id: string;
+            /** Format: date */
+            issue_date: string | null;
+            /** @enum {string} */
+            kind: "invoice" | "credit_note";
+            /**
+             * @description The network name the public API and webhooks speak: a merchant sees two, never `localnet`.
+             * @enum {string}
+             */
+            network: "mainnet" | "devnet";
+            /** @description INV-0001, REQ-0001, CN-0001; null for a payment receipt (shown by its payment's PAY- number). */
+            number: string | null;
+            /** @enum {string} */
+            object: "invoice" | "credit_note";
+            /** @description The merchant's own order id (`Order.merchantOrderId`), as in every other event (ruling 18). Null when there is none, and for a written invoice: its Pay order is Fianto's internal `inv_…` order, not the merchant's. */
+            order_id: string | null;
+            payment: {
+                id: string | null;
+                signature: string | null;
+            };
+            /** @description The public id of the document this one replaces, or null. */
+            replaces: string | null;
+            /** @enum {string} */
+            source: "checkout" | "subscription" | "manual" | "external";
+            /** @enum {string} */
+            status: "draft" | "open" | "paid" | "void" | "issued";
+            subscription_id: string | null;
+            /** @description total less tax_amount. */
+            subtotal: string;
+            tax_amount: string;
+            total: string;
+        };
+        /** @description `invoice.payment_recorded`: a recorded transfer was applied to an invoice or payment request (base-unit strings). Sent before `invoice.paid` when the transfer makes the document PAID. */
+        InvoicePaymentRecordedPayload: {
+            amount: string;
+            amount_due: string;
+            amount_paid: string;
+            /** @description The recorded transfer's public id (`fian_xpay_…`). */
+            external_payment_id: string;
+            /** @description The document's public id. */
+            id: string;
+            /**
+             * @description The network name the public API and webhooks speak: a merchant sees two, never `localnet`.
+             * @enum {string}
+             */
+            network: "mainnet" | "devnet";
+            number: string | null;
+            signature: string;
         };
         LineItemDto: {
             amount: string;
@@ -1493,6 +2112,17 @@ export interface components {
             /** @default 20 */
             limit: number;
             type?: string;
+        };
+        ListApiInvoicesQueryDto: {
+            created_gte?: string;
+            created_lte?: string;
+            cursor?: string;
+            /** @enum {string} */
+            document_type?: "invoice" | "receipt" | "payment_request";
+            /** @default 20 */
+            limit: number;
+            /** @enum {string} */
+            status?: "open" | "overdue" | "part_paid" | "paid" | "credited" | "part_credited" | "void" | "issued";
         };
         ListApiOrdersQueryDto: {
             created_gte?: string;
@@ -1561,8 +2191,8 @@ export interface components {
             checkout_session_id: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1578,9 +2208,12 @@ export interface components {
             } | null;
             /** @description Absent on events created before discount codes (October 2026). */
             discount_amount?: string;
+            /** @description The payment nobody asked for. A crypto transfer: its `signature`, no `gateway`. A card charge (`gateway: 'stripe'`): `signature` null; fianto refunds it in full automatically. */
             duplicate: {
                 amount: string;
-                signature: string;
+                /** @constant */
+                gateway?: "stripe";
+                signature: string | null;
             };
             /** Format: date-time */
             expired_at: string | null;
@@ -1598,10 +2231,22 @@ export interface components {
             order_id: string;
             /** Format: date-time */
             paid_at: string | null;
+            /** @description The order's live payment: `gateway`/`method` say how it was paid ("solana"/"crypto" or "stripe"/"card"); a card payment has no signature. All null while nothing pays the order. */
             payment: {
+                /** @description Absent on events created before card payments (November 2026); such a payment is "solana" / "crypto". */
+                gateway?: ("solana" | "stripe") | null;
                 id: string | null;
+                /** @description Absent on events created before card payments (November 2026); such a payment is "solana" / "crypto". */
+                method?: ("crypto" | "card") | null;
                 signature: string | null;
             };
+            /**
+             * @description Absent on events created before refunds were published (November 2026); such an order reads "none" / "0".
+             * @enum {string}
+             */
+            refund_status?: "none" | "partial" | "full";
+            /** @description Absent on events created before refunds were published (November 2026); such an order reads "none" / "0". */
+            refunded_amount?: string;
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
             /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
@@ -1613,8 +2258,8 @@ export interface components {
             checkout_session_id: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1646,14 +2291,185 @@ export interface components {
             order_id: string;
             /** Format: date-time */
             paid_at: string | null;
+            /** @description The order's live payment: `gateway`/`method` say how it was paid ("solana"/"crypto" or "stripe"/"card"); a card payment has no signature. All null while nothing pays the order. */
             payment: {
+                /** @description Absent on events created before card payments (November 2026); such a payment is "solana" / "crypto". */
+                gateway?: ("solana" | "stripe") | null;
                 id: string | null;
+                /** @description Absent on events created before card payments (November 2026); such a payment is "solana" / "crypto". */
+                method?: ("crypto" | "card") | null;
                 signature: string | null;
             };
+            /**
+             * @description Absent on events created before refunds were published (November 2026); such an order reads "none" / "0".
+             * @enum {string}
+             */
+            refund_status?: "none" | "partial" | "full";
+            /** @description Absent on events created before refunds were published (November 2026); such an order reads "none" / "0". */
+            refunded_amount?: string;
             /** @enum {string} */
             status: "PENDING" | "PAID" | "EXPIRED" | "CANCELED";
             /** @description amount + fee_amount + network_fee_amount: what the payer pays. */
             total_amount: string;
+        };
+        /** @description `payment.disputed` (Plan 4 Task 4a): the card payment and its dispute. */
+        PaymentDisputedPayload: {
+            dispute: {
+                /** @description What the cardholder disputes, 6-decimal base units of the payment's `currency` (USD). */
+                amount: string;
+                /**
+                 * Format: date-time
+                 * @description When evidence is due; null when Stripe allows no response.
+                 */
+                due_by: string | null;
+                /** @description `fian_dsp_…`. */
+                id: string;
+                /**
+                 * @description A payment's dispute as the merchant lists show it (`dispute: { status, dueBy } | null`). Read from `StripeDispute` through the reading domain's own query (rule 7). The status words are the Disputes page's (Plan 4 Task 4a, `stripe/utils/dispute-status.ts` is the stripe domain's own copy and must agree case for case): Stripe's D1 statuses mapped to `needs_response`, `under_review`, `won`, `lost`, `accepted` (lost and accepted by the merchant) and `closed` (`warning_closed`, `prevented`); an unknown status reads `under_review`.
+                 * @enum {string}
+                 */
+                status: "needs_response" | "under_review" | "won" | "lost" | "accepted" | "closed";
+            };
+            payment: {
+                amount: string;
+                /** Format: date-time */
+                block_time: string | null;
+                /** @description A card payment's card; null for crypto, and for a card payment whose card details are not recorded. */
+                card: {
+                    brand: string | null;
+                    last4: string | null;
+                } | null;
+                checkout_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /**
+                 * @description "USDC" for crypto, "USD" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).
+                 * @enum {string}
+                 */
+                currency: "USDC" | "USD";
+                /** @description `wallet` is null for a card payer (a card customer has no wallet). */
+                customer: {
+                    email: string | null;
+                    id: string | null;
+                    wallet: string | null;
+                };
+                /** Format: date-time */
+                failed_at: string | null;
+                fee_amount: string;
+                /**
+                 * @description Who moved the money, as v1 names it: "solana" (a wallet, on chain) or "stripe" (the merchant's Stripe).
+                 * @enum {string}
+                 */
+                gateway: "solana" | "stripe";
+                id: string;
+                /**
+                 * @description How the payer paid through the gateway, as v1 names it: "crypto" (solana) or "card" (stripe).
+                 * @enum {string}
+                 */
+                method: "crypto" | "card";
+                /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+                network_fee_amount: string;
+                /** @constant */
+                object: "payment";
+                order_id: string | null;
+                /**
+                 * @description How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.
+                 * @enum {string}
+                 */
+                refund_status: "none" | "partial" | "full";
+                /** @description What was refunded of `amount`, 6-decimal base units of `currency`; "0" when nothing was. */
+                refunded_amount: string;
+                /** @description The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`. */
+                signature: string | null;
+                slot: string | null;
+                /** @enum {string} */
+                status: "PROCESSING" | "CONFIRMED" | "SUCCEEDED" | "FAILED";
+                /** Format: date-time */
+                succeeded_at: string | null;
+                /** @description What the customer paid: amount + fee_amount + network_fee_amount. */
+                total_amount: string;
+            };
+        };
+        /** @description `payment.refunded`: the payment as v1 reads it right after the change (its `refund_status`, `refunded_amount`), and what moved it. An event is published only when `payment.refunded_amount` moved, and every move publishes one. Events can arrive late, twice or out of order, so the last one delivered is not always the newest: for the current figure, read `GET /v1/payments/{id}`. Over all of a payment's events, the sum of the signed `refund.applied_amount`, counted once per event id, is its `refunded_amount` minus what it was before its first event. That is 0 except for crypto refunds recorded before this event existed, which moved `refunded_amount` with no event. A running total kept from events therefore starts from a seed read from `GET /v1/payments`, and is exact only when none of the payment's events was in flight while the seed was read; to be sure, compare it with `GET /v1/payments/{id}`. */
+        PaymentRefundedPayload: {
+            payment: {
+                amount: string;
+                /** Format: date-time */
+                block_time: string | null;
+                /** @description A card payment's card; null for crypto, and for a card payment whose card details are not recorded. */
+                card: {
+                    brand: string | null;
+                    last4: string | null;
+                } | null;
+                checkout_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /**
+                 * @description "USDC" for crypto, "USD" for a card (charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units).
+                 * @enum {string}
+                 */
+                currency: "USDC" | "USD";
+                /** @description `wallet` is null for a card payer (a card customer has no wallet). */
+                customer: {
+                    email: string | null;
+                    id: string | null;
+                    wallet: string | null;
+                };
+                /** Format: date-time */
+                failed_at: string | null;
+                fee_amount: string;
+                /**
+                 * @description Who moved the money, as v1 names it: "solana" (a wallet, on chain) or "stripe" (the merchant's Stripe).
+                 * @enum {string}
+                 */
+                gateway: "solana" | "stripe";
+                id: string;
+                /**
+                 * @description How the payer paid through the gateway, as v1 names it: "crypto" (solana) or "card" (stripe).
+                 * @enum {string}
+                 */
+                method: "crypto" | "card";
+                /** @description A subscription charge's flat network fee; "0" for a one-off payment. */
+                network_fee_amount: string;
+                /** @constant */
+                object: "payment";
+                order_id: string | null;
+                /**
+                 * @description How much of `amount` was refunded (Stripe Plan 4; crypto and card alike): `none`, `partial` or `full`. Derived from `refunded_amount`. A refund never changes `status`: a refunded payment stays `SUCCEEDED`.
+                 * @enum {string}
+                 */
+                refund_status: "none" | "partial" | "full";
+                /** @description What was refunded of `amount`, 6-decimal base units of `currency`; "0" when nothing was. */
+                refunded_amount: string;
+                /** @description The Solana signature; null for a card payment (no chain transaction), like `slot` and `block_time`. */
+                signature: string | null;
+                slot: string | null;
+                /** @enum {string} */
+                status: "PROCESSING" | "CONFIRMED" | "SUCCEEDED" | "FAILED";
+                /** Format: date-time */
+                succeeded_at: string | null;
+                /** @description What the customer paid: amount + fee_amount + network_fee_amount. */
+                total_amount: string;
+            };
+            /** @description What moved `payment.refunded_amount` for one `payment.refunded` event (Stripe Plan 4; Plan 6 Task 0c): a refund, a lost dispute, or the undoing of either. Every movement of the figure publishes exactly one event; nothing else publishes one. */
+            refund: {
+                /** @description The refund's (or the dispute's) own amount (`succeeded`, `dispute_lost`), or how much the refunded figure went down (`failed`, `reversed`), base units. It can be MORE than the change of `payment.refunded_amount`: a raise is capped at the payment's amount, and a crypto refund of a document partly paid by recorded transfers counts against the transfers first. Sum `applied_amount`, never this, to follow `refunded_amount`. */
+                amount: string;
+                /** @description How much `payment.refunded_amount` moved for this event, base units, always more than 0: up for `succeeded` and `dispute_lost`, down for `failed` and `reversed`. One refund can be two `succeeded` events with the same `id`, and a dispute's `reversed` need not match its `dispute_lost`: follow the figure by the signed sum of `applied_amount`, once per event id, never by pairing events by `refund.id`. */
+                applied_amount: string;
+                /**
+                 * @description Who moved the money, as v1 names it: "solana" (a wallet, on chain) or "stripe" (the merchant's Stripe).
+                 * @enum {string}
+                 */
+                gateway: "solana" | "stripe";
+                /** @description A card refund's `fian_ref_…`; a recorded crypto refund's id (the console's refund id); a dispute's `fian_dsp_…` (`dispute_lost`, `reversed`); for `failed`, the refund that failed. */
+                id: string;
+                /**
+                 * @description What moved the figure; an event is published only when it moved. `succeeded`: a refund; the payment's `refunded_amount` went up by `applied_amount` (capped at `amount`). `dispute_lost`: a card dispute was lost, or a dispute already lost now reads a higher amount; the figure went up. `failed`: a refund that had succeeded failed later (a card refund, up to 30 days after) and the figure went down. `reversed`: a lost dispute was a late win (`lost` → `won`), or a dispute still lost now reads a lower amount; the figure went down. A refund that succeeds or fails while a lost dispute already covers that money moves nothing and publishes nothing; the dispute's later `reversed` carries it, so a `reversed` need not match the dispute's `dispute_lost` events.
+                 * @enum {string}
+                 */
+                status: "succeeded" | "dispute_lost" | "failed" | "reversed";
+            };
         };
         /** @description The webhook body for the three checkout.session.* events (spec §6.6). */
         SessionEventPayload: {
@@ -1667,8 +2483,11 @@ export interface components {
             completed_at: string | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /**
+             * @description "USD" when the session is card-only, or once a card has paid it (then `payment.gateway` is "stripe", status SUCCEEDED, signature null, and the fees read "0"); otherwise "USDC". While a card try is in progress the session has no payment yet. Charged in US dollars, 1:1 with USDC; amounts stay in 6-decimal base units either way.
+             * @enum {string}
+             */
+            currency: "USDC" | "USD";
             customer: {
                 email: string | null;
                 id: string | null;
@@ -1709,8 +2528,13 @@ export interface components {
             /** @constant */
             object: "checkout_session";
             order_id: string;
+            /** @description The live payment; every key null while there is none. `gateway` / `method`: "solana" / "crypto" or "stripe" / "card". */
             payment: {
+                /** @description Absent on events created before card payments (November 2026); on such an event a non-null `payment.id` is a "solana" / "crypto" payment. */
+                gateway?: ("solana" | "stripe") | null;
                 id: string | null;
+                /** @description Absent on events created before card payments (November 2026); on such an event a non-null `payment.id` is a "solana" / "crypto" payment. */
+                method?: ("crypto" | "card") | null;
                 signature: string | null;
                 /**
                  * @description Absent on events created before 2026-09-28.
@@ -1738,20 +2562,26 @@ export interface components {
             cancel_at: string | null;
             cancel_at_period_end: boolean;
             cancel_reason: ("PAYER_CANCELED" | "MERCHANT_CANCELED") | null;
+            /** @description Absent on events created before card subscriptions (November 2026); such a subscription is "solana" / "crypto" with no card. */
+            card?: {
+                brand: string | null;
+                last4: string | null;
+            } | null;
             /** Format: date-time */
             created_at: string;
-            /** @constant */
-            currency: "USDC";
+            /** @enum {string} */
+            currency: "USDC" | "USD";
             /** Format: date-time */
             current_period_end: string;
             current_period_index: number;
             /** Format: date-time */
             current_period_start: string;
+            /** @description `wallet` is null for a card (Stripe) subscriber with no wallet. */
             customer: {
                 email: string | null;
                 id: string | null;
                 reference: string | null;
-                wallet: string;
+                wallet: string | null;
             };
             /** @description Absent on events created before discount codes (October 2026). */
             discount?: {
@@ -1771,9 +2601,14 @@ export interface components {
                 /** Format: date-time */
                 next_attempt_at: string | null;
                 /** @enum {string} */
-                reason: "INSUFFICIENT_FUNDS" | "DELEGATION_REVOKED" | "ACCOUNT_FROZEN" | "ACCOUNT_CLOSED" | "CANCELLED_ON_CHAIN" | "PLAN_EXPIRED" | "TOO_EARLY" | "CHARGING_KEY_UNFUNDED" | "PROGRAM_ERROR" | "NETWORK_ERROR";
+                reason: "INSUFFICIENT_FUNDS" | "DELEGATION_REVOKED" | "ACCOUNT_FROZEN" | "ACCOUNT_CLOSED" | "CANCELLED_ON_CHAIN" | "PLAN_EXPIRED" | "TOO_EARLY" | "CHARGING_KEY_UNFUNDED" | "PROGRAM_ERROR" | "NETWORK_ERROR" | "CARD_DECLINED" | "CARD_EXPIRED" | "CARD_UNUSABLE" | "AUTHENTICATION_REQUIRED" | "GATEWAY_ERROR" | "GATEWAY_UNAVAILABLE";
             };
             fee_amount: string;
+            /**
+             * @description Absent on events created before card subscriptions (November 2026); such a subscription is "solana" / "crypto" with no card.
+             * @enum {string}
+             */
+            gateway?: "solana" | "stripe";
             id: string;
             /** @enum {string} */
             interval: "MONTH" | "YEAR";
@@ -1784,11 +2619,17 @@ export interface components {
             metadata: {
                 [key: string]: string;
             };
+            /**
+             * @description Absent on events created before card subscriptions (November 2026); such a subscription is "solana" / "crypto" with no card.
+             * @enum {string}
+             */
+            method?: "crypto" | "card";
             /** @description Absent on events created before the renewal network fee (October 2026). */
             network_fee_amount?: string;
             /** @constant */
             object: "subscription";
             order_id: string;
+            /** @description For a card subscription's charge `signature` is null (a card payment has no chain transaction). */
             payment: {
                 id: string | null;
                 signature: string | null;
@@ -2022,6 +2863,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiEventResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    "invoices.list": {
+        parameters: {
+            query?: {
+                /** @description A credit note has the document type of the document it credits. Documents for payments made through this application. Written invoices and payment requests created in the console are not available through the API in this release. `payment_request` is accepted and lists nothing until then. */
+                document_type?: "invoice" | "receipt" | "payment_request";
+                /** @description A stored state, or a derived one: `open` includes overdue and part-paid documents, `paid` the credited and part-credited ones; `overdue` is open with a due date before today in the merchant's issue time zone. Each item's `status` is the stored state. */
+                status?: "open" | "overdue" | "part_paid" | "paid" | "credited" | "part_credited" | "void" | "issued";
+                /** @description Inclusive lower bound on the issue instant (`issued_at`, the order of the list). */
+                created_gte?: string;
+                /** @description Inclusive upper bound on the issue instant (`issued_at`, the order of the list). */
+                created_lte?: string;
+                /** @description The next_cursor of the previous page (a public id). A malformed value is 400 validation_failed; an id that names none of the records this application can list is 400 cursor_invalid. */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ApiInvoiceResponse"][];
+                        /**
+                         * @description The network this deployment runs on: `mainnet` or `devnet` (the sandbox).
+                         * @enum {string}
+                         */
+                        network: "devnet" | "mainnet";
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    "invoices.retrieve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiInvoiceResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    "invoices.retrievePdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
             default: components["responses"]["Error"];

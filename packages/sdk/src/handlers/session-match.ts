@@ -59,6 +59,15 @@ export class OpenSessionPriceEndedError extends FiantoError {
   }
 }
 
+/**
+ * A session charged by card (card-only, or paid by card) reads currency "USD" while its price
+ * stays "USDC": both are 6-decimal base units of the same dollar, so they are the same terms.
+ */
+function sameCurrency(a: string, b: string): boolean {
+  const dollar = (currency: string) => (currency === 'USD' ? 'USDC' : currency);
+  return dollar(a) === dollar(b);
+}
+
 function sameAmount(decimal: string, baseUnits: string): boolean {
   try {
     return usdc.toBaseUnits(decimal) === baseUnits;
@@ -73,8 +82,10 @@ function sameAmount(decimal: string, baseUnits: string): boolean {
  * The session response echoes `mode`, `ui_mode`, `amount`, `currency` and `interval`, but not
  * `price_id` (nor `description`/`line_items`). A price_id checkout is therefore compared through
  * the price itself: prices are immutable apart from ending, so the session was opened for
- * this price only if the price's amount, currency and interval all match the session's. Two
- * different prices with identical amount, currency and interval cannot be told apart this way.
+ * this price only if the price's amount, currency and interval all match the session's ("USD"
+ * and "USDC" count as one currency, see `sameCurrency`). Two different prices with identical
+ * amount, currency and interval cannot be told apart this way. Nor is `payment_methods`
+ * compared: the session does not echo it.
  *
  * Throws `OpenSessionPriceEndedError` when that price has ENDED (ending a product ends its
  * prices too): a new create for it would be refused with `price_ended`, so its open session is
@@ -94,7 +105,7 @@ export async function mismatchedFields(
     // Only worth an API read when nothing else already rules the session out.
     const price = await client.prices.retrieve(params.price_id);
     if (price.status === 'ENDED') throw new OpenSessionPriceEndedError(session.id, price.id, params.order_id);
-    if (price.amount !== session.amount || price.currency !== session.currency || price.interval !== session.interval) {
+    if (price.amount !== session.amount || !sameCurrency(price.currency, session.currency) || price.interval !== session.interval) {
       fields.push('price_id');
     }
   }

@@ -60,6 +60,24 @@ it('narrows by code', () => {
   expect(isFiantoError(new Error('x'))).toBe(false);
 });
 
+it('exposes method on payment_method_unavailable', () => {
+  const error: unknown = errorFromResponse(
+    422,
+    { code: 'payment_method_unavailable', message: 'm', field: 'payment_methods', method: 'card' },
+    new Headers(),
+  );
+  expect(error).toBeInstanceOf(InvalidRequestError);
+  expect(isFiantoError(error, 'payment_method_unavailable')).toBe(true);
+  if (!isFiantoError(error, 'payment_method_unavailable')) throw new Error('unreachable');
+  expect(error.method).toBe('card');
+  expect(error.field).toBe('payment_methods');
+});
+
+it('leaves method undefined when the error body has none', () => {
+  expect(errorFromResponse(400, body('validation_failed'), new Headers()).method).toBeUndefined();
+  expect(errorFromResponse(500, 'not json', new Headers()).method).toBeUndefined();
+});
+
 it('narrows a non-API FiantoError by its own stable code too', () => {
   const abort: unknown = new AbortError(new Error('cancel'));
   expect(isFiantoError(abort, 'aborted')).toBe(true);

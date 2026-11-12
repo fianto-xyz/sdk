@@ -259,7 +259,7 @@ try {
 
 ```
 FiantoError
-├─ APIError { status, code, message, field?, details?, requestId, headers }
+├─ APIError { status, code, message, field?, details?, method?, requestId, headers }
 │  ├─ AuthenticationError     401
 │  ├─ PermissionDeniedError   403
 │  ├─ InvalidRequestError     400, 422
@@ -271,7 +271,8 @@ FiantoError
 ├─ ConnectionError   the request never got a response (incl. a redirect: see below)
 ├─ TimeoutError      the request didn't finish within timeoutMs — code: 'timeout'
 ├─ AbortError        options.signal was aborted — code: 'aborted'
-└─ UsdcError         thrown by `usdc.*` (see Amounts below) — code: 'invalid_usdc_amount'
+└─ AmountError       thrown by `usd.*` / `money.format` (see Amounts below) — code: 'invalid_amount'
+   └─ UsdcError      thrown by `usdc.*` — code: 'invalid_usdc_amount'
 ```
 
 `code` is a stable machine-readable string (see `ErrorCode`); `message` is for humans. A
@@ -311,6 +312,11 @@ over `instanceof` for anything that decides behaviour.
 
 Every `APIError` carries `requestId` (from the body's `request_id`, falling back to the
 `X-Request-Id` response header) — include it when contacting support.
+
+`checkoutSessions.create` takes an optional `payment_methods` (`'crypto'`, `'card'`, or both;
+absent = every method the merchant has enabled). `['card']` that no card gateway can offer
+throws `422 payment_method_unavailable` with `err.method === 'card'`; an empty list
+(`payment_methods: []`) type-checks but the API answers `400 validation_failed`.
 
 ## Amounts
 
