@@ -282,6 +282,26 @@ it('relays a validation code for the merchant\'s own params with an SDK-written 
   expect(await response.json()).toEqual({ error: { code: 'url_insecure', message: 'success_url and cancel_url must be https URLs.' } });
 });
 
+// A create refused with 422 payment_method_unavailable makes nothing (the backend rolls the whole
+// create back, order included), so the same order_id retried with ['crypto'] is a fresh create:
+// it answers a url, and the handler never compares terms or reads anything else.
+it('retries the same order_id with crypto after a refused card-only create: a fresh session, no 409', async () => {
+  const refused = { statusCode: 422, code: 'payment_method_unavailable', message: 'upstream', field: 'payment_methods', method: 'card' };
+  const { fianto, calls } = fakeFianto([
+    { status: 422, body: refused },
+    { status: 201, body: { id: 'fian_cs_2', url: 'https://pay.test/c/t9' } },
+  ]);
+  let methods: ('crypto' | 'card')[] = ['card'];
+  const handler = createCheckoutHandler({ fianto, createSession: async () => ({ ...params, payment_methods: methods }) });
+  expect((await handler(sameOrigin())).status).toBe(422);
+  methods = ['crypto'];
+  const response = await handler(sameOrigin());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ id: 'fian_cs_2', url: 'https://pay.test/c/t9' });
+  expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/checkout-sessions']);
+  expect(calls.map((c) => (c.body as { order_id: string }).order_id)).toEqual(['o-1', 'o-1']);
+});
+
 it("relays payment_method_unavailable with the SDK's own sentence", async () => {
   const upstream = { code: 'payment_method_unavailable', message: 'upstream text', field: 'payment_methods', method: 'card' };
   const { fianto } = fakeFianto([{ status: 422, body: upstream }]);

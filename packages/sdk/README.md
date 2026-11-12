@@ -732,9 +732,9 @@ try {
   await fianto.checkoutSessions.create({ ...terms, order_id: 'order_1001', payment_methods: ['card'] });
 } catch (err) {
   if (isFiantoError(err, 'payment_method_unavailable')) {
-    // No card can be offered for this checkout (err.method === 'card'): offer crypto instead,
-    // under a new order_id (an order's methods are part of its terms, see below).
-    await fianto.checkoutSessions.create({ ...terms, order_id: 'order_1001-crypto', payment_methods: ['crypto'] });
+    // No card can be offered for this checkout (err.method === 'card'): offer crypto instead.
+    // The refused create made nothing, so the same order_id is a fresh create.
+    await fianto.checkoutSessions.create({ ...terms, order_id: 'order_1001', payment_methods: ['crypto'] });
   } else {
     throw err;
   }
@@ -746,15 +746,16 @@ try {
   subscription session also needs card subscriptions, which are switched on separately; until
   they are, a subscription is paid in crypto.
 - **Otherwise,** `['card']` throws at create: `isFiantoError(err, 'payment_method_unavailable')`,
-  with `err.method === 'card'`. `['crypto', 'card']` (or no `payment_methods`) is never refused for
-  card: the checkout page then offers crypto only.
+  with `err.method === 'card'`. A refused create makes nothing (no order, no session), so retry
+  the same `order_id` with `['crypto']`, as the snippet does. `['crypto', 'card']` (or no
+  `payment_methods`) is never refused for card: the checkout page then offers crypto only.
 - **Stripe's own minimum can be higher.** "The minimum amount you can charge depends on the payout
   bank account settlement currency", so a $0.50 card charge can be refused for a merchant who
   settles in another currency; fianto checks only the 50 cents
   (https://docs.stripe.com/currencies.md#minimum-and-maximum-charge-amounts).
 - **A card session reads `currency: "USD"`** when it is card-only or a card paid it, with fees
   `"0"`. Otherwise it reads `"USDC"`. Show amounts with `money.format(amount, currency)`.
-- **Changing the methods of an order needs a new `order_id`.** The checkout handler catches a
+- **Changing the methods of an existing order needs a new `order_id`.** The checkout handler catches a
   switch to or from `['card']` (`409 order_session_mismatch`, `fields: ['payment_methods']`), but an
   open session does not echo its `payment_methods`, so `['crypto']` and `['crypto', 'card']` cannot
   be told apart: use a new `order_id` (see [Checkout route](#checkout-route)).

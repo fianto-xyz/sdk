@@ -168,6 +168,17 @@ describe('@fianto/sdk README', () => {
       expect(branch.slice(0, branch.indexOf('```'))).toMatch(/payment_methods: \['crypto'\][\s\S]*\} else \{\s*throw err;/);
     });
 
+    it('retries the SAME order_id after a refused create, which made nothing', () => {
+      const text = card();
+      const snippet = text.slice(text.indexOf('```ts'), text.indexOf('```', text.indexOf('```ts') + 5));
+      const orderIds = [...snippet.matchAll(/order_id: '([^']+)'/g)].map((match) => match[1]);
+      expect(orderIds).toEqual(['order_1001', 'order_1001']);
+      expect(text).not.toContain('order_1001-crypto');
+      expect(text.replace(/\s+/g, ' ')).toMatch(/refused create makes nothing[^.]*same `order_id`/);
+      // Different methods on an order that already exists still need a new order_id.
+      expect(text.replace(/\s+/g, ' ')).toContain('Changing the methods of an existing order needs a new `order_id`.');
+    });
+
     it('links every Stripe fact it states to docs.stripe.com', () => {
       const text = card();
       for (const fact of ['Stripe keeps', 'holds the refund as pending', 'while the dispute is open', 'three-digit CVC']) {
