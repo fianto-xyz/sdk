@@ -4,7 +4,7 @@ import { usdc } from '../amounts.js';
 import type { CheckoutSession, CheckoutSessionCreateParams } from '../types.js';
 
 /** A field of the checkout params whose value the order's open session does not carry. */
-export type MismatchedField = 'mode' | 'ui_mode' | 'amount' | 'price_id';
+export type MismatchedField = 'mode' | 'ui_mode' | 'payment_methods' | 'amount' | 'price_id';
 
 /**
  * The order already has an OPEN checkout session whose terms differ from the ones just asked
@@ -60,12 +60,18 @@ export class OpenSessionPriceEndedError extends FiantoError {
 }
 
 /**
- * A session charged by card (card-only, or paid by card) reads currency "USD" while its price
- * stays "USDC": both are 6-decimal base units of the same dollar, so they are the same terms.
+ * A card-only OPEN session reads currency "USD" while its price stays "USDC": both are 6-decimal
+ * base units of the same dollar, so the price's currency still matches. (A session a card paid
+ * reads "USD" too, but it is COMPLETED and never compared here.) Whether the session is card-only
+ * is compared on its own, in `mismatchedFields`.
  */
 function sameCurrency(a: string, b: string): boolean {
   const dollar = (currency: string) => (currency === 'USD' ? 'USDC' : currency);
   return dollar(a) === dollar(b);
+}
+
+function cardOnly(methods: CheckoutSessionCreateParams['payment_methods']): boolean {
+  return methods?.length === 1 && methods[0] === 'card';
 }
 
 function sameAmount(decimal: string, baseUnits: string): boolean {
@@ -84,8 +90,11 @@ function sameAmount(decimal: string, baseUnits: string): boolean {
  * the price itself: prices are immutable apart from ending, so the session was opened for
  * this price only if the price's amount, currency and interval all match the session's ("USD"
  * and "USDC" count as one currency, see `sameCurrency`). Two different prices with identical
- * amount, currency and interval cannot be told apart this way. Nor is `payment_methods`
- * compared: the session does not echo it.
+ * amount, currency and interval cannot be told apart this way.
+ *
+ * `payment_methods` is not echoed either, but an OPEN session reads currency "USD" exactly when
+ * it was created card-only, so card-only params are compared against that, on both paths. What
+ * remains invisible: `['crypto']` and `['crypto', 'card']` (and an absent list) look the same.
  *
  * Throws `OpenSessionPriceEndedError` when that price has ENDED (ending a product ends its
  * prices too): a new create for it would be refused with `price_ended`, so its open session is
@@ -99,6 +108,7 @@ export async function mismatchedFields(
   const fields: MismatchedField[] = [];
   if (session.mode !== params.mode) fields.push('mode');
   if (session.ui_mode !== 'popup') fields.push('ui_mode');
+  if (cardOnly(params.payment_methods) !== (session.currency === 'USD')) fields.push('payment_methods');
   if (params.amount !== undefined) {
     if (!sameAmount(params.amount, session.amount)) fields.push('amount');
   } else if (fields.length === 0) {

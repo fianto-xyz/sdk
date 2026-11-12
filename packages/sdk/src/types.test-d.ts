@@ -141,8 +141,11 @@ if (payment.method === 'card') {
   expectTypeOf(payment.card).toEqualTypeOf<PaymentCard | null>();
   expectTypeOf(payment.card?.last4).toEqualTypeOf<string | null | undefined>();
   expectTypeOf(payment.card?.brand).toEqualTypeOf<string | null | undefined>();
+  // A card payer has no wallet, as on CardSubscription.
+  expectTypeOf(payment.customer.wallet).toEqualTypeOf<null>();
 }
-// Without a method check, reading the signature as a string no longer compiles (Review Focus 1).
+// Without a method check the signature stays `string | null`, as it was on 0.6.0; after a
+// `method === 'crypto'` check it is now `string` (above), which is the gain (Review Focus 1).
 // @ts-expect-error signature is null on the card branch
 const unnarrowedSignature: string = payment.signature;
 void unnarrowedSignature;
@@ -241,3 +244,6 @@ void cardWithSignature;
 // @ts-expect-error a card subscriber has no wallet
 const cardSubscriberWithWallet: CardSubscription['customer'] = { id: null, wallet: 'W', email: null, reference: null };
 void cardSubscriberWithWallet;
+// @ts-expect-error a card payer has no wallet
+const cardPayerWithWallet: CardPayment['customer'] = { id: null, wallet: 'W', email: null };
+void cardPayerWithWallet;

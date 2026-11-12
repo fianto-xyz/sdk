@@ -26,7 +26,9 @@ it('maps plan_limit_reached to a dedicated, neutral key that never promises a re
 });
 
 // S1/S5/S3: codes a retry with the same params can never fix get the neutral line, not "try again".
-it.each(['order_id_in_use', 'price_ended', 'product_ended', 'subscriptions_paused'])('maps %s to unavailable', (code) => {
+// payment_method_unavailable: a card-only checkout no card gateway can offer (Stripe not connected or
+// needing attention, card off, an amount that is not whole cents): retrying never helps.
+it.each(['order_id_in_use', 'price_ended', 'product_ended', 'subscriptions_paused', 'payment_method_unavailable'])('maps %s to unavailable', (code) => {
   expect(errorTextKey(code)).toBe('unavailable');
 });
 

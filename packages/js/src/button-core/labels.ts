@@ -39,7 +39,8 @@ export const STATUS_TEXT: Record<ButtonLocale, Record<StatusTextKey, string>> = 
     // Retrying with the same terms cannot succeed here (order_session_mismatch): the page
     // itself needs to rebuild the checkout terms, so "try again" alone would be false comfort.
     mismatch: 'This checkout changed — reload the page and try again.',
-    // plan_limit_reached, order_id_in_use, price_ended, product_ended, subscriptions_paused:
+    // plan_limit_reached, order_id_in_use, price_ended, product_ended, subscriptions_paused,
+    // payment_method_unavailable:
     // conditions the payer cannot fix by retrying — stay neutral, never promise a retry will work.
     unavailable: "Checkout isn't available right now.",
     generic: 'Checkout could not be started. Please try again.',
@@ -72,6 +73,8 @@ const ERROR_KEYS: Readonly<Record<string, StatusTextKey>> = {
   price_ended: 'unavailable',
   product_ended: 'unavailable',
   subscriptions_paused: 'unavailable',
+  // A card-only checkout no card gateway can offer: retrying with the same params never helps.
+  payment_method_unavailable: 'unavailable',
 };
 
 /** The status line for a failed checkout start, from the error's `code` (anything else: generic). */

@@ -180,21 +180,63 @@ const price = (patch: Record<string, unknown> = {}) => ({
   id: 'fian_price_pro', object: 'price', amount: '20000000', currency: 'USDC', interval: 'MONTH', type: 'RECURRING', status: 'ACTIVE', ...patch,
 });
 
-// A session charged by card (card-only, or paid by card) reads currency USD, while its price
-// stays USDC: both are 6-decimal base units of the same dollar, so it is the same terms.
+// An OPEN session reads currency "USD" exactly when it was created card-only (one a card paid is
+// already COMPLETED), while its price stays "USDC": the same dollar, in the same base units.
+// So "USD" is the session's card-only flag, compared against the params' own payment_methods.
 it.each([
-  ['USD', 'USDC'],
-  ['USDC', 'USD'],
-])('reissues a price_id session whose currency reads %s against a %s price', async (sessionCurrency, priceCurrency) => {
+  ['card-only', 'USD', 'USDC', ['card'] as const],
+  ['default', 'USDC', 'USD', undefined],
+  ['crypto and card', 'USDC', 'USDC', ['crypto', 'card'] as const],
+])('reissues a %s price_id session whose currency reads %s against a %s price', async (_, sessionCurrency, priceCurrency, methods) => {
   const { fianto, calls } = fakeFianto([
     { status: 201, body: open({ mode: 'subscription', amount: '20000000', interval: 'MONTH', currency: sessionCurrency }) },
     { status: 200, body: price({ currency: priceCurrency }) },
     { status: 200, body: { id: 'fian_cs_1', url: 'https://pay.test/c/t3' } },
   ]);
-  const response = await createCheckoutHandler({ fianto, createSession: async () => priced })(sameOrigin());
+  const sent = methods ? { ...priced, payment_methods: [...methods] } : priced;
+  const response = await createCheckoutHandler({ fianto, createSession: async () => sent })(sameOrigin());
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ id: 'fian_cs_1', url: 'https://pay.test/c/t3' });
   expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/prices/fian_price_pro', '/v1/checkout-sessions/fian_cs_1/link']);
+});
+
+it.each([
+  ['amount', 'a card-only session, retried with the default methods', 'USD', undefined],
+  ['amount', 'a card-only session, retried crypto-only', 'USD', ['crypto'] as const],
+  ['amount', 'a crypto-and-card session, retried card-only', 'USDC', ['card'] as const],
+  ['price_id', 'a card-only session, retried with the default methods', 'USD', undefined],
+  ['price_id', 'a card-only session, retried crypto-and-card', 'USD', ['crypto', 'card'] as const],
+  ['price_id', 'a crypto-and-card session, retried card-only', 'USDC', ['card'] as const],
+])('answers 409 payment_methods on the %s path for %s, never reissuing', async (path, _, sessionCurrency, methods) => {
+  const base = path === 'amount' ? params : priced;
+  const session = path === 'amount'
+    ? open({ currency: sessionCurrency })
+    : open({ mode: 'subscription', amount: '20000000', interval: 'MONTH', currency: sessionCurrency });
+  const { fianto, calls } = fakeFianto([{ status: 201, body: session }]);
+  const onError = vi.fn();
+  const sent = methods ? { ...base, payment_methods: [...methods] } : base;
+  const response = await createCheckoutHandler({ fianto, createSession: async () => sent, onError })(sameOrigin());
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: MISMATCH });
+  // No price read: the methods already rule the session out.
+  expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions']);
+  expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'order_session_mismatch', fields: ['payment_methods'] }));
+});
+
+it.each([
+  ['card-only', 'USD', ['card'] as const],
+  ['default', 'USDC', undefined],
+  ['crypto-only', 'USDC', ['crypto'] as const],
+  ['crypto and card', 'USDC', ['crypto', 'card'] as const],
+])('reissues a %s amount session retried with the same methods', async (_, sessionCurrency, methods) => {
+  const { fianto, calls } = fakeFianto([
+    { status: 201, body: open({ currency: sessionCurrency }) },
+    { status: 200, body: { id: 'fian_cs_1', url: 'https://pay.test/c/t2' } },
+  ]);
+  const sent = methods ? { ...params, payment_methods: [...methods] } : params;
+  const response = await createCheckoutHandler({ fianto, createSession: async () => sent })(sameOrigin());
+  expect(response.status).toBe(200);
+  expect(calls.map((c) => c.path)).toEqual(['/v1/checkout-sessions', '/v1/checkout-sessions/fian_cs_1/link']);
 });
 
 it('checks a price_id session against that price (the session does not echo price_id)', async () => {

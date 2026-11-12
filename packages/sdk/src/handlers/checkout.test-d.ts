@@ -76,3 +76,6 @@ const untyped = createCheckoutHandler({
 });
 void untyped(request);
 void untyped(request, { anything: true });
+
+// A changed payment_methods is a term of its own (order_session_mismatch names it).
+expectTypeOf<'payment_methods'>().toExtend<import('./session-match.js').MismatchedField>();

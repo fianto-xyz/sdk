@@ -9,6 +9,13 @@ export type Application = S['ApiApplicationResponse'];
 /** How the payer paid: `crypto` (a wallet, on Solana) or `card` (through the merchant's Stripe). */
 export type PaymentMethod = 'crypto' | 'card';
 
+/**
+ * A payload's `currency`: "USDC" (crypto) or "USD" (card), both in 6-decimal base units. Any
+ * other string is accepted too (for example one read back from your own database), so
+ * `money.format` still autocompletes the two values; it throws `AmountError` for an unknown one.
+ */
+export type Currency = 'USDC' | 'USD' | (string & {});
+
 /** The card a card payment or subscription used. Either half is null when it was not reported. */
 export interface PaymentCard {
   brand: string | null;
@@ -78,11 +85,12 @@ export type CryptoPayment = PaymentCommon & {
  * `network_fee_amount` read "0"), and `customer.wallet` is null; every key of `customer` is null
  * when checkout collected no email. Amounts are 6-decimal base units of US dollars.
  */
-export type CardPayment = PaymentCommon & {
+export type CardPayment = Omit<PaymentCommon, 'customer'> & {
   gateway: 'stripe';
   method: 'card';
   currency: 'USD';
   card: PaymentCard | null;
+  customer: S['ApiPaymentResponse']['customer'] & { wallet: null };
   signature: null;
   slot: null;
   block_time: null;

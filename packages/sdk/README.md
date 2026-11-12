@@ -597,12 +597,14 @@ Hono: the `Context`, Next.js: the route context) — see each adapter's README.
   request-URL default. **This guard is CSRF protection, not abuse protection** — see below.
 - Forces `ui_mode: 'popup'` regardless of what `createSession` returns.
 - If the order already has an OPEN, unexpired session for exactly the same terms (`mode`,
-  `amount`/`price_id`), the create call answers `url: null` and the handler reissues that
+  `amount`/`price_id`, and whether `payment_methods` is card-only), the create call answers `url: null` and the handler reissues that
   session's link. If the terms differ, it answers `409 { error: { code:
   'order_session_mismatch', ... } }` and leaves the open session untouched — it never cancels and
   recreates one, because a transaction the payer already built for the old session can still
   settle after a cancel. Use a new `order_id` for changed terms (e.g. include a cart version), or
-  cancel the open session yourself first. An open session for a `price_id` that has since
+  cancel the open session yourself first. The open session does not echo `payment_methods`:
+  only a switch to or from `['card']` is caught; `['crypto']` versus `['crypto', 'card']` is
+  not, so use a new `order_id` for that change too. An open session for a `price_id` that has since
   ended is not reopened either: the handler answers `422 { error: { code: 'price_ended', ... } }`
   (the `OpenSessionPriceEndedError` passed to `onError`, code `open_session_price_ended`, names the
   session and the price).

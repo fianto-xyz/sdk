@@ -107,6 +107,24 @@ describe('formats per currency', () => {
   });
 });
 
+describe('money.format options', () => {
+  it('drops the symbol for USD with { symbol: false }', () => {
+    expect(money.format('25000000', 'USD', { symbol: false })).toBe('25.00');
+    expect(money.format('25000000', 'USD', { symbol: true })).toBe('$25.00');
+    expect(money.format('25000000', 'USD', { symbol: false })).toBe(usd.format('25000000', { symbol: false }));
+  });
+
+  it('drops the symbol for USDC with { symbol: false }', () => {
+    expect(money.format('25000000', 'USDC', { symbol: false })).toBe('25.00');
+    expect(money.format('25000000', 'USDC', {})).toBe('25.00 USDC');
+    expect(money.format('12345678', 'USDC', { symbol: false })).toBe(usdc.format('12345678', { symbol: false }));
+  });
+
+  it('still refuses an unknown currency with options', () => {
+    expect(thrown(() => money.format('1', 'EUR', { symbol: false }))).toMatchObject({ code: 'invalid_amount' });
+  });
+});
+
 describe('converts US dollars', () => {
   it('turns at most two decimals into 6-decimal base units', () => {
     expect(usd.toBaseUnits('10')).toBe('10000000');

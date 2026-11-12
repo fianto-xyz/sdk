@@ -1,4 +1,5 @@
 import { FiantoError } from './core/errors.js';
+import type { Currency } from './types.js';
 
 const DECIMALS = 6;
 const SCALE = 10n ** BigInt(DECIMALS);
@@ -112,12 +113,13 @@ export const money = {
   /**
    * Formats base units in the `currency` a payment, order, session or subscription carries:
    * `'USDC'` → "25.00 USDC" (as `usdc.format`), `'USD'` → "$25.00" (as `usd.format`).
-   * Throws `AmountError` (`invalid_amount`) for any other currency, and the same errors as
-   * `usdc.format`/`usd.format` for bad base units.
+   * `{ symbol: false }` gives the bare figure ("25.00") for either. Throws `AmountError`
+   * (`invalid_amount`) for any other currency, and the same errors as `usdc.format`/`usd.format`
+   * for bad base units.
    */
-  format(base: string | bigint, currency: string): string {
-    if (currency === 'USDC') return usdc.format(base);
-    if (currency === 'USD') return usd.format(base);
+  format(base: string | bigint, currency: Currency, options: { symbol?: boolean } = {}): string {
+    if (currency === 'USDC') return usdc.format(base, options);
+    if (currency === 'USD') return usd.format(base, options);
     throw new AmountError(`Not a currency this SDK formats (USDC or USD): ${JSON.stringify(currency)}`);
   },
 };
