@@ -8,7 +8,11 @@ type PaymentStatus = S['ApiPaymentResponse']['status'];
 /**
  * A paid payment as an event names it. `gateway` and `method` are absent on an event stored
  * before card payments (November 2026); such a payment is crypto, so the crypto branch leaves
- * them optional and `method !== 'card'` (or `method === undefined`) still narrows to it.
+ * them optional.
+ *
+ * Branch with `if (payment.method === 'card') … else …` (crypto). Never test `=== 'crypto'` for
+ * the crypto branch: an older event (a late retry, a replay, `events.list`) has no `method` key
+ * and would match neither.
  */
 type EventPaidPayment =
   | { id: string; signature: string; gateway?: 'solana'; method?: 'crypto' }
@@ -53,6 +57,8 @@ type SubscriptionEventCustomer = S['SubscriptionEventPayload']['customer'];
  * A `subscription.*` event, discriminated by `method`. `gateway`, `method` and `card` are absent
  * on an event stored before card subscriptions (November 2026); such a subscription is crypto.
  * A card subscription reads `currency` "USD", fees "0", `plan_id` null and `customer.wallet` null.
+ * Branch with `if (data.method === 'card') … else …`, never `=== 'crypto'`, for the same reason
+ * as an order's payment: an older event has no `method` key.
  */
 type SubscriptionEvent =
   | (SubscriptionEventCommon & {
@@ -79,8 +85,10 @@ type EventPayment = Omit<CryptoPayment, 'network'> | Omit<CardPayment, 'network'
  * An event is published only when `payment.refunded_amount` moved, and every move publishes
  * one. `refund.status` says which way: `succeeded` and `dispute_lost` add `refund.applied_amount`
  * (always more than 0); `failed` and `reversed` take it away. A refund that succeeds or fails
- * while a lost dispute covers the payment publishes nothing, and one card refund can be two
- * `succeeded` events with the same `refund.id`.
+ * while a lost dispute covers the payment publishes nothing; the dispute's later `reversed`
+ * carries it, so a `reversed` need not equal the dispute's `dispute_lost`: never undo the
+ * `dispute_lost` when the `reversed` comes, just add the signed `applied_amount`. One card refund
+ * can also be two `succeeded` events with the same `refund.id`.
  *
  * To follow the figure, add `refundDelta(event.data)` once per EVENT id (never pair or dedupe
  * events by `refund.id`, and never sum `refund.amount`), on a total seeded from
@@ -170,6 +178,10 @@ export interface UnknownWebhookEvent {
   data: unknown;
 }
 
+// The order follows the backend's `WEBHOOK_EVENTS` (src/cli/openapi/webhooks.ts), minus
+// `endpoint.verification`; keep WebhookEventMap and the handler's callbacks in the same order.
+// events.test.ts checks the set against spec/openapi.json, which cannot check the order (the
+// spec's `webhooks` object is serialised alphabetically).
 export const WEBHOOK_EVENT_TYPES = [
   'checkout.session.completed', 'checkout.session.expired', 'checkout.session.canceled',
   'order.paid', 'order.expired', 'order.duplicate_payment',

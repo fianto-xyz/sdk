@@ -1,4 +1,6 @@
 import { AmountError } from '../amounts.js';
+import { isFiantoError } from '../core/errors.js';
+import { RefundStatusError } from './errors.js';
 import type { PaymentRefundedEvent, WebhookEventOf } from './events.js';
 import { refundDelta } from './refund-delta.js';
 import { sampleEvent } from './samples.js';
@@ -79,9 +81,39 @@ it('refuses an applied amount that is not a positive base-unit integer', () => {
   }
 });
 
-it('refuses a refund status this SDK version does not know, so the delivery is retried', () => {
+it('refuses a bad applied amount as an AmountError (invalid_amount)', () => {
+  const error = catchError(() => refundDelta(refunded('succeeded', '0').data));
+  expect(error).toBeInstanceOf(AmountError);
+  expect(isFiantoError(error, 'invalid_amount')).toBe(true);
+  expect(isFiantoError(error, 'unknown_refund_status')).toBe(false);
+});
+
+it('refuses a refund status this SDK version does not know with its own code, telling the reader to upgrade', () => {
   const event = refunded('succeeded', '4000000');
   const data = { ...event.data, refund: { ...event.data.refund, status: 'adjusted' as RefundStatus } };
-  expect(() => refundDelta(data)).toThrow(/adjusted/);
-  expect(() => refundDelta(data)).toThrow(AmountError);
+  const error = catchError(() => refundDelta(data));
+  expect(error).toBeInstanceOf(RefundStatusError);
+  expect(error).not.toBeInstanceOf(AmountError);
+  expect(isFiantoError(error, 'unknown_refund_status')).toBe(true);
+  expect(isFiantoError(error, 'invalid_amount')).toBe(false);
+  expect((error as RefundStatusError).refundStatus).toBe('adjusted');
+  expect((error as Error).message).toMatch(/"adjusted"/);
+  expect((error as Error).message).toMatch(/upgrade @fianto\/sdk/);
 });
+
+it('follows a dispute whose reversed is less than its dispute_lost: never undo the dispute_lost', () => {
+  // Lost 25; a 10 refund then succeeds while the lost dispute covers it, which moves nothing and
+  // publishes nothing; the late win's reversed carries 15, not 25. The figure ends at 10.
+  const lost = refunded('dispute_lost', '25000000', 'fian_dsp_sample');
+  const won = refunded('reversed', '15000000', 'fian_dsp_sample');
+  for (const order of permutations([lost, won])) expect(total(0n, order)).toBe(10_000_000n);
+});
+
+function catchError(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('expected a throw');
+}

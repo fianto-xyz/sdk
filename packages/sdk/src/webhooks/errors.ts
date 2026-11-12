@@ -27,3 +27,17 @@ export class WebhookVerificationError extends FiantoError {
 export function isWebhookVerificationError(error: unknown): error is WebhookVerificationError {
   return isFiantoError(error) && error.name === 'WebhookVerificationError';
 }
+
+/**
+ * `refundDelta` was given a `payment.refunded` event whose `refund.status` this SDK version does
+ * not know, so it cannot tell which way the figure moved. Upgrade @fianto/sdk. Thrown from a
+ * webhook callback, it answers 500, so fianto retries the delivery (and the event can be replayed
+ * from the dashboard once you have upgraded) instead of the total being counted wrong.
+ */
+export class RefundStatusError extends FiantoError {
+  override name = 'RefundStatusError';
+  readonly code = 'unknown_refund_status';
+  constructor(readonly refundStatus: string) {
+    super(`Unknown payment.refunded refund status ${JSON.stringify(refundStatus)}: upgrade @fianto/sdk to a version that knows it.`);
+  }
+}

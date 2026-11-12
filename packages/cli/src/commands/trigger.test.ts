@@ -125,11 +125,22 @@ describe('trigger', () => {
       }
     });
 
+    it('says card for every card sample, the unpaid ones included, and never for crypto', async () => {
+      for (const [type, method, word] of [
+        ['checkout.session.expired', 'card', 'card '], ['subscription.cancel_withdrawn', 'card', 'card '],
+        ['payment.refunded', 'card', 'card '], ['checkout.session.expired', undefined, ''], ['invoice.paid', undefined, ''],
+      ] as const) {
+        const { output, fetch, lines } = fakeDeps();
+        await trigger(type, { forwardTo: 'http://localhost:3000/wh', secret, method }, noClient, { fetch: fetch as never, output });
+        expect(lines, type).toEqual([`→ 200 ${type} (local ${word}sample)`]);
+      }
+    });
+
     it('signs a payment.disputed sample with no --method (a dispute is card only)', async () => {
       const { output, fetch, lines } = fakeDeps();
       await trigger('payment.disputed', { forwardTo: 'http://localhost:3000/wh', secret }, noClient, { fetch: fetch as never, output });
       expect(fetch).toHaveBeenCalledTimes(1);
-      expect(lines).toEqual(['→ 200 payment.disputed (local sample)']);
+      expect(lines).toEqual(['→ 200 payment.disputed (local card sample)']);
     });
   });
 

@@ -161,3 +161,18 @@ sampleEvent('test.event', { method: 'card' });
 sampleEvent('order.paid', { method: 'paypal' });
 declare const anyType: WebhookEventType;
 sampleEvent(anyType, { method: 'card' });
+
+// The way to branch on the rail: `method === 'card'`, then `else` for crypto. Never test
+// `=== 'crypto'`: an event stored before card payments has no `method` key at all, and such a
+// payment is crypto, so it would fall through both branches.
+export function branchesOnCardThenElse(): void {
+  const payment = orderPaid.data.payment;
+  if (payment.id === null) return;
+  if (payment.method === 'card') {
+    expectTypeOf(payment.signature).toEqualTypeOf<null>();
+  } else {
+    // Crypto, including an old event with no method key.
+    expectTypeOf(payment.signature).toEqualTypeOf<string>();
+    expectTypeOf(payment.method).toEqualTypeOf<'crypto' | undefined>();
+  }
+}

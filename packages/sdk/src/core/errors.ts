@@ -1,6 +1,7 @@
 import type { ErrorCode } from '../generated/error-codes.js';
 // Type only (erased at runtime), so no import cycle with amounts.ts, which extends FiantoError.
 import type { AmountError, UsdcError } from '../amounts.js';
+import type { RefundStatusError } from '../webhooks/errors.js';
 
 /**
  * A well-known symbol (via `Symbol.for`, the global symbol registry) that every `FiantoError`
@@ -201,6 +202,7 @@ export function isFiantoError(error: unknown, code: 'aborted'): error is AbortEr
 export function isFiantoError(error: unknown, code: 'timeout'): error is TimeoutError;
 export function isFiantoError(error: unknown, code: 'invalid_usdc_amount'): error is UsdcError;
 export function isFiantoError(error: unknown, code: 'invalid_amount'): error is AmountError & { code: 'invalid_amount' };
+export function isFiantoError(error: unknown, code: 'unknown_refund_status'): error is RefundStatusError;
 export function isFiantoError<C extends ErrorCode>(error: unknown, code: C): error is APIError & { code: C };
 export function isFiantoError<C extends string>(error: unknown, code: C): error is FiantoError & { code: C };
 export function isFiantoError(error: unknown, code?: string): boolean {

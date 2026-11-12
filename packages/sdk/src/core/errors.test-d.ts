@@ -7,6 +7,7 @@
 // without checking them, so a check that only lived in a `.test.ts` file would have no teeth.
 // Named `*.test-d.ts`, vitest's own convention for type-only tests, so a future `vitest
 // typecheck` step (not wired up yet) would pick this up too, for free.
+import type { RefundStatusError } from '../webhooks/errors.js';
 import { expectTypeOf } from 'vitest';
 import {
   AbortError, APIError, FiantoError, InvalidRequestError, RateLimitError, TimeoutError, isFiantoError,
@@ -62,6 +63,12 @@ if (isFiantoError(unknownError, 'invalid_usdc_amount')) {
 
 if (isFiantoError(unknownError, 'invalid_amount')) {
   expectTypeOf(unknownError).toEqualTypeOf<AmountError & { code: 'invalid_amount' }>();
+}
+
+// refundDelta's unknown status has its own code and class (webhooks/errors.ts).
+if (isFiantoError(unknownError, 'unknown_refund_status')) {
+  expectTypeOf(unknownError).toEqualTypeOf<RefundStatusError>();
+  expectTypeOf(unknownError.refundStatus).toEqualTypeOf<string>();
 }
 
 // A UsdcError is an AmountError, so one `instanceof AmountError` catches both helpers' refusals.

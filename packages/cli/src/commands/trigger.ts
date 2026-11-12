@@ -85,7 +85,7 @@ export async function trigger(
     // fetch turns any redirect response into an opaque one (status 0) instead of following it,
     // which `!response.ok` below already treats as a failure.
     const response = await deps.fetch(options.forwardTo, { method: 'POST', headers, body, redirect: 'manual' });
-    deps.output.out(`→ ${response.status} ${type} (local ${options.method === 'card' ? 'card ' : ''}sample)`);
+    deps.output.out(`→ ${response.status} ${type} (local ${isCardSample(event) ? 'card ' : ''}sample)`);
     if (!response.ok) {
       throw new Error(`${options.forwardTo} answered ${response.status} to the local sample.`);
     }
@@ -99,4 +99,16 @@ export async function trigger(
   }
 
   throw new UsageError(`Only test.event can be sent by fianto. Pass --forward-to <url> to send a local ${type} sample.`);
+}
+
+/**
+ * Whether the built sample is the card form, read from the event itself (not the flag), so a
+ * default card sample (`payment.disputed`) says so too: the payment's, or a subscription's,
+ * `method`, or a session's USD `currency`.
+ */
+function isCardSample(event: { data: unknown }): boolean {
+  const data = event.data as { object?: unknown; currency?: unknown; method?: unknown; payment?: { method?: unknown } } | null;
+  // An unpaid card-only session has an all-null payment; its USD currency is what says card.
+  if (data?.object === 'checkout_session' && data.currency === 'USD') return true;
+  return data?.method === 'card' || data?.payment?.method === 'card';
 }
