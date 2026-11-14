@@ -743,8 +743,8 @@ try {
 
 - **When a card can be offered.** The amount is whole cents, from $0.50 to $999,999.99 (fianto's
   own card limit), and the merchant's Stripe connection is active with card payments on. A
-  subscription session also needs card subscriptions, which are switched on separately; until
-  they are, a subscription is paid in crypto.
+  subscription session also needs card subscriptions, which the merchant switches on in the
+  dashboard separately from card payments; until they do, a subscription is paid in crypto.
 - **Otherwise,** `['card']` throws at create: `isFiantoError(err, 'payment_method_unavailable')`,
   with `err.method === 'card'`. A refused create makes nothing (no order, no session), so retry
   the same `order_id` with `['crypto']`, as the snippet does. `['crypto', 'card']` (or no
@@ -899,8 +899,9 @@ outside the dispute process while the dispute is open"
 
 ### Card subscriptions
 
-Card subscriptions are switched on separately from card payments. Until the merchant can offer
-them, every subscription is crypto. A card subscription sends the same `subscription.*` events.
+The merchant switches card subscriptions on in the dashboard, separately from card payments, by
+accepting their terms. Until they do, every subscription is crypto. A card subscription sends the
+same `subscription.*` events.
 Its `method` is `'card'`, `currency` `"USD"`, fees `"0"`, `plan_id` null, `customer.wallet` null,
 and `card` is the saved card (`{ brand, last4 }`, either half nullable). Its charge's
 `payment.signature` is null. A failed charge's `failure.reason` can also be `CARD_DECLINED`,
@@ -966,6 +967,11 @@ disputed (see [Card payments](#card-payments)).
   that network. The client catches this before any request when the key has a known prefix and
   the network or base URL is fianto's; you see it from the API otherwise (for example through a
   proxy or a custom `baseUrl`).
+- **`403` / `code: 'merchant_not_approved'`, `409` / `code: 'checkout_wallet_required'`** — the
+  devnet sandbox, with the test key of a merchant still onboarding. Until an admin approves the
+  merchant, only some routes answer that key (the others answer `merchant_not_approved`), and a
+  checkout session needs a test wallet set in the devnet dashboard first
+  (`checkout_wallet_required`). Mainnet never answers either.
 - **Webhook signature verification fails intermittently or always** — almost always a re-encoded
   body: a body parser (`express.json()`, a proxy that decompresses/re-serialises, a framework
   that string-decodes non-UTF-8 bytes) ran before your handler and handed you bytes that differ
