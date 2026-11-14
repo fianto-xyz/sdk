@@ -1,7 +1,7 @@
 // The READMEs are part of the SDK's interface: the snippets are type-checked by
 // scripts/check-readme-snippets.mjs, and this file pins what they must say (and never say) about
 // events, errors and card payments, so they cannot drift from the code.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WEBHOOK_EVENT_TYPES } from './webhooks/events.js';
@@ -190,7 +190,9 @@ describe('@fianto/sdk README', () => {
   });
 });
 
-describe('the changeset', () => {
+// The card-payments changeset is consumed by `changeset version` (the release PR deletes it): these checks guard the
+// pending changeset only, so they run while it exists.
+describe.skipIf(!existsSync(join(ROOT, '.changeset/card-payments.md')))('the changeset', () => {
   const changeset = () => read('.changeset/card-payments.md');
 
   it('bumps @fianto/sdk minor (the fixed group bumps every package with it)', () => {
