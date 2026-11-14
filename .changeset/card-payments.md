@@ -26,4 +26,5 @@ Runtime changes:
 
 - On a retry of an order with an open session, the checkout handler now compares `payment_methods`: a switch to or from `['card']` answers `409 order_session_mismatch` with `fields: ['payment_methods']`, and a card-only retry of a card-only session reissues its link (on the `price_id` path too, where its `USD` currency used to be compared strictly with the price's `USDC`).
 - The webhook handler now routes the 7 new event types to their callbacks; they still reach `onEvent` as before.
+- The errors `new Fianto()` throws for a key on the other network now say how to fix it: the network a key works on, the other key's prefix, and `network` (or `FIANTO_NETWORK`) or `baseUrl` (or `FIANTO_BASE_URL`) to change. Their opening words are unchanged.
 - `sampleEvent` results gain the new fields (`gateway`/`method`, `refund_status`/`refunded_amount`, `list_amount`/`discount_amount`/`discount`, and the subscription `gateway`/`method`/`card`): a test that compares a whole sample with a hand-written object must add them.

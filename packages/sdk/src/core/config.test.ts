@@ -219,14 +219,14 @@ describe('network', () => {
     it("refuses a live key with network: 'devnet'", () => {
       expect(() => resolveConfig({ ...live, network: 'devnet' })).toThrow(FiantoError);
       expect(() => resolveConfig({ ...live, network: 'devnet' })).toThrow(
-        'appSecret is a live key (fian_sk_live_) but network is "devnet". Use a test key, or change network.',
+        'appSecret is a live key (fian_sk_live_) but network is "devnet". A live key works only on mainnet: use a test key (fian_sk_test_), or set network (or FIANTO_NETWORK) to "mainnet".',
       );
     });
 
     it("refuses a test key with network: 'mainnet'", () => {
       expect(() => resolveConfig({ ...test, network: 'mainnet' })).toThrow(FiantoError);
       expect(() => resolveConfig({ ...test, network: 'mainnet' })).toThrow(
-        'appSecret is a test key (fian_sk_test_) but network is "mainnet". Use a live key, or change network.',
+        'appSecret is a test key (fian_sk_test_) but network is "mainnet". A test key works only on devnet: use a live key (fian_sk_live_), or set network (or FIANTO_NETWORK) to "devnet".',
       );
     });
 

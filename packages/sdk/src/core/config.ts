@@ -108,17 +108,22 @@ function keyNetwork(appSecret: string): Network | undefined {
   return undefined;
 }
 
-/** PLACEHOLDER wording (owner rule): every new key/network message, for owner approval. */
+/** The messages for a key used on the other network (the API would answer 401 api_key_wrong_network). */
 const KEY_NETWORK_COPY = {
   keyMismatch: (key: Network, network: Network): string => {
     const [kind, other] = key === 'mainnet' ? ['live', 'test'] : ['test', 'live'];
-    return `appSecret is a ${kind} key (${KEY_PREFIXES[key]}) but network is "${network}". Use a ${other} key, or change network.`;
+    const otherNetwork: Network = key === 'mainnet' ? 'devnet' : 'mainnet';
+    return (
+      `appSecret is a ${kind} key (${KEY_PREFIXES[key]}) but network is "${network}". A ${kind} key works only on ${key}: ` +
+      `use a ${other} key (${KEY_PREFIXES[otherNetwork]}), or set network (or FIANTO_NETWORK) to "${key}".`
+    );
   },
   keyOnOtherHost: (key: Network, baseUrl: string): string => {
     const [kind, other, host] = key === 'mainnet' ? ['live', 'test', 'devnet'] : ['test', 'live', 'mainnet'];
+    const otherNetwork: Network = key === 'mainnet' ? 'devnet' : 'mainnet';
     return (
       `appSecret is a ${kind} key (${KEY_PREFIXES[key]}), for ${key}, but the base URL is ${baseUrl}, the ${host} API. ` +
-      `Remove FIANTO_BASE_URL / baseUrl, or use a ${other} key.`
+      `Remove baseUrl (or FIANTO_BASE_URL) to use the ${key} API, or use a ${other} key (${KEY_PREFIXES[otherNetwork]}).`
     );
   },
 } as const;
@@ -159,7 +164,7 @@ export function resolveConfig(options: ClientOptions): ResolvedConfig {
     if (baseUrl === other) {
       throw new FiantoError(
         `network is "${network}" but the base URL is ${baseUrl}, the ${network === 'devnet' ? 'mainnet' : 'devnet'} API. ` +
-          `Remove FIANTO_BASE_URL / baseUrl, or change network.`,
+          `Remove baseUrl (or FIANTO_BASE_URL) to use the ${network} API, or change network.`,
       );
     }
   }
