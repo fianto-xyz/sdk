@@ -38,6 +38,8 @@ export class RefundStatusError extends FiantoError {
   override name = 'RefundStatusError';
   readonly code = 'unknown_refund_status';
   constructor(readonly refundStatus: string) {
-    super(`Unknown payment.refunded refund status ${JSON.stringify(refundStatus)}: upgrade @fianto/sdk to a version that knows it.`);
+    super(
+      `payment.refunded refund status ${JSON.stringify(refundStatus)} is unknown to this version of @fianto/sdk, so the refund was not counted: upgrade @fianto/sdk, then replay the event.`,
+    );
   }
 }
